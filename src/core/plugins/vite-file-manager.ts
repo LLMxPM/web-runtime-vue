@@ -1,55 +1,34 @@
+/**
+ * 文件功能：提供 Runtime 独立开发模式下的文件管理中间件，复用统一路径校验与文件访问能力。
+ */
+
 import type { Plugin, ViteDevServer } from 'vite'
-import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync, mkdirSync, existsSync, rmSync } from 'fs'
-import { join, relative, extname } from 'path'
 import { parse as parseMultipart } from 'parse-multipart-data'
 
+import {
+  type AllowedDirRule,
+  FileAccessError,
+  createFileAccessController,
+} from './file-access'
+
 interface FileManagerOptions {
-  // 允许操作的目录配置
-  allowedDirs: {
-    path: string
-    read: boolean
-    write: boolean
-    delete: boolean
-    upload: boolean
-  }[]
+  allowedDirs: AllowedDirRule[]
 }
 
 /**
- * Vite 文件管理插件
- * 提供开发环境下的文件读写 API
+ * Vite 文件管理插件。
+ * 仅供 Runtime 独立开发模式下的浏览器端编辑功能使用。
+ * @param options 目录白名单配置
+ * @returns Vite 插件对象
  */
 export default function viteFileManager(options?: Partial<FileManagerOptions>): Plugin {
   const defaultOptions: FileManagerOptions = {
     allowedDirs: [
-      {
-        path: 'public/config',
-        read: true,
-        write: true,
-        delete: false,
-        upload: false
-      },
-      {
-        path: 'public/img',
-        read: true,
-        write: true,
-        delete: true,
-        upload: true
-      },
-      {
-        path: 'src/views',
-        read: true,
-        write: true,
-        delete: true,
-        upload: true
-      },
-      {
-        path: 'src/components/layout/pagecontainer',
-        read: true,
-        write: false,
-        delete: false,
-        upload: false
-      }
-    ]
+      { path: 'public/config', read: true, write: true, delete: false, upload: false },
+      { path: 'public/img', read: true, write: true, delete: true, upload: true },
+      { path: 'src/views', read: true, write: true, delete: true, upload: true },
+      { path: 'src/components/layout/pagecontainer', read: true, write: false, delete: false, upload: false },
+    ],
   }
 
   const config = { ...defaultOptions, ...options }
@@ -57,7 +36,7 @@ export default function viteFileManager(options?: Partial<FileManagerOptions>): 
 
   return {
     name: 'vite-file-manager',
-    apply: 'serve', // 仅在开发环境启用
+    apply: 'serve',
 
     configResolved(resolvedConfig) {
       rootDir = resolvedConfig.root
@@ -66,13 +45,10 @@ export default function viteFileManager(options?: Partial<FileManagerOptions>): 
     configureServer(server: ViteDevServer) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || ''
-
-        // API 路由前缀
         if (!url.startsWith('/__file-manager')) {
           return next()
         }
 
-        // 设置 CORS 头
         res.setHeader('Access-Control-Allow-Origin', '*')
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -83,310 +59,149 @@ export default function viteFileManager(options?: Partial<FileManagerOptions>): 
           return
         }
 
+        const access = createFileAccessController(rootDir, config.allowedDirs)
         try {
-          // 路由处理
           if (url.startsWith('/__file-manager/list')) {
-            await handleList(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/read')) {
-            await handleRead(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/write')) {
-            await handleWrite(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/delete')) {
-            await handleDelete(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/upload')) {
-            await handleUpload(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/mkdir')) {
-            await handleMkdir(req, res, rootDir, config)
-          } else if (url.startsWith('/__file-manager/rmdir')) {
-            await handleRmdir(req, res, rootDir, config)
-          } else {
-            res.statusCode = 404
-            res.end(JSON.stringify({ error: 'API endpoint not found' }))
+            const dirPath = getUrlParam(req.url || '', req.headers.host || 'localhost', 'path')
+            sendJson(res, { files: access.listDirectory(dirPath) })
+            return
           }
-        } catch (error: any) {
-          console.error('File manager error:', error)
-          res.statusCode = 500
-          res.end(JSON.stringify({ error: error.message }))
+
+          if (url.startsWith('/__file-manager/read')) {
+            const filePath = getUrlParam(req.url || '', req.headers.host || 'localhost', 'path')
+            sendJson(res, { content: access.readTextFile(filePath), path: filePath })
+            return
+          }
+
+          if (url.startsWith('/__file-manager/write')) {
+            const payload = await readJsonBody(req)
+            const result = access.writeTextFile(payload.path, payload.content)
+            sendJson(res, { success: true, path: result.path })
+            return
+          }
+
+          if (url.startsWith('/__file-manager/delete')) {
+            const payload = await readJsonBody(req)
+            const result = access.deleteFile(payload.path)
+            sendJson(res, { success: true, path: result.path })
+            return
+          }
+
+          if (url.startsWith('/__file-manager/upload')) {
+            const payload = await readMultipartBody(req)
+            const result = access.writeBinaryFile(payload.path, payload.file, true)
+            sendJson(res, { success: true, path: result.path })
+            return
+          }
+
+          if (url.startsWith('/__file-manager/mkdir')) {
+            const payload = await readJsonBody(req)
+            const result = access.makeDirectory(payload.path)
+            sendJson(res, { success: true, path: result.path })
+            return
+          }
+
+          if (url.startsWith('/__file-manager/rmdir')) {
+            const payload = await readJsonBody(req)
+            const result = access.removeDirectory(payload.path, payload.recursive ?? true)
+            sendJson(res, { success: true, path: result.path })
+            return
+          }
+
+          sendJson(res, { error: 'API endpoint not found' }, 404)
+        } catch (error) {
+          handleError(res, error)
         }
       })
-    }
+    },
   }
 }
 
-// 验证路径是否在允许的目录中
-function validatePath(filePath: string, rootDir: string, config: FileManagerOptions, operation: 'read' | 'write' | 'delete' | 'upload'): string | null {
-  const normalizedPath = filePath.replace(/\\/g, '/')
-  
-  for (const dir of config.allowedDirs) {
-    const allowedPath = dir.path.replace(/\\/g, '/')
-    if (normalizedPath.startsWith(allowedPath) && dir[operation]) {
-      return join(rootDir, filePath)
-    }
-  }
-  
-  return null
+/**
+ * 从 URL 查询参数中提取指定字段。
+ * @param rawUrl 原始 URL
+ * @param host 请求主机名
+ * @param key 参数名
+ * @returns 参数值
+ */
+function getUrlParam(rawUrl: string, host: string, key: string): string {
+  const url = new URL(rawUrl, `http://${host}`)
+  return url.searchParams.get(key) || ''
 }
 
-// 列出目录文件
-async function handleList(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  const url = new URL(req.url!, `http://${req.headers.host}`)
-  const dirPath = url.searchParams.get('path') || ''
-  
-  const fullPath = validatePath(dirPath, rootDir, config, 'read')
-  if (!fullPath) {
-    res.statusCode = 403
-    res.end(JSON.stringify({ error: 'Access denied' }))
-    return
-  }
-
-  if (!existsSync(fullPath)) {
-    res.statusCode = 404
-    res.end(JSON.stringify({ error: 'Directory not found' }))
-    return
-  }
-
-  const files = readdirSync(fullPath).map(name => {
-    const filePath = join(fullPath, name)
-    const stats = statSync(filePath)
-    return {
-      name,
-      path: relative(rootDir, filePath).replace(/\\/g, '/'),
-      isDirectory: stats.isDirectory(),
-      size: stats.size,
-      modified: stats.mtime.toISOString()
-    }
-  })
-
-  res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ files }))
-}
-
-// 读取文件
-async function handleRead(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  const url = new URL(req.url!, `http://${req.headers.host}`)
-  const filePath = url.searchParams.get('path') || ''
-  
-  const fullPath = validatePath(filePath, rootDir, config, 'read')
-  if (!fullPath) {
-    res.statusCode = 403
-    res.end(JSON.stringify({ error: 'Access denied' }))
-    return
-  }
-
-  if (!existsSync(fullPath)) {
-    res.statusCode = 404
-    res.end(JSON.stringify({ error: 'File not found' }))
-    return
-  }
-
-  const content = readFileSync(fullPath, 'utf-8')
-  res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ content, path: filePath }))
-}
-
-// 写入文件
-async function handleWrite(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  let body = ''
-  req.on('data', (chunk: Buffer) => {
-    body += chunk.toString()
-  })
-
-  req.on('end', () => {
-    try {
-      const { path: filePath, content } = JSON.parse(body)
-      
-      const fullPath = validatePath(filePath, rootDir, config, 'write')
-      if (!fullPath) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: 'Access denied' }))
-        return
-      }
-
-      // 确保目录存在
-      const dir = join(fullPath, '..')
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-
-      writeFileSync(fullPath, content, 'utf-8')
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ success: true, path: filePath }))
-    } catch (error: any) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: error.message }))
-    }
-  })
-}
-
-// 删除文件
-async function handleDelete(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  let body = ''
-  req.on('data', (chunk: Buffer) => {
-    body += chunk.toString()
-  })
-
-  req.on('end', () => {
-    try {
-      const { path: filePath } = JSON.parse(body)
-      
-      const fullPath = validatePath(filePath, rootDir, config, 'delete')
-      if (!fullPath) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: 'Access denied' }))
-        return
-      }
-
-      if (!existsSync(fullPath)) {
-        res.statusCode = 404
-        res.end(JSON.stringify({ error: 'File not found' }))
-        return
-      }
-
-      unlinkSync(fullPath)
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ success: true, path: filePath }))
-    } catch (error: any) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: error.message }))
-    }
-  })
-}
-
-// 上传文件
-async function handleUpload(req: any, res: any, rootDir: string, config: FileManagerOptions) {
+/**
+ * 读取 JSON 请求体。
+ * @param req Node 请求对象
+ * @returns 解析后的对象
+ */
+async function readJsonBody(req: any): Promise<any> {
   const chunks: Buffer[] = []
-  
-  req.on('data', (chunk: Buffer) => {
-    chunks.push(chunk)
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    req.on('end', () => resolvePromise())
+    req.on('error', (error: Error) => rejectPromise(error))
   })
 
-  req.on('end', () => {
-    try {
-      const buffer = Buffer.concat(chunks)
-      const contentType = req.headers['content-type'] || ''
-      const boundary = contentType.split('boundary=')[1]
-      
-      if (!boundary) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: 'Invalid multipart request' }))
-        return
-      }
+  const rawBody = Buffer.concat(chunks).toString('utf-8')
+  return rawBody ? JSON.parse(rawBody) : {}
+}
 
-      const parts = parseMultipart(buffer, boundary)
-      
-      if (!parts || parts.length === 0) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: 'No file uploaded' }))
-        return
-      }
+/**
+ * 读取 multipart 上传请求。
+ * @param req Node 请求对象
+ * @returns 上传文件与目标路径
+ */
+async function readMultipartBody(req: any): Promise<{ path: string; file: Buffer }> {
+  const chunks: Buffer[] = []
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    req.on('end', () => resolvePromise())
+    req.on('error', (error: Error) => rejectPromise(error))
+  })
 
-      const filePart = parts.find(p => p.name === 'file')
-      const pathPart = parts.find(p => p.name === 'path')
-      
-      if (!filePart || !pathPart) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: 'Missing file or path' }))
-        return
-      }
-
-      const targetPath = pathPart.data.toString('utf-8')
-      const fullPath = validatePath(targetPath, rootDir, config, 'upload')
-      
-      if (!fullPath) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: 'Access denied' }))
-        return
-      }
-
-      // 确保目录存在
-      const dir = join(fullPath, '..')
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-
-      writeFileSync(fullPath, filePart.data)
-      res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ success: true, path: targetPath }))
-  } catch (error: any) {
-    res.statusCode = 400
-    res.end(JSON.stringify({ error: error.message }))
+  const buffer = Buffer.concat(chunks)
+  const contentType = String(req.headers['content-type'] || '')
+  const boundary = contentType.split('boundary=')[1]
+  if (!boundary) {
+    throw new FileAccessError(400, 'MULTIPART_INVALID', '缺少 multipart boundary。')
   }
-  })
+
+  const parts = parseMultipart(buffer, boundary)
+  const filePart = parts.find((part) => part.name === 'file')
+  const pathPart = parts.find((part) => part.name === 'path')
+  if (!filePart || !pathPart) {
+    throw new FileAccessError(400, 'MULTIPART_INVALID', '上传请求缺少 file 或 path 字段。')
+  }
+
+  return {
+    path: pathPart.data.toString('utf-8'),
+    file: Buffer.from(filePart.data),
+  }
 }
 
 /**
- * 创建目录（递归）
- * @param req HTTP 请求
- * @param res HTTP 响应
- * @param rootDir 项目根目录
- * @param config 允许目录配置
+ * 输出统一 JSON 响应。
+ * @param res Node 响应对象
+ * @param payload 响应体
+ * @param statusCode 状态码
  */
-async function handleMkdir(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  let body = ''
-  req.on('data', (chunk: Buffer) => {
-    body += chunk.toString()
-  })
-
-  req.on('end', () => {
-    try {
-      const { path: dirPath } = JSON.parse(body)
-      const fullPath = validatePath(dirPath, rootDir, config, 'write')
-      if (!fullPath) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: 'Access denied' }))
-        return
-      }
-      if (!existsSync(fullPath)) {
-        mkdirSync(fullPath, { recursive: true })
-      }
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ success: true, path: dirPath }))
-    } catch (error: any) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: error.message }))
-    }
-  })
+function sendJson(res: any, payload: unknown, statusCode: number = 200): void {
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(payload))
 }
 
 /**
- * 删除目录（默认递归，受限于 allowedDirs.delete）
- * @param req HTTP 请求
- * @param res HTTP 响应
- * @param rootDir 项目根目录
- * @param config 允许目录配置
+ * 将内部异常映射为标准 JSON 错误响应。
+ * @param res Node 响应对象
+ * @param error 异常对象
  */
-async function handleRmdir(req: any, res: any, rootDir: string, config: FileManagerOptions) {
-  let body = ''
-  req.on('data', (chunk: Buffer) => {
-    body += chunk.toString()
-  })
+function handleError(res: any, error: unknown): void {
+  if (error instanceof FileAccessError) {
+    sendJson(res, { error: error.message, code: error.code }, error.statusCode)
+    return
+  }
 
-  req.on('end', () => {
-    try {
-      const { path: dirPath, recursive = true } = JSON.parse(body)
-      const fullPath = validatePath(dirPath, rootDir, config, 'delete')
-      if (!fullPath) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: 'Access denied' }))
-        return
-      }
-      if (!existsSync(fullPath)) {
-        res.statusCode = 404
-        res.end(JSON.stringify({ error: 'Directory not found' }))
-        return
-      }
-      const stats = statSync(fullPath)
-      if (!stats.isDirectory()) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: 'Target is not a directory' }))
-        return
-      }
-      rmSync(fullPath, { recursive: !!recursive, force: true })
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ success: true, path: dirPath }))
-    } catch (error: any) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: error.message }))
-    }
-  })
+  const message = error instanceof Error ? error.message : '未知文件服务异常。'
+  sendJson(res, { error: message, code: 'FILE_MANAGER_ERROR' }, 500)
 }
