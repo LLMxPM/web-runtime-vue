@@ -2,8 +2,8 @@ themes:
   dark:
     name: 深邃背景
     description: 黑底白字，专业风格
-    logo: /img/logo/ppt-e-white.png
-    invertLogo: /img/logo/ppt-e.png
+    logo: img/logo/ppt-e-white.png
+    invertLogo: img/logo/ppt-e.png
     palette:
       text:
         primary: "#F4F4F4"
@@ -34,8 +34,8 @@ themes:
   lightblue:
     name: 白底蓝色
     description: 白底蓝色主题，简约经典
-    logo: /img/logo/ppt-e.png
-    invertLogo: /img/logo/ppt-e-white.png
+    logo: img/logo/ppt-e.png
+    invertLogo: img/logo/ppt-e-white.png
     palette:
       text:
         primary: "#0D286A"

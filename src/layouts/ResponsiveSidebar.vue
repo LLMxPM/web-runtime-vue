@@ -162,19 +162,6 @@
         </div>
       </nav>
 
-      <div class="mt-auto border-t border-gray-200" v-if="isDev">
-        <button
-          class="flex items-center w-full py-3 px-4 m-0 bg-transparent border-none text-gray-500 no-underline rounded-xl transition-all duration-200 cursor-pointer font-medium hover:bg-gray-100 hover:text-gray-700"
-          :class="isCollapsed ? 'justify-center p-3' : ''" @mouseenter="handleSettingsHover"
-          @mouseleave="handleSettingsLeave" :title="isCollapsed ? '' : '配置工具'">
-          <div class="flex items-center justify-center flex-shrink-0" :class="isCollapsed ? 'mr-0' : 'mr-3'">
-            <Settings class="flex-shrink-0 transition-all duration-200" :size="20" />
-          </div>
-          <span v-if="!isCollapsed" class="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
-            配置工具
-          </span>
-        </button>
-      </div>
     </aside>
 
     <Teleport to="body">
@@ -209,28 +196,18 @@
       </div>
     </Teleport>
 
-    <SettingsMenu v-if="isDev" :visible="settingsMenuVisible" :position="settingsMenuPosition"
-      @keep-visible="keepSettingsMenu" @hide="hideSettingsMenu" @app-settings="handleAppSettings"
-      @route-settings="handleRouteSettings" @theme-settings="handleThemeSettings" @icon-settings="handleIconSettings"
-      @asset-settings="handleAssetSettings" />
-
-    <!-- 主题配置面板改为由父布局渲染，此处不再引入模态框 -->
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronLeft, ChevronDown, Settings } from 'lucide-vue-next'
+import { ChevronLeft, ChevronDown } from 'lucide-vue-next'
 import type { MenuItem } from '@/core/types/menu'
 import { isRouteActive, hasActiveChild } from '@/core/utils/route-generator'
 
 import Icon from '@/components/layout/contentcommon/Icon.vue'
 import ViewPreview from '@/components/editor/ViewPreview.vue'
-
-const isDev = import.meta.env.DEV
-const SettingsMenu = isDev ? defineAsyncComponent(() => import('@/layouts/SettingsMenu.vue')) : null as any
-// 主题配置面板由父布局统一渲染
 
 /**
  * 组件属性定义
@@ -265,16 +242,6 @@ const isPreviewMode = computed(() => {
  */
 const emit = defineEmits<{
   (e: 'collapseChange', collapsed: boolean): void
-  // 打开应用设置面板事件，由父布局接管渲染
-  (e: 'openAppSettings'): void
-  // 打开路由设置面板事件，由父布局接管渲染
-  (e: 'openRouteSettings'): void
-  // 打开主题设置面板事件，由父布局接管渲染
-  (e: 'openThemeSettings'): void
-  // 打开图标设置面板事件，由父布局接管渲染
-  (e: 'openIconSettings'): void
-  // 打开资源管理模态框事件，由父布局接管渲染
-  (e: 'openResourceManager'): void
 }>()
 
 /**
@@ -294,15 +261,6 @@ const previewTooltipVisible = ref(false)
 const previewTooltipItem = ref<MenuItem | null>(null)
 const previewTooltipPosition = ref({ top: 0, left: 0 })
 const previewTooltipTimer = ref<number | null>(null)
-
-// 设置菜单相关状态
-const settingsMenuVisible = ref(false)
-const settingsMenuPosition = ref({ top: 0, left: 0 })
-const settingsMenuTimer = ref<number | null>(null)
-
-
-// 主题设置面板改为父布局控制
-
 /**
  * 当前路由和路由器
  */
@@ -576,122 +534,6 @@ watch(
   }
 )
 
-
-
-/**
- * 处理设置按钮悬停
- */
-const handleSettingsHover = (event: MouseEvent): void => {
-  if (settingsMenuTimer.value) {
-    clearTimeout(settingsMenuTimer.value)
-    settingsMenuTimer.value = null
-  }
-
-  const target = event.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-
-  // 计算菜单位置
-  const menuLeft = rect.right + 12
-  const menuTop = rect.top
-
-  // 检查是否超出视窗
-  const menuWidth = 200
-  const menuHeight = 150 // 预估菜单高度
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-
-  let finalLeft = menuLeft
-  if (menuLeft + menuWidth > viewportWidth) {
-    finalLeft = rect.left - menuWidth - 12
-  }
-
-  // 检查是否超出视窗下边界
-  let finalTop = menuTop
-  if (menuTop + menuHeight > viewportHeight) {
-    finalTop = viewportHeight - menuHeight - 125
-  }
-
-  settingsMenuPosition.value = {
-    top: Math.max(20, finalTop),
-    left: Math.max(12, finalLeft)
-  }
-
-  settingsMenuVisible.value = true
-}
-
-/**
- * 处理设置按钮离开
- */
-const handleSettingsLeave = (): void => {
-  settingsMenuTimer.value = window.setTimeout(() => {
-    settingsMenuVisible.value = false
-  }, 100)
-}
-
-/**
- * 保持设置菜单显示
- */
-const keepSettingsMenu = (): void => {
-  if (settingsMenuTimer.value) {
-    clearTimeout(settingsMenuTimer.value)
-    settingsMenuTimer.value = null
-  }
-}
-
-/**
- * 隐藏设置菜单
- */
-const hideSettingsMenu = (): void => {
-  settingsMenuTimer.value = window.setTimeout(() => {
-    settingsMenuVisible.value = false
-  }, 100)
-}
-
-/**
- * 处理应用设置
- */
-const handleAppSettings = (): void => {
-  emit('openAppSettings')
-}
-
-/**
- * 处理路由设置：发出打开事件，由父布局决定何时何地渲染
- */
-const handleRouteSettings = (): void => {
-  emit('openRouteSettings')
-}
-
-// 路由设置的渲染和关闭逻辑已迁移到父布局（ResponsiveLayout）
-
-/**
- * 处理主题设置
- */
-const handleThemeSettings = (): void => {
-  emit('openThemeSettings')
-}
-
-/**
- * 处理图标设置：发出打开事件，由父布局决定渲染
- */
-const handleIconSettings = (): void => {
-  emit('openIconSettings')
-}
-
-/** 处理资源管理：发出打开事件，由父布局决定渲染 */
-const handleAssetSettings = (): void => {
-  emit('openResourceManager')
-}
-
-/**
- * 关闭主题设置
- */
-// 主题设置面板关闭逻辑迁移至父布局
-
-/**
- * 处理主题更新
- */
-// 主题更新回调由父布局处理
-
 /**
  * 组件挂载
  */
@@ -709,9 +551,6 @@ onUnmounted(() => {
   }
   if (simpleTooltipTimer.value) {
     clearTimeout(simpleTooltipTimer.value)
-  }
-  if (settingsMenuTimer.value) {
-    clearTimeout(settingsMenuTimer.value)
   }
   if (previewTooltipTimer.value) {
     clearTimeout(previewTooltipTimer.value)

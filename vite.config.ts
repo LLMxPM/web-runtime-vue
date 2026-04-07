@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
-import { readFileSync } from 'fs'
-import { parse } from 'yaml'
 import { loadEnv } from 'vite'
 import runtimeInternalFileService from './src/core/plugins/runtime-internal-file-service'
+import runtimePreviewGateway from './src/core/plugins/runtime-preview-gateway'
 import viteFileManager from './src/core/plugins/vite-file-manager'
 
 const allowedDirs = [
@@ -15,22 +14,6 @@ const allowedDirs = [
   { path: 'public/fonts', read: true, write: true, delete: true, upload: true },
   { path: 'src/styles', read: true, write: true, delete: false, upload: false }
 ]
-
-/**
- * 从app.config.yaml读取baseUrl配置
- * @returns baseUrl配置值，默认为'/'
- */
-function getBaseUrlFromConfig(): string {
-  try {
-    const configPath = resolve(__dirname, 'public/config/app.config.yaml')
-    const configContent = readFileSync(configPath, 'utf-8')
-    const config = parse(configContent)
-    return config?.app?.baseUrl || '/'
-  } catch (error) {
-    console.warn('Failed to read baseUrl from app.config.yaml, using default "/":', error)
-    return '/'
-  }
-}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -43,6 +26,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       vue(),
+      runtimePreviewGateway({
+        sharedSecret: env.RUNTIME_SHARED_SECRET,
+      }),
       runtimeInternalFileService({
         allowedDirs,
         sharedSecret: env.RUNTIME_SHARED_SECRET,
@@ -79,6 +65,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    base: getBaseUrlFromConfig()
+    base: './'
   }
 })

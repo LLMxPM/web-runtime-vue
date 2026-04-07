@@ -3,11 +3,8 @@
   说明：用于将插槽内容按照设计尺寸（默认1920x1080）在不同屏幕与布局条件下进行等比缩放，适配本项目的PPT式页面布局。
 -->
 <template>
-  <div
-    class="fixed-ratio-container"
-    :class="{ 'fixed-ratio-container--fullscreen': isFullscreen }"
-    :style="containerStyle"
-  >
+  <div class="fixed-ratio-container" :class="{ 'fixed-ratio-container--fullscreen': isFullscreen }"
+    :style="containerStyle">
     <slot />
   </div>
 </template>
@@ -68,7 +65,7 @@ const containerStyle = computed(() => {
   transform-origin: center center;
 }
 
-.fixed-ratio-container > * {
+.fixed-ratio-container>* {
   width: 100%;
   height: 100%;
   overflow: auto;
@@ -76,7 +73,7 @@ const containerStyle = computed(() => {
 
 @media (max-width: 768px) {
   .fixed-ratio-container {
-    padding: 1rem;
+    padding: 0;
   }
 }
 </style>

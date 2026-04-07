@@ -1,25 +1,46 @@
 /**
- * 路径处理相关工具函数
+ * 文件用途：统一处理运行时配置地址、资源路径和站内导航路径。
  */
 
+export type ConfigFileName = 'app' | 'routes' | 'themes' | 'icons'
+
 /**
- * 获取应用基础路径
- * @returns 基础路径
+ * 判断是否为远程绝对地址。
+ * @param value 待判断的路径
+ * @returns 是否为 http/https 地址
  */
-export function getBasePath(): string {
-  return import.meta.env.BASE_URL || '/'
+export function isRemoteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
 }
 
 /**
- * 构建配置文件URL
- * @param configPath 配置文件相对路径
- * @returns 完整的配置文件URL
+ * 规范化相对资源路径。
+ * @param value 原始路径
+ * @returns 以 ./ 开头的相对路径
  */
-export function buildConfigUrl(configPath: string): string {
-  const basePath = getBasePath()
-  const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
-  const cleanConfigPath = configPath.startsWith('/') ? configPath : `/${configPath}`
-  return `${cleanBasePath}${cleanConfigPath}`
+function normalizeRelativePath(value: string): string {
+  const normalized = value.trim().replace(/\\/g, '/').replace(/^\.?\/*/, '')
+  if (!normalized) {
+    return './'
+  }
+
+  return `./${normalized}`
+}
+
+/**
+ * 构建配置文件 URL。
+ * @param configName 配置名称
+ * @returns 配置文件的最终加载地址
+ */
+export function buildConfigUrl(configName: ConfigFileName): string {
+  const configBaseUrl = import.meta.env.VITE_CONFIG_BASE_URL?.trim()
+  const fileName = `${configName}.config.yaml`
+
+  if (configBaseUrl) {
+    return `${configBaseUrl.replace(/\/+$/, '')}/${fileName}`
+  }
+
+  return `./config/${fileName}`
 }
 
 /**
@@ -40,23 +61,16 @@ export function buildFullPath(path: string): string {
  * @returns 解析后的完整路径
  */
 export function resolveResourcePath(resourcePath: string): string {
+  if (!resourcePath) {
+    return './'
+  }
+
   // 如果是绝对HTTP路径，直接返回
-  if (resourcePath.startsWith('http')) {
+  if (isRemoteUrl(resourcePath)) {
     return resourcePath
   }
-  
-  // 获取BASE_URL
-  const basePath = getBasePath()
-  
-  // 如果是以/开头的绝对路径，需要结合BASE_URL
-  if (resourcePath.startsWith('/')) {
-    // 移除resourcePath开头的/，然后与basePath结合
-    const cleanResourcePath = resourcePath.substring(1)
-    return `${basePath}${cleanResourcePath}`.replace(/\/+/g, '/')
-  }
-  
-  // 相对路径，直接结合BASE_URL
-  return `${basePath}${resourcePath}`.replace(/\/+/g, '/')
+
+  return normalizeRelativePath(resourcePath)
 }
 
 /**

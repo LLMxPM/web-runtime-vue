@@ -102,35 +102,35 @@ lucide_icons:
   - TestTube
 static_icons:
   - name: slider
-    src: /img/icon/slider.svg
+    src: img/icon/slider.svg
   - name: c-search
-    src: /img/icon/search.svg
+    src: img/icon/search.svg
   - name: heart
-    src: /img/icon/heart.svg
+    src: img/icon/heart.svg
   - name: star
-    src: /img/icon/star.svg
+    src: img/icon/star.svg
   - name: mail
-    src: /img/icon/mail.svg
+    src: img/icon/mail.svg
   - name: 添加联系人
-    src: /img/icon/添加联系人.svg
+    src: img/icon/添加联系人.svg
   - name: 缩小
-    src: /img/icon/缩小.svg
+    src: img/icon/缩小.svg
   - name: home
-    src: /img/icon/home.svg
+    src: img/icon/home.svg
   - name: TOP榜
-    src: /img/icon/TOP榜.svg
+    src: img/icon/TOP榜.svg
   - name: 全屏
-    src: /img/icon/全屏.svg
+    src: img/icon/全屏.svg
   - name: 外汇
-    src: /img/icon/外汇.svg
+    src: img/icon/外汇.svg
   - name: 手电筒
-    src: /img/icon/手电筒.svg
+    src: img/icon/手电筒.svg
   - name: 扫描
-    src: /img/icon/扫描.svg
+    src: img/icon/扫描.svg
   - name: 路由-copy
-    src: /img/icon/路由-copy.svg
+    src: img/icon/路由-copy.svg
   - name: 刷新
-    src: /img/icon/刷新.svg
+    src: img/icon/刷新.svg
 config:
   default_size: 20
   default_stroke_width: 2

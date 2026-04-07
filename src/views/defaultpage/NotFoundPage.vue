@@ -57,12 +57,10 @@ const { themeStyles } = useTheme()
 
 /**
  * 返回首页
- * 使用绝对路径导航到应用根路径
+ * 使用路由跳转到首页
  */
 const goHome = (): void => {
-  // 使用 window.location 进行绝对路径导航
-  const baseUrl = import.meta.env.BASE_URL
-  window.location.href = baseUrl
+  router.push('/')
 }
 
 /**
@@ -73,9 +71,7 @@ const goBack = (): void => {
   if (window.history.length > 1) {
     router.go(-1)
   } else {
-    // 使用 window.location 进行绝对路径导航
-    const baseUrl = import.meta.env.BASE_URL
-    window.location.href = baseUrl
+    router.push('/')
   }
 }
 </script>
