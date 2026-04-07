@@ -66,12 +66,12 @@
             <label class="text-[14px] text-gray-600">应用标题</label>
             <input type="text"
               class="w-full px-2 py-1.5 text-[14px] border border-gray-300 rounded-md bg-white text-gray-700"
-              v-model="config.app.title" @input="markAsChanged" placeholder="例如：PPT-Engineering" />
+              v-model="config.app.title" @input="markAsChanged" placeholder="例如：web-runtime-vue" />
 
             <label class="text-[14px] text-gray-600">基础地址（baseUrl）</label>
             <input type="text"
               class="w-full px-2 py-1.5 text-[14px] border border-gray-300 rounded-md bg-white text-gray-700"
-              v-model="config.app.baseUrl" @input="markAsChanged" placeholder="例如：/ 或 /PPT-Engineering/" />
+              v-model="config.app.baseUrl" @input="markAsChanged" placeholder="例如：/ 或 /web-runtime-vue/" />
           </div>
         </div>
 

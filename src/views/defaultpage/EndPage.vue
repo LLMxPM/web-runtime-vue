@@ -26,7 +26,7 @@
           <div class="contact-info mb-16">
             <div class="contact-item mb-4">
               <Icon name="Github" class="inline-block mr-3 text-invert" :size="28" />
-              <span class="text-invert text-2xl">PPT-Engineering</span>
+              <span class="text-invert text-2xl">web-runtime-vue</span>
             </div>
           </div>
         </div>

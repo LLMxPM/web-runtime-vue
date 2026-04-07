@@ -10,7 +10,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering提供了一套完整的PPT构建与管理功能，从页面创建到主题配置，从路由管理到导出功能，全方位满足演示需求。
+            web-runtime-vue 提供了一套完整的 PPT 构建与管理功能，从页面创建到主题配置，从路由管理到导出功能，全方位满足演示需求。
           </p>
         </div>
 
@@ -164,7 +164,7 @@
               <Icon name="Github" :size="24" color="text-accent1" />
               <div class="ml-4">
                 <h3 class="font-heading text-lg font-semibold text-primary">开源生态</h3>
-                <p class="font-body text-secondary">遵循GPL-3.0-or-later许可证，支持社区贡献和扩展</p>
+                <p class="font-body text-secondary">遵循AGPL-3.0-or-later许可证，支持社区贡献和扩展</p>
               </div>
             </li>
           </ul>

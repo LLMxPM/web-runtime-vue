@@ -10,7 +10,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering提供了简单高效的页面创建流程，通过组件化容器和配置驱动的方式，快速构建专业PPT页面。
+            web-runtime-vue 提供了简单高效的页面创建流程，通过组件化容器和配置驱动的方式，快速构建专业 PPT 页面。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed">
             页面创建分为三个主要步骤：创建Vue组件、配置路由信息和使用容器组件。

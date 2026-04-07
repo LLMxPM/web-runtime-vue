@@ -143,7 +143,7 @@ const pages: Page[] = [
   {
     title: "第1页：项目概述",
     layout: [
-      "顶部标题区：项目Logo + 'PPT Engineering' 主标题",
+      "顶部标题区：项目Logo + 'web-runtime-vue' 主标题",
       "左侧内容区：项目简介和核心价值主张",
       "右侧图示区：项目架构示意图",
       "底部信息区：技术栈和版本信息"
@@ -151,7 +151,7 @@ const pages: Page[] = [
     content: [
       {
         title: "项目标题",
-        text: "PPT Engineering - AI驱动的PPT构建框架"
+        text: "web-runtime-vue - AI驱动的PPT构建框架"
       },
       {
         title: "核心价值",
@@ -174,7 +174,7 @@ const pages: Page[] = [
         title: "项目特色",
         items: [
           "作者是产品经理，代码完全依赖AI实现",
-          "开源项目，遵循GPL-3.0-or-later许可证"
+          "开源项目，遵循AGPL-3.0-or-later许可证"
         ]
       }
     ]
@@ -183,7 +183,7 @@ const pages: Page[] = [
     title: "第2页：设计理念",
     layout: [
       "顶部标题：'创新设计理念'",
-      "左侧图示：传统PPT vs PPT Engineering对比图",
+      "左侧图示：传统PPT vs web-runtime-vue 对比图",
       "右侧列表：核心设计原则",
       "底部总结：设计理念的价值"
     ],
@@ -229,7 +229,7 @@ const pages: Page[] = [
             items: ["模板限制 + 手动排版"]
           },
           {
-            title: "PPT Engineering",
+            title: "web-runtime-vue",
             items: ["代码驱动 + 动态生成 + AI友好"]
           }
         ]
@@ -382,7 +382,7 @@ const pages: Page[] = [
         code: `# app.config.yaml
 app:
   icon: "Presentation"
-  title: "PPT-Engineering"
+  title: "web-runtime-vue"
   version: "1.0.0"
   features:
     showPdfExportButton: true`
@@ -544,7 +544,7 @@ themes:
       {
         title: "部署步骤",
         code: `# 克隆项目
-git clone https://github.com/username/ppt-engineering.git
+git clone https://github.com/LLMxPM/web-runtime-vue.git
 
 # 安装依赖
 npm install
@@ -629,7 +629,7 @@ npm run preview`
     content: [
       {
         title: "项目价值",
-        text: "PPT Engineering通过配置驱动和组件化设计，为AI生成PPT提供了标准化框架，降低了AI上下文依赖，实现了完全自定义的PPT页面构建。"
+        text: "web-runtime-vue 通过配置驱动和组件化设计，为 AI 生成 PPT 提供了标准化框架，降低了 AI 上下文依赖，实现了完全自定义的 PPT 页面构建。"
       },
       {
         title: "技术亮点",
@@ -642,7 +642,7 @@ npm run preview`
       },
       {
         title: "未来展望",
-        text: "我们将继续完善项目功能，扩展应用场景，构建活跃的开源社区，让PPT Engineering成为AI时代PPT构建的标准工具。"
+        text: "我们将继续完善项目功能，扩展应用场景，构建活跃的开源社区，让 web-runtime-vue 成为 AI 时代 PPT 构建的标准工具。"
       },
       {
         title: "致谢",

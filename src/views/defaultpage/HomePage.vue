@@ -12,13 +12,13 @@
         <div class="mt-8 flex items-center justify-left">
           <div class="flex items-center">
             <img :src="logoSrc" alt="Logo" class="logo mr-4 h-16" />
-            <h1 class="main-title font-medium text-white text-5xl">| PPT-Engineering</h1>
+            <h1 class="main-title font-medium text-white text-5xl">| web-runtime-vue</h1>
           </div>
         </div>
 
         <!-- 中心标题区域 -->
         <div class="flex flex-col items-start justify-start">
-          <h2 class="center-title font-bold text-white text-9xl">PPT-Engineering</h2>
+          <h2 class="center-title font-bold text-white text-9xl">web-runtime-vue</h2>
           <h3 class="mt-4 font-semibold text-white text-5xl">AI创作PPT的基础框架</h3>
         </div>
 

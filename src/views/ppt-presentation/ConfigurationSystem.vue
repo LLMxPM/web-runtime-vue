@@ -15,7 +15,7 @@ import Icon from '@/components/layout/contentcommon/Icon.vue'
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering采用YAML配置文件驱动架构，所有核心配置都集中在public/config目录下，也可以通过统一远程配置入口在运行时加载。
+            web-runtime-vue 采用 YAML 配置文件驱动架构，所有核心配置都集中在 public/config 目录下，也可以通过统一远程配置入口在运行时加载。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed">
             配置系统包括应用配置、路由配置和主题配置三大部分，实现了高度的灵活性和可维护性。
@@ -40,7 +40,7 @@ import Icon from '@/components/layout/contentcommon/Icon.vue'
             </div>
             <div class="flex ml-4">
               <span class="text-accent2">title:</span>
-              <span class="text-secondary ml-2">"PPT-Engineering"</span>
+              <span class="text-secondary ml-2">"web-runtime-vue"</span>
             </div>
             <div class="flex ml-4">
               <span class="text-accent2">version:</span>

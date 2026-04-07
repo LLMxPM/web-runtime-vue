@@ -10,7 +10,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering内置了强大的主题系统，支持多主题切换和自定义配色方案，满足不同场景的演示需求。
+            web-runtime-vue 内置了强大的主题系统，支持多主题切换和自定义配色方案，满足不同场景的演示需求。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed">
             通过YAML配置文件定义主题，包括颜色、字体、样式等视觉元素，实现一键切换主题效果。

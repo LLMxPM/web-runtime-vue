@@ -1,6 +1,6 @@
 <!--
   文件用途说明：
-  SettingsMenu.vue 是 PPT-Engineering 项目的悬浮配置菜单。该版本使用 Tailwind CSS 完成样式，
+  SettingsMenu.vue 是 web-runtime-vue 项目的悬浮配置菜单。该版本使用 Tailwind CSS 完成样式，
   并新增“图标管理”“资源管理”两个暂不实现的入口（保持禁用并显示提示文案）。
   遵循项目规则：不使用 !important 与渐变色；保持文件内容不超过 1000 行。
 -->
