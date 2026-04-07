@@ -1,5 +1,5 @@
 <template>
-  <DefaultContentPage title="项目概述" subtitle="PPT Engineering - AI驱动的PPT构建框架">
+  <DefaultContentPage title="项目概述" subtitle="web-runtime-vue - AI驱动的PPT构建框架">
     <template #content>
       <div class="space-y-8 p-6">
         <!-- 项目标题和核心价值 -->
@@ -78,7 +78,7 @@
               <Icon name="Github" :size="24" color="text-accent4" />
               <div class="ml-4">
                 <h3 class="font-heading text-lg font-semibold text-primary">开源项目</h3>
-                <p class="font-body text-secondary">遵循GPL-3.0-or-later许可证</p>
+                <p class="font-body text-secondary">遵循AGPL-3.0-or-later许可证</p>
               </div>
             </li>
             <li class="flex items-start">

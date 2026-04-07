@@ -11,7 +11,7 @@
             <h2 class="font-heading text-4xl font-bold text-primary">架构概述</h2>
           </div>
           <p class="font-body text-xl text-secondary leading-relaxed">
-            PPT-Engineering采用分层架构设计，以配置驱动为核心理念，实现了组件化、可扩展的PPT构建框架。
+            web-runtime-vue 采用分层架构设计，以配置驱动为核心理念，实现了组件化、可扩展的 PPT 构建框架。
           </p>
         </div>
 

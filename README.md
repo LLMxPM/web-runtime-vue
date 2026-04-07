@@ -1,9 +1,9 @@
-# PPT Engineering
+# web-runtime-vue
 - 基于大模型当前通用能力强，但是没有记忆能力，长上下文昂贵且不稳定的现状，尝试构建一个框架，降低上下文依赖，为AI编写PPT构建基础；实现完全自定义的PPT页面构建而不是让AI套模板
 - 作者是个产品经理，没有实际代码经验，项目代码完全依赖于AI，因此项目结构与实现方式可能有一定局限性。欢迎反馈与建议，共同完善项目。
 
 ## 生成的 Demo 展示
-- [PPT Engineering Demo](https://llmxpm.github.io/PPT-Engineering/)
+- [web-runtime-vue 仓库](https://github.com/LLMxPM/web-runtime-vue)
 
 ### 产品截图
 ![成品概览](public/img/product/成品概览.png)
@@ -33,7 +33,7 @@
 1. 环境准备
    - Node.js ≥ 18
    - 强力推荐使用 pnpm 作为前端包管理工具
-   - clone项目：`git clone https://github.com/llmxpm/ppt-engineering.git`
+   - clone项目：`git clone https://github.com/LLMxPM/web-runtime-vue.git`
 2. 安装依赖
    - 运行：`pnpm install`
 3. 本地开发
@@ -101,4 +101,4 @@ routes:
 - [ ] 页面比例支持配置
 
 ## 许可证
-本项目遵循 GPL-3.0-or-later 许可协议（见 `LICENSE`）。
+本项目遵循 AGPL-3.0-or-later 许可协议（见 `LICENSE`）。

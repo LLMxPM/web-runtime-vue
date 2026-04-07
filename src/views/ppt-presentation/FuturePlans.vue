@@ -1,5 +1,5 @@
 <template>
-  <DefaultContentPage title="未来规划" subtitle="PPT Engineering的发展路线图">
+  <DefaultContentPage title="未来规划" subtitle="web-runtime-vue 的发展路线图">
     <template #content>
       <div class="space-y-8 p-6">
         <!-- 发展愿景 -->
@@ -10,7 +10,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering致力于成为AI时代最强大的PPT构建框架，通过持续创新和社区贡献，为用户提供更智能、更灵活的演示解决方案。
+            web-runtime-vue 致力于成为 AI 时代更强大的 PPT 构建框架，通过持续创新和社区贡献，为用户提供更智能、更灵活的演示解决方案。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed">
             我们相信，未来的PPT创建将不再依赖传统模板，而是通过AI理解和配置驱动，实现真正个性化的演示内容生成。

@@ -88,7 +88,7 @@
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <div class="font-mono text-sm text-secondary space-y-2">
             <div class="flex">
-              <span class="text-accent1">ppt-engineering/</span>
+              <span class="text-accent1">web-runtime-vue/</span>
             </div>
             <div class="flex ml-4">
               <span class="text-accent2">├── public/</span>

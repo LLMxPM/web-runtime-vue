@@ -1,5 +1,5 @@
 <template>
-  <DefaultContentPage title="总结" subtitle="PPT Engineering的核心价值与优势">
+  <DefaultContentPage title="总结" subtitle="web-runtime-vue 的核心价值与优势">
     <template #content>
       <div class="space-y-8 p-6">
         <!-- 核心价值 -->
@@ -10,7 +10,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering通过配置驱动和组件化设计，重新定义了PPT的创建方式，为开发者和内容创作者提供了更高效、更灵活的解决方案。
+            web-runtime-vue 通过配置驱动和组件化设计，重新定义了 PPT 的创建方式，为开发者和内容创作者提供了更高效、更灵活的解决方案。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed">
             我们相信，未来的演示文稿将不再依赖传统模板，而是通过智能配置和组件组合，实现真正个性化的内容表达。
@@ -180,7 +180,7 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering致力于构建开放、活跃的开发者社区，通过开源协作推动项目发展。
+            web-runtime-vue 致力于构建开放、活跃的开发者社区，通过开源协作推动项目发展。
           </p>
           <div class="grid grid-cols-2 gap-6">
             <div>
@@ -228,13 +228,13 @@
         
         <div class="bg-default border border-border-default rounded-lg p-6 shadow-theme-sm">
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            PPT Engineering不仅仅是一个工具，更是一种全新的演示文稿创建理念。我们相信，通过配置驱动和组件化设计，每个人都能轻松创建专业、美观的演示内容。
+            web-runtime-vue 不仅仅是一个工具，更是一种全新的演示文稿创建理念。我们相信，通过配置驱动和组件化设计，每个人都能轻松创建专业、美观的演示内容。
           </p>
           <p class="font-body text-lg text-secondary leading-relaxed mb-4">
-            感谢您对PPT Engineering的关注！我们期待与您一起，共同推动演示文稿创建方式的革新。
+            感谢您对 web-runtime-vue 的关注！我们期待与您一起，共同推动演示文稿创建方式的革新。
           </p>
           <div class="text-center mt-6">
-            <p class="font-heading text-xl font-semibold text-primary">立即开始您的PPT Engineering之旅！</p>
+            <p class="font-heading text-xl font-semibold text-primary">立即开始您的 web-runtime-vue 之旅！</p>
           </div>
         </div>
       </div>

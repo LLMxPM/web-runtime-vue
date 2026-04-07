@@ -30,8 +30,8 @@
       :show-top-border="true"
       :show-pagination="true"
       :height="50"
-      link="https://github.com/LLMxPM/PPT-Engineering"
-      link-text=" PPT Engineering"
+      link="https://github.com/LLMxPM/web-runtime-vue"
+      link-text=" web-runtime-vue"
       icon="Github"
     />
   </DefaultContainer>

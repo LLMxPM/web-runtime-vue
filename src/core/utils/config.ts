@@ -85,7 +85,7 @@ export type ConfigChangeListener = (configType: 'app' | 'routes' | 'icons') => v
 const defaultAppConfig: AppConfig = {
   app: {
     icon: 'Presentation',
-    title: 'PPT Engineering',
+    title: 'web-runtime-vue',
     version: '1.0.0',
     description: 'ppt演示应用',
     features: {
