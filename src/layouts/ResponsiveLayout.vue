@@ -1,31 +1,12 @@
 <template>
   <div class="responsive-layout" :class="{ 'responsive-layout--fullscreen': isFullscreen }" :style="themeStyles">
-    <!-- 应用设置面板容器：放在侧边栏的左侧，仅在非全屏且面板可见时显示 -->
-    <div v-if="isDev && appSettingsVisible && !isFullscreen" class="settings-wrapper">
-      <AppSettingsPanel :visible="appSettingsVisible" @close="closeAppSettings" @update="handleAppUpdate" />
-    </div>
-    <!-- 路由设置面板容器：放在侧边栏的左侧，仅在非全屏且面板可见时显示 -->
-    <div v-if="isDev && routeSettingsVisible && !isFullscreen" class="settings-wrapper">
-      <RouteSettingsPanel :visible="routeSettingsVisible" @close="closeRouteSettings" @update="handleRouteUpdate" />
-    </div>
-    <!-- 主题设置面板容器：放在侧边栏的左侧，仅在非全屏且面板可见时显示 -->
-    <div v-if="isDev && themeSettingsVisible && !isFullscreen" class="settings-wrapper">
-      <ThemeSettingsPanel :visible="themeSettingsVisible" @close="closeThemeSettings" @update="handleThemeUpdate" />
-    </div>
-    <!-- 图标设置面板容器：放在侧边栏的左侧，仅在非全屏且面板可见时显示 -->
-    <div v-if="isDev && iconSettingsVisible && !isFullscreen" class="settings-wrapper">
-      <IconSettingsPanel :visible="iconSettingsVisible" @close="closeIconSettings" @update="handleIconUpdate" />
-    </div>
-
     <!-- 响应式侧边栏 -->
     <div class="sidebar-wrapper" :class="{
       'sidebar-wrapper--fullscreen': isFullscreen,
       'sidebar-wrapper--fullscreen-hover': isFullscreen && isSidebarHovered
     }" @mouseenter="handleSidebarMouseEnter" @mouseleave="handleSidebarMouseLeave">
       <ResponsiveSidebar :navigation-items="processedNavigationItems" :app-config="appConfig.app"
-        @collapse-change="handleCollapseChange" @open-app-settings="openAppSettings"
-        @open-route-settings="openRouteSettings" @open-theme-settings="openThemeSettings"
-        @open-icon-settings="openIconSettings" @open-resource-manager="openResourceManager" />
+        @collapse-change="handleCollapseChange" />
     </div>
 
     <!-- 全屏模式下的左侧悬停触发区域 -->
@@ -113,9 +94,6 @@
     <!-- PDF导出对话框 -->
     <PDFExportDialog v-model:visible="isPDFExportDialogVisible" @export-start="handlePDFExportStart"
       @export-complete="handlePDFExportComplete" @export-error="handlePDFExportError" />
-
-    <!-- 资源管理弹窗 -->
-    <ResourceManagerModal v-if="isDev" v-model:visible="resourceManagerVisible" />
   </div>
 </template>
 
@@ -144,11 +122,6 @@ import { useTheme } from '@/core/composables/useTheme'
 
 const isDev = import.meta.env.DEV
 
-const AppSettingsPanel = isDev ? defineAsyncComponent(() => import('@/layouts/SettingModule/AppSettingsPanel.vue')) : null as any
-const RouteSettingsPanel = isDev ? defineAsyncComponent(() => import('@/layouts/SettingModule/RouteSettingsPanel.vue')) : null as any
-const ThemeSettingsPanel = isDev ? defineAsyncComponent(() => import('@/layouts/SettingModule/ThemeSettingsPanel.vue')) : null as any
-const IconSettingsPanel = isDev ? defineAsyncComponent(() => import('@/layouts/SettingModule/IconSettingsPanel.vue')) : null as any
-const ResourceManagerModal = isDev ? defineAsyncComponent(() => import('@/layouts/SettingModule/ResourceManagerModal.vue')) : null as any
 const SplitEditorPreview = isDev ? defineAsyncComponent(() => import('@/components/editor/SplitEditorPreview.vue')) : null as any
 const EditorModal = isDev ? defineAsyncComponent(() => import('@/components/editor/EditorModal.vue')) : null as any
 
@@ -165,101 +138,6 @@ const isFullscreenButtonHovered = ref(false)
 const isPDFExportDialogVisible = ref(false)
 // 正在导出PDF的状态
 const isExportingPdf = ref(false)
-// 应用/路由设置面板可见性
-// 初始化在下方通过 sessionStorage 恢复
-
-/**
- * 路由设置面板可见性持久化键
- * 作用：在因新增组件导致的页面刷新后，自动恢复侧边面板的显示状态，配合子组件的编辑器状态恢复。
- */
-const APP_SETTINGS_VISIBLE_KEY = 'app-settings-visible'
-const ROUTE_SETTINGS_VISIBLE_KEY = 'route-settings-visible'
-// 与子组件 RouteSettingsPanel.vue 保持一致的编辑器状态持久化键，用于兜底恢复侧边面板
-const EDITOR_STORAGE_KEY = 'route-editor-session-state'
-
-/**
- * 初始化：从 sessionStorage 读取路由设置面板可见状态
- * 目的：避免刷新后丢失侧边面板显示，从而让子组件的编辑器状态恢复逻辑得以执行
- */
-const initialAppSettingsVisible = (() => {
-  try {
-    const raw = sessionStorage.getItem(APP_SETTINGS_VISIBLE_KEY)
-    if (raw) {
-      const data = JSON.parse(raw)
-      if (data && typeof data.visible === 'boolean') {
-        return !!data.visible
-      }
-    }
-  } catch (e) {
-    // 忽略读取异常
-  }
-  return false
-})()
-
-const appSettingsVisible = ref<boolean>(initialAppSettingsVisible)
-
-const initialRouteSettingsVisible = (() => {
-  try {
-    const raw = sessionStorage.getItem(ROUTE_SETTINGS_VISIBLE_KEY)
-    if (raw) {
-      const data = JSON.parse(raw)
-      if (data && typeof data.visible === 'boolean') {
-        return !!data.visible
-      }
-    }
-    // 兜底：若编辑器状态存在并标记为可见，则强制展示侧边面板，以便子组件恢复模态框
-    const editorRaw = sessionStorage.getItem(EDITOR_STORAGE_KEY)
-    if (editorRaw) {
-      const ed = JSON.parse(editorRaw)
-      if (ed && ed.editor && ed.editor.visible === true) {
-        return true
-      }
-    }
-  } catch (e) {
-    console.warn('读取路由设置面板可见状态失败:', e)
-  }
-  return false
-})()
-
-const routeSettingsVisible = ref<boolean>(initialRouteSettingsVisible)
-
-// 主题设置面板可见性：从 sessionStorage 恢复
-const THEME_SETTINGS_VISIBLE_KEY = 'theme-settings-visible'
-const initialThemeSettingsVisible = (() => {
-  try {
-    const raw = sessionStorage.getItem(THEME_SETTINGS_VISIBLE_KEY)
-    if (raw) {
-      const data = JSON.parse(raw)
-      if (data && typeof data.visible === 'boolean') {
-        return !!data.visible
-      }
-    }
-  } catch (e) {
-    // 忽略读取异常
-  }
-  return false
-})()
-const themeSettingsVisible = ref<boolean>(initialThemeSettingsVisible)
-
-// 图标设置面板可见性：从 sessionStorage 恢复
-const ICON_SETTINGS_VISIBLE_KEY = 'icon-settings-visible'
-const initialIconSettingsVisible = (() => {
-  try {
-    const raw = sessionStorage.getItem(ICON_SETTINGS_VISIBLE_KEY)
-    if (raw) {
-      const data = JSON.parse(raw)
-      if (data && typeof data.visible === 'boolean') {
-        return !!data.visible
-      }
-    }
-  } catch (e) {
-    // 忽略读取异常
-  }
-  return false
-})()
-const iconSettingsVisible = ref<boolean>(initialIconSettingsVisible)
-// 资源管理弹窗可见性（不持久化）
-const resourceManagerVisible = ref<boolean>(false)
 
 /**
  * 固定比例缩放配置
@@ -267,11 +145,6 @@ const resourceManagerVisible = ref<boolean>(false)
 // 设计尺寸在容器组件默认 1920x1080，这里用于缩放计算保持一致
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1080
-// 应用/路由/主题/图标设置面板固定宽度（与面板组件一致）
-const APP_SETTINGS_WIDTH = 360
-const ROUTE_SETTINGS_WIDTH = 360
-const THEME_SETTINGS_WIDTH = 360
-const ICON_SETTINGS_WIDTH = 360
 // 侧边栏宽度（与容器旧逻辑保持一致）
 const SIDEBAR_EXPANDED_WIDTH = 280
 const SIDEBAR_COLLAPSED_WIDTH = 80
@@ -355,99 +228,6 @@ const handleResize = (): void => {
 const handleCollapseChange = (collapsed: boolean): void => {
   isCollapsed.value = collapsed
 }
-
-/**
- * 打开路由设置面板
- */
-const openRouteSettings = (): void => {
-  routeSettingsVisible.value = true
-}
-
-/**
- * 打开应用设置面板
- */
-const openAppSettings = (): void => {
-  appSettingsVisible.value = true
-}
-
-/**
- * 关闭路由设置面板
- */
-const closeRouteSettings = (): void => {
-  routeSettingsVisible.value = false
-}
-
-/**
- * 关闭应用设置面板
- */
-const closeAppSettings = (): void => {
-  appSettingsVisible.value = false
-}
-
-/**
- * 路由配置更新处理
- * 说明：面板内部保存成功后会触发 update，并随后关闭及刷新页面。
- */
-const handleRouteUpdate = (): void => {
-  // 这里可以根据需要添加额外逻辑，例如刷新局部状态等。
-  // 当前逻辑由面板内部执行 window.location.reload() 刷新页面。
-}
-
-/**
- * 应用配置更新处理
- */
-const handleAppUpdate = (): void => {
-  // 应用配置保存与刷新由面板内部完成
-}
-
-/**
- * 打开主题设置面板
- */
-const openThemeSettings = (): void => {
-  themeSettingsVisible.value = true
-}
-
-/**
- * 关闭主题设置面板
- */
-const closeThemeSettings = (): void => {
-  themeSettingsVisible.value = false
-}
-
-/**
- * 打开图标设置面板
- */
-const openIconSettings = (): void => {
-  iconSettingsVisible.value = true
-}
-
-/** 打开资源管理弹窗 */
-const openResourceManager = (): void => {
-  resourceManagerVisible.value = true
-}
-
-/**
- * 关闭图标设置面板
- */
-const closeIconSettings = (): void => {
-  iconSettingsVisible.value = false
-}
-
-/**
- * 图标配置更新处理
- */
-const handleIconUpdate = (): void => {
-  // 图标保存与刷新由面板内部完成
-}
-
-/**
- * 主题配置更新处理
- */
-const handleThemeUpdate = (): void => {
-  // 主题保存与刷新由面板内部完成
-}
-
-
 
 /**
  * 处理侧边栏鼠标进入事件
@@ -615,58 +395,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
 
-/* 移除 mounted 恢复逻辑，改为在 setup 阶段初始化，避免 watch(immediate) 覆盖 */
-
-/**
- * 侦听路由设置面板可见性并持久化
- * 目的：当用户打开面板后，若页面因新增文件而刷新，刷新后仍保持面板打开，从而触发子组件的编辑器恢复逻辑。
- */
-watch(routeSettingsVisible, (visible) => {
-  try {
-    sessionStorage.setItem(ROUTE_SETTINGS_VISIBLE_KEY, JSON.stringify({ visible }))
-  } catch (e) {
-    // 忽略持久化异常
-  }
-})
-
-watch(appSettingsVisible, (visible) => {
-  try {
-    sessionStorage.setItem(APP_SETTINGS_VISIBLE_KEY, JSON.stringify({ visible }))
-  } catch (e) {
-    // 忽略持久化异常
-  }
-})
-
-watch(themeSettingsVisible, (visible) => {
-  try {
-    sessionStorage.setItem(THEME_SETTINGS_VISIBLE_KEY, JSON.stringify({ visible }))
-  } catch (e) {
-    // 忽略持久化异常
-  }
-})
-
-watch(iconSettingsVisible, (visible) => {
-  try {
-    sessionStorage.setItem(ICON_SETTINGS_VISIBLE_KEY, JSON.stringify({ visible }))
-  } catch (e) {
-    // 忽略持久化异常
-  }
-})
-
-// 资源管理弹窗无需持久化
-/**
- * 计算额外左侧占位宽度（各设置面板的总宽度）
- */
-const extraLeftWidth = computed(() => {
-  if (isFullscreen.value) return 0
-  let total = 0
-  if (appSettingsVisible.value) total += APP_SETTINGS_WIDTH
-  if (routeSettingsVisible.value) total += ROUTE_SETTINGS_WIDTH
-  if (themeSettingsVisible.value) total += THEME_SETTINGS_WIDTH
-  if (iconSettingsVisible.value) total += ICON_SETTINGS_WIDTH
-  return total
-})
-
 /**
  * 计算缩放比例
  * 说明：根据屏幕尺寸与布局占位计算最适合的等比缩放比例，最大不超过3倍
@@ -680,7 +408,7 @@ const scaleRatio = computed(() => {
     availableWidth = screenWidth.value
     availableHeight = screenHeight.value
   } else {
-    availableWidth = screenWidth.value - sidebarWidth - PADDING_SIZE - extraLeftWidth.value
+    availableWidth = screenWidth.value - sidebarWidth - PADDING_SIZE
     availableHeight = screenHeight.value - PADDING_SIZE
   }
 
@@ -766,19 +494,6 @@ async function resolveComponentPathForCurrentRoute(): Promise<string> {
 </script>
 
 <style scoped>
-/* 路由设置面板容器样式：左侧固定宽度，与面板宽度一致 */
-.settings-wrapper {
-  width: 360px;
-  flex: 0 0 360px;
-  /* 固定宽度，不参与收缩 */
-  height: 100vh;
-  border-right: 1px solid #e5e7eb;
-  /* gray-200 */
-  background: #ffffff;
-  z-index: 101;
-  /* 高于侧边栏基础层级 */
-}
-
 /* 响应式布局容器 - 固定比例模式 */
 .responsive-layout {
   display: flex;

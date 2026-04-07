@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { generateRoutes } from '@/core/utils/route-generator'
 import { getRouteConfigsAsync, getDefaultRouteConfigAsync } from '@/core/utils/config'
@@ -38,7 +38,7 @@ async function createAppRouter() {
    * 创建路由实例
    */
   const router = createRouter({
-    history: createWebHistory(import.meta.env.BASE_URL),
+    history: createWebHashHistory(),
     routes,
     scrollBehavior(to, from, savedPosition) {
       if (savedPosition) {

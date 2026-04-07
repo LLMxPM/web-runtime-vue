@@ -4,6 +4,7 @@
  */
 import { computed, ref, watch, type ComputedRef, type CSSProperties } from 'vue'
 import { parse } from 'yaml'
+import { buildConfigUrl, resolveResourcePath } from '@/core/utils/path'
 
 /**
  * 主题配色系统
@@ -127,8 +128,7 @@ const defaultTheme = ref<string>('white')
  */
 export async function loadThemeConfigs(): Promise<void> {
   try {
-    const basePath = import.meta.env.BASE_URL || '/'
-    const configUrl = `${basePath}config/themes.config.yaml`.replace(/\/+/g, '/')
+    const configUrl = buildConfigUrl('themes')
     
     const response = await fetch(configUrl)
     if (!response.ok) {
@@ -149,7 +149,7 @@ export async function loadThemeConfigs(): Promise<void> {
       white: {
         name: '白色经典',
         description: '纯净白色，简约经典',
-        logo: '/img/logo/ppt-e.png',
+        logo: 'img/logo/ppt-e.png',
         palette: {
           text: {
             primary: '#4f46e5',
@@ -327,17 +327,11 @@ export function useTheme(theme?: string | ComputedRef<string>) {
    */
   const themeLogo = computed(() => {
     /**
-     * 函数用途：返回当前主题的 Logo 路径（基于 BASE_URL 进行拼接）。
+     * 函数用途：返回当前主题的 Logo 路径，支持相对路径与远程绝对地址。
      */
     const config = themeConfig.value
     const logoPath = config?.logo || 'img/logo/default.svg'
-    if (logoPath.startsWith('http')) return logoPath
-    const basePath = import.meta.env.BASE_URL || '/'
-    if (logoPath.startsWith('/')) {
-      const cleanLogoPath = logoPath.substring(1)
-      return `${basePath}${cleanLogoPath}`.replace(/\/+/g, '/')
-    }
-    return `${basePath}${logoPath}`.replace(/\/+/g, '/')
+    return resolveResourcePath(logoPath)
   })
 
   /**
@@ -349,14 +343,7 @@ export function useTheme(theme?: string | ComputedRef<string>) {
      */
     const config = themeConfig.value
     if (!config?.invertLogo) return themeLogo.value
-    const logoPath = config.invertLogo
-    if (logoPath.startsWith('http')) return logoPath
-    const basePath = import.meta.env.BASE_URL || '/'
-    if (logoPath.startsWith('/')) {
-      const cleanLogoPath = logoPath.substring(1)
-      return `${basePath}${cleanLogoPath}`.replace(/\/+/g, '/')
-    }
-    return `${basePath}${logoPath}`.replace(/\/+/g, '/')
+    return resolveResourcePath(config.invertLogo)
   })
 
   return {

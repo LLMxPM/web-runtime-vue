@@ -24,7 +24,6 @@ export interface AppConfig {
     title: string
     version: string
     description: string
-    baseUrl?: string
     features?: {
       showPdfExportButton?: boolean
       menuMode?: 'text' | 'preview'
@@ -89,7 +88,6 @@ const defaultAppConfig: AppConfig = {
     title: 'PPT Engineering',
     version: '1.0.0',
     description: 'ppt演示应用',
-    baseUrl: '/PPT-Engineering/',
     features: {
       showPdfExportButton: true,
       menuMode: 'text'
@@ -323,7 +321,7 @@ export async function loadAppConfig(force = false): Promise<AppConfig> {
       configState.isLoading = true
       configState.error = null
 
-      const configUrl = buildConfigUrl('config/app.config.yaml')
+      const configUrl = buildConfigUrl('app')
       configState.appConfig = await loadYamlFromUrl<AppConfig>(configUrl, !force)
 
       notifyListeners('app')
@@ -350,7 +348,7 @@ export async function loadRouteConfig(force = false): Promise<RouteConfigYaml> {
       configState.isLoading = true
       configState.error = null
 
-      const configUrl = buildConfigUrl('config/routes.config.yaml')
+      const configUrl = buildConfigUrl('routes')
       configState.routeConfig = await loadYamlFromUrl<RouteConfigYaml>(configUrl, !force)
 
       notifyListeners('routes')
@@ -376,7 +374,7 @@ export async function loadIconConfig(force = false): Promise<IconConfigYaml> {
       configState.isLoading = true
       configState.error = null
 
-      const configUrl = buildConfigUrl('config/icons.config.yaml')
+      const configUrl = buildConfigUrl('icons')
       configState.iconConfig = await loadYamlFromUrl<IconConfigYaml>(configUrl, !force)
 
       notifyListeners('icons')
@@ -561,18 +559,6 @@ function notifyListeners(configType: 'app' | 'routes' | 'icons'): void {
     }
   })
 }
-
-// ==================== 配置获取函数 ====================
-
-/**
- * 获取应用基础URL配置
- * @returns 应用的baseUrl配置，如果未配置则返回默认值'/'
- */
-export function getAppBaseUrl(): string {
-  return appConfig.value.app.baseUrl || '/'
-}
-
-
 
 // ==================== 异步获取器 ====================
 

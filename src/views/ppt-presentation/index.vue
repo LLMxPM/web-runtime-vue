@@ -384,7 +384,6 @@ app:
   icon: "Presentation"
   title: "PPT-Engineering"
   version: "1.0.0"
-  baseUrl: "/PPT-Engineering/"
   features:
     showPdfExportButton: true`
       },

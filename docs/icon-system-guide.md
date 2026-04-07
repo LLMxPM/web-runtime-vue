@@ -1,5 +1,7 @@
 # 图标系统使用指南
 本项目采用配置文件驱动的统一图标管理系统，支持 Lucide 图标和静态图标的统一管理和使用。系统通过 YAML 配置文件进行图标管理，支持异步加载和动态配置。
+
+静态图标路径推荐使用相对路径或远程绝对 URL，例如 `img/icon/demo.svg` 或 `https://cdn.example.com/demo.svg`。
 ## 快速查找和添加图标
 ### 查找可用图标
 所有可用图标都在 `public/config/icons.config.yaml` 文件中定义，按分类组织：
@@ -23,9 +25,9 @@ static_icons:
   # Logo 图标
   logo:
     - name: ppe-engineering-logo
-      src: /img/logo/ppe-e.png
+      src: img/logo/ppt-e.png
     - name: zkml-logo
-      src: /img/logo/zkml.png
+      src: https://cdn.example.com/logo/zkml.png
 ```
 
 ### 添加新图标
@@ -57,7 +59,7 @@ static_icons:
   # 选择合适的分类或创建新分类
   custom:
     - name: my-custom-icon
-      src: /img/icon/my-custom-icon.svg
+      src: img/icon/my-custom-icon.svg
 ```
 
 ## 基础使用

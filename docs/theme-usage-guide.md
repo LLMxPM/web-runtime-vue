@@ -7,6 +7,8 @@
 扩展的字体包括：`font-body`, `font-heading`, `font-code`
 字体大小包括：`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`, `text-4xl`, `text-5xl`, `text-6xl`, `text-7xl`, `text-8xl`, `text-9xl`
 
+主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。
+
 ### 背景色类名
 ```html
 <!-- 默认背景色 - 完整色阶 -->
