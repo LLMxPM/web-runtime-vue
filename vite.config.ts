@@ -1,21 +1,13 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+/**
+ * 文件用途：Vite 构建配置，启用 Vue 支持与 SaaS 只读预览插件。
+ */
+
 import { resolve } from 'path'
-import { loadEnv } from 'vite'
-import runtimeInternalFileService from './src/core/plugins/runtime-internal-file-service'
-import runtimePreviewGateway from './src/core/plugins/runtime-preview-gateway'
-import viteFileManager from './src/core/plugins/vite-file-manager'
+import { defineConfig, loadEnv } from 'vite'
+import vue from '@vitejs/plugin-vue'
 
-const allowedDirs = [
-  { path: 'public/config', read: true, write: true, delete: false, upload: false },
-  { path: 'public/img', read: true, write: true, delete: true, upload: true },
-  { path: 'src/views', read: true, write: true, delete: true, upload: true },
-  { path: 'src/components/layout/pagecontainer', read: true, write: false, delete: false, upload: false },
-  { path: 'public/fonts', read: true, write: true, delete: true, upload: true },
-  { path: 'src/styles', read: true, write: true, delete: false, upload: false }
-]
+import runtimeSaaSPreview from './src/core/plugins/runtime-saas-preview'
 
-// https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '')
 
@@ -26,18 +18,13 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       vue(),
-      runtimePreviewGateway({
-        sharedSecret: env.RUNTIME_SHARED_SECRET,
-      }),
-      runtimeInternalFileService({
-        allowedDirs,
-        sharedSecret: env.RUNTIME_SHARED_SECRET,
-      }),
-      ...(env.RUNTIME_PLATFORM_MODE === 'true'
-        ? []
-        : [viteFileManager({
-          allowedDirs,
-        })]), // 文件管理插件（仅独立开发模式）
+      runtimeSaaSPreview({
+        jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
+        backendApiBaseUrl: env.RUNTIME_BACKEND_API_BASE_URL,
+        previewAudience: env.RUNTIME_PREVIEW_TOKEN_AUDIENCE,
+        serviceJwt: env.RUNTIME_SERVICE_JWT,
+        serviceTokenAudience: env.RUNTIME_SERVICE_TOKEN_AUDIENCE
+      })
     ],
     resolve: {
       alias: {

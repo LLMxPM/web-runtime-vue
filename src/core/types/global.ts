@@ -1,8 +1,13 @@
 /**
- * 全局类型定义
+ * 文件用途：补充运行时全局类型定义，尤其是预览上下文与部署环境变量约束。
  */
 
-// 应用配置接口
+import type {
+  RuntimePreloadedConfigBundle,
+  RuntimePreviewContext,
+} from '@/core/shared/runtime-preview'
+import type { RuntimeConfigContext } from '@/core/utils/path'
+
 export interface AppConfig {
   title: string
   version: string
@@ -10,36 +15,39 @@ export interface AppConfig {
   logo?: string
 }
 
-// 侧边栏配置接口
 export interface SidebarConfig {
   width: number
   collapsible: boolean
   defaultCollapsed: boolean
 }
 
-
-
-// 通用响应接口
-export interface BaseResponse<T = any> {
+export interface BaseResponse<T = unknown> {
   success: boolean
   data: T
   message?: string
-  code?: number
+  code?: number | string
 }
 
-
-// 环境变量类型
 export interface ImportMetaEnv {
-  readonly VITE_APP_TITLE: string
-  readonly VITE_APP_VERSION: string
-  readonly VITE_API_BASE_URL: string
-  readonly VITE_BUILD_TIME: string
-  readonly VITE_CONFIG_BASE_URL?: string
+  readonly VITE_APP_TITLE?: string
+  readonly VITE_APP_VERSION?: string
+  readonly VITE_API_BASE_URL?: string
+  readonly VITE_BUILD_TIME?: string
+  readonly RUNTIME_PREVIEW_JWKS_URL?: string
+  readonly RUNTIME_PREVIEW_TOKEN_AUDIENCE?: string
+  readonly RUNTIME_BACKEND_API_BASE_URL?: string
+  readonly RUNTIME_SERVICE_TOKEN_AUDIENCE?: string
+  readonly RUNTIME_SERVICE_JWT?: string
 }
 
 export interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-
-
+declare global {
+  interface Window {
+    __RUNTIME_CONFIG_CONTEXT__?: RuntimeConfigContext
+    __RUNTIME_PREVIEW_CONTEXT__?: RuntimePreviewContext
+    __RUNTIME_PRELOADED_CONFIG__?: RuntimePreloadedConfigBundle
+  }
+}

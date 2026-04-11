@@ -1,69 +1,49 @@
-import { createApp } from 'vue'
-import App from './App.vue'
-import { initializeConfig } from './core/utils/config'
 /**
- * 文件用途：应用入口，初始化配置、图标与路由并挂载应用。
- * 本版本移除全局主题初始化，主题按配置文件默认值在 App.vue 中应用。
+ * 文件用途：应用入口，负责初始化只读预览运行时、配置系统、主题系统、图标系统与路由。
  */
-import { initializeStaticIcons } from './core/utils/static-icons'
 
-// 导入全局样式
+import { createApp } from 'vue'
+
+import App from './App.vue'
+import { loadThemeConfigs } from './core/composables/useTheme'
+import { initializeStaticIcons } from './core/utils/static-icons'
+import { initializeConfig } from './core/utils/config'
+import { getPreviewEntryRoute } from './core/utils/path'
+
 import './styles/global.css'
 import './styles/fonts.css'
 
-// 开发环境下引入 Monaco worker 注册
-if (import.meta.env.DEV) {
-  import('./core/plugins/monaco-workers')
-}
-
 /**
- * 异步初始化应用
+ * 初始化并挂载应用。
  */
-async function initializeApp() {
-  // console.log('=== 应用初始化开始 ===')
-  
+async function initializeApp(): Promise<void> {
   try {
-    // 先初始化配置系统
-    // console.log('初始化配置系统...')
     await initializeConfig()
-    // console.log('配置系统初始化完成')
-    
-    // 主题系统无需在入口初始化，全局切换能力已移除
-    
-    // 初始化静态图标系统
-    // console.log('初始化静态图标系统...')
+    await loadThemeConfigs()
     initializeStaticIcons()
-    // console.log('静态图标系统初始化完成')
-    
-    // 动态导入并创建路由器（确保配置已加载）
-    // console.log('创建路由器...')
+
     const { default: routerPromise } = await import('./core/router')
     const router = await routerPromise
-    // console.log('路由器创建完成') 
-    
-    // 创建Vue应用实例
-    // console.log('创建Vue应用实例...')
     const app = createApp(App)
-    
-    // 使用路由
     app.use(router)
-    
-    // 挂载应用
+
+    const previewEntryRoute = getPreviewEntryRoute()
+    if (previewEntryRoute) {
+      await router.replace(previewEntryRoute)
+    }
+
+    await router.isReady()
     app.mount('#app')
-    // console.log('应用挂载完成')
-    // console.log('=== 应用初始化完成 ===')
-    
   } catch (error) {
     console.error('应用初始化失败', error)
-    // 显示错误信息给用户
     document.body.innerHTML = `
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif;">
-        <div style="text-align: center; color: #dc2626;">
-          <h1>应用初始化失败</h1>
-          <p>请刷新页面重试，或联系技术支持</p>
-          <details style="margin-top: 20px; text-align: left;">
-            <summary>错误详情</summary>
-            <pre style="background: #f3f4f6; padding: 10px; border-radius: 4px; overflow: auto;">${error}</pre>
+      <div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:Segoe UI,PingFang SC,sans-serif;background:#f8fafc;">
+        <div style="max-width:720px;padding:32px;text-align:center;color:#dc2626;background:#ffffff;border:1px solid #fecaca;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,.08);">
+          <h1 style="margin:0 0 12px;font-size:28px;">Runtime 初始化失败</h1>
+          <p style="margin:0 0 16px;color:#7f1d1d;">请刷新页面重试；若问题持续，请联系平台侧排查预览上下文、发布产物或内部接口。</p>
+          <details style="margin-top:20px;text-align:left;">
+            <summary style="cursor:pointer;color:#991b1b;">错误详情</summary>
+            <pre style="margin-top:12px;padding:12px;border-radius:12px;background:#fef2f2;overflow:auto;white-space:pre-wrap;">${String(error)}</pre>
           </details>
         </div>
       </div>
@@ -71,9 +51,4 @@ async function initializeApp() {
   }
 }
 
-// 启动应用
 initializeApp()
-
-
-
-

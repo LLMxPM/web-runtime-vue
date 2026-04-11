@@ -1,104 +1,101 @@
 # web-runtime-vue
-- 基于大模型当前通用能力强，但是没有记忆能力，长上下文昂贵且不稳定的现状，尝试构建一个框架，降低上下文依赖，为AI编写PPT构建基础；实现完全自定义的PPT页面构建而不是让AI套模板
-- 作者是个产品经理，没有实际代码经验，项目代码完全依赖于AI，因此项目结构与实现方式可能有一定局限性。欢迎反馈与建议，共同完善项目。
 
-## 生成的 Demo 展示
-- [web-runtime-vue 仓库](https://github.com/LLMxPM/web-runtime-vue)
+`web-runtime-vue` 现已调整为一个面向 SaaS 平台的只读预览 Runtime。它负责在内网环境中渲染“已发布版本”的整项目预览：加载 Backend 注入的预览上下文、消费标准化配置包、按发布产物白名单拉取页面模块，并保留导航、全屏与 PDF 导出等运行时能力。
 
-### 产品截图
-![成品概览](public/img/product/成品概览.png)
-![全屏放映](public/img/product/全屏放映.png)
-![导出PDF](public/img/product/导出PDF.png)
+## 运行时定位
 
-### 页面编辑
-![页面编辑](public/img/product/页面编辑.png)
+- **只读、无状态优先**：Runtime 不再提供浏览器直连本地文件系统、本地页面编辑器、资源管理器或配置面板。
+- **整项目预览**：复用真实应用启动链路，加载配置、主题、图标、路由与页面模块，而不是仅渲染单页组件。
+- **远程虚拟模块**：项目页面源码通过发布产物按需拉取；公共壳层、布局与通用组件保留在 Runtime 本地。
+- **多租户隔离**：预览上下文以 `tenant_id + project_id + release_id` 为主键，跨租户/跨项目/跨版本请求会被拒绝。
 
-## 设计理念
-- 项目脱离 .ppt文件，使用vue直接构建页面
-- 配置驱动：核心配置集中于 `public/config/*.yaml`，包括应用基础信息（app.config.yaml）、路由（routes.config.yaml）、主题（themes.config.yaml）、图标（icons.config.yaml）。绝大多数变更无需改动源码，只需调整配置。
-- 组件化页面容器：提供标准的页面容器组件（如 `DefaultContentPage`、`DefaultCoverPage`、`DefaultContainer`），统一尺寸与三段式布局，保证风格一致；内容区域以插槽方式自由扩展。
-- 降低上下文依赖：将页面内容与路由配置分离，页面文件仅关注内容，同时使用统一的组件容器，多数情况下只需要关注单一的页面vue文件。
-- 统一主题风格：扩展tailwindcss的主题配置，提供统一的颜色、字体
+## 当前能力
 
-## 主要功能
-- 页面管理：管理 `src/views` 目录下的页面文件即可，单个页面只需关注单个文件。开发模式下保留页面编辑能力，方便直接修改当前页面。
-- 路由配置：支持 `分组路由`、`独立页面`、`子页面`三种层级，通过 `public/config/routes.config.yaml` 进行编排。
-- 多模式侧边栏：支持通过 `app.config.yaml` 配置 `menuMode`，轻松切换菜单显示为文本列表模式（可悬浮预览页面）或缩略图预览模式。
-- 主题切换：提供主题系统（可配置logo、颜色、字体大小等），同时在 `themes.config.yaml` 中可快速修改、增加主题。
-- 全屏放映：支持将页面全屏展示，提供翻页按钮，同时监听PageUp/Down、空格、左、右键等常用翻页按键。
-- 页面导出：基于 snapdom 库，支持将页面导出为全图 PDF 文件。
-- 默认页面：提供了默认的首页、结束页、目录页，可自行修改对应视图。
+- 配置驱动的 PPT/演示页面渲染
+- 目录导航、翻页、全屏放映
+- 主题与图标配置加载
+- PDF 导出
+- 通过 `x-runtime-preview-context` + JWKS 验签启动整项目预览
+- 通过发布清单白名单解析远程页面模块与静态资源
 
-## 安装与使用指南
-1. 环境准备
-   - Node.js ≥ 18
-   - 强力推荐使用 pnpm 作为前端包管理工具
-   - clone项目：`git clone https://github.com/LLMxPM/web-runtime-vue.git`
-2. 安装依赖
-   - 运行：`pnpm install`
-3. 本地开发
-   - 运行：`pnpm dev`
-   - 访问：`http://localhost:7373/`
-   - 默认从 `./config/*.config.yaml` 加载配置，也可以通过 `VITE_CONFIG_BASE_URL` 指向远程配置根地址。
-4. 构建与本地预览
-   - 构建：`pnpm build`，产物输出至 `dist/`（由于编辑组件仅属于开发态，生产构建时会自动剥离以提高首屏加载性能）
-   - 预览：`pnpm preview`
-   - 访问：`http://localhost:4173/`
-5. 部署建议
-   - 项目已切换为 `hash` 路由与相对资源路径，子路径部署不再依赖 `baseUrl`。
-   - 如需远程配置，请设置 `VITE_CONFIG_BASE_URL=https://your-config-host/path`，运行时会从该地址加载四个 YAML 文件。
+## 本地使用
 
-## 页面快速创建指南（简版）
-1. 在 `src/views` 下创建页面文件（例如 `src/views/my-new-module/MyNewPage.vue`）。
-2. 选择并使用页面容器组件（示例以 `DefaultContentPage` 为例）：
+### 1. 安装依赖
 
-```vue
-<template>
-  <DefaultContentPage title="我的新页面" subtitle="页面副标题">
-    <template #content>
-      <div class="space-y-6 p-6">
-        <div class="flex items-center mb-4">
-          <Icon name="FileText" :size="24" />
-          <h2 class="font-heading text-2xl font-semibold text-primary ml-2">页面内容</h2>
-        </div>
-        <p class="font-body text-secondary leading-relaxed">这里是页面的主要内容区域。</p>
-      </div>
-    </template>
-  </DefaultContentPage>
-</template>
-
-<script setup lang="ts">
-import DefaultContentPage from '@/components/layout/pagecontainer/DefaultContentPage.vue'
-import Icon from '@/components/layout/contentcommon/Icon.vue'
-</script>
+```bash
+pnpm install
 ```
 
-3. 在 `public/config/routes.config.yaml` 中添加对应路由：
+### 2. 只读 fixture 模式开发
 
-```yaml
-routes:
-  - route: "my-new-module"
-    component: "@/views/my-new-module/MyNewPage.vue"
-    meta:
-      title: "我的新页面"
-      order: 10
+```bash
+pnpm dev
 ```
 
-4. 运行开发服务并验证页面与样式。
+- 默认读取仓库内 `public/config/*.config.yaml`
+- 适合调试 Runtime 壳层、布局、默认页面和基础交互
+- 不提供浏览器内编辑、资源上传或本地文件写入
 
-如需更丰富的示例与说明，请参考下方文档链接中的“页面创建指南”。
+### 3. 类型检查、测试与构建
 
-## 文档链接
-- 页面创建指南：[docs/page-creation-guide.md](docs/page-creation-guide.md)
-- 主题系统使用指南：[docs/theme-usage-guide.md](docs/theme-usage-guide.md)
-- 图标系统使用指南：[docs/icon-system-guide.md](docs/icon-system-guide.md)
-- 路由配置指南：[docs/routes-config-guide.md](docs/routes-config-guide.md)
+```bash
+pnpm check
+pnpm test
+pnpm build
+```
 
-## TodoList
-- [x] 主题系统增加调色板，方便增加、切换主题
-- [ ] 页面切换动画优化
-- [ ] 增加Echart图表渲染能力
-- [ ] 页面比例支持配置
+## SaaS/平台接入方式
+
+### 1. 外部访问入口
+
+- 浏览器访问 **Backend 公网/内网业务域名**
+- Backend 完成用户登录态、租户权限、项目权限、发布版本 ACL 校验
+- Backend 将整项目预览请求反向代理到内网 Runtime
+
+### 2. Runtime 预览入口
+
+- Runtime 仅暴露内部预览页入口：`GET /__preview`
+- 请求头必须包含：`x-runtime-preview-context: <JWS>`
+- Runtime 会使用 `RUNTIME_PREVIEW_JWKS_URL` 指向的 JWKS 对 JWS 进行离线验签
+
+### 3. Runtime 内部依赖的 Backend API
+
+- `GET /internal/runtime/preview-sessions/{session_id}`
+- `GET /internal/runtime/releases/{release_id}/manifest`
+- `GET /internal/runtime/releases/{release_id}/config-bundle`
+- `GET /internal/runtime/releases/{release_id}/modules?path=...`
+- `GET /internal/runtime/releases/{release_id}/assets/{asset_key}`（由资源地址或代理层承接）
+
+### 4. 关键环境变量
+
+- `RUNTIME_PREVIEW_JWKS_URL`
+- `RUNTIME_PREVIEW_TOKEN_AUDIENCE`
+- `RUNTIME_BACKEND_API_BASE_URL`
+- `RUNTIME_SERVICE_TOKEN_AUDIENCE`
+- `RUNTIME_SERVICE_JWT`
+
+## 文档
+
+### 项目内使用文档
+
+- [页面创建指南](docs/page-creation-guide.md)
+- [主题系统使用指南](docs/theme-usage-guide.md)
+- [图标系统使用指南](docs/icon-system-guide.md)
+- [路由配置指南](docs/routes-config-guide.md)
+
+### 外部对接文档
+
+- [SaaS 运行时架构与时序](docs/integration/runtime-architecture.md)
+- [鉴权与安全契约](docs/integration/auth-and-security.md)
+- [Backend 对接 API](docs/integration/backend-api.md)
+- [发布产物规范](docs/integration/release-artifact-spec.md)
+- [迁移说明](docs/integration/migration-guide.md)
+
+## 说明
+
+- `public/config/routes.config.yaml` 中的 `component` 字段仍保持字符串形式，但在 SaaS 场景下它表示**发布产物中的逻辑模块路径**，不再意味着 Runtime 本地文件路径。
+- 如果未来需要恢复作者态编辑、草稿预览或 HMR，请通过 Backend 工作区/发布 API 重新设计，不要恢复浏览器直写本地文件的旧方案。
 
 ## 许可证
-本项目遵循 AGPL-3.0-or-later 许可协议（见 `LICENSE`）。
+
+本项目遵循 `AGPL-3.0-or-later` 许可协议。
