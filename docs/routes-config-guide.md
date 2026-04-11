@@ -151,6 +151,7 @@ routes:
 #### `component` (必需)
 - **类型**: `string`
 - **说明**: 子路由对应的Vue组件文件路径
+- **补充**: 在本地 fixture 模式下，它仍指向仓库内的 `src/views` 页面；在 SaaS 预览模式下，它表示发布产物中的逻辑模块路径，Runtime 会在加载前统一规范化并按 manifest 白名单解析。
 
 #### `meta` (必需)
 子路由元信息对象：
@@ -246,4 +247,4 @@ A: 不需要，配置文件位于 `public` 目录下，修改后刷新页面即�
 - `src/core/utils/route-generator.ts`: 路由和菜单生成
 - `src/core/types/routes.ts`: 类型定义
 - `src/core/router/index.ts`: 路由注册
-- `src/core/services/RouteConfigService.ts`: 路由配置CRUD服务
+- `src/core/utils/view-module.ts`: 本地内建页面与远程发布页面的统一模块解析

@@ -44,11 +44,6 @@ routes:
         meta:
           title: 配置UI
           order: 5
-      - route: simple-page-edit
-        component: '@/views/feature-showcase/SimplePageEdit.vue'
-        meta:
-          title: 页面简单编辑
-          order: 6
   - route: generate-effect
     meta:
       title: 自动生成效果章节

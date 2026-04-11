@@ -1,22 +1,18 @@
 /**
- * 统一配置模块
- * 整合应用配置、路由配置、YAML加载等功能
+ * 文件用途：统一加载应用配置、路由配置与图标配置，并为整项目预览提供组件解析能力。
  */
 
 import { reactive, computed } from 'vue'
 import { parse } from 'yaml'
 import type { RouteRecordRaw } from 'vue-router'
+
 import type { RouteConfig } from '@/core/types/navigation'
-import { buildConfigUrl } from './path'
-
-// ==================== 配置常量 ====================
-
-
-
-// ==================== 类型定义 ====================
+import { getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
+import { buildConfigUrl, hasExternalConfigSource } from './path'
+import { createViewModuleLoader } from './view-module'
 
 /**
- * 应用配置接口
+ * 应用配置接口。
  */
 export interface AppConfig {
   app: {
@@ -32,12 +28,12 @@ export interface AppConfig {
 }
 
 /**
- * 路由配置YAML接口
+ * 路由配置结构。
  */
 export interface RouteConfigYaml {
   routes: Array<{
     route: string
-    component?: string // 有子路由时可选（分组路由不需要组件），无子路由时必须指定
+    component?: string
     meta: {
       title: string
       icon?: string
@@ -59,7 +55,7 @@ export interface RouteConfigYaml {
 }
 
 /**
- * 图标配置接口 - 简化版
+ * 图标配置结构。
  */
 export interface IconConfigYaml {
   lucide_icons: Record<string, string[]> | string[]
@@ -73,21 +69,19 @@ export interface IconConfigYaml {
 }
 
 /**
- * 配置变化监听器类型
+ * 配置变化监听器类型。
  */
 export type ConfigChangeListener = (configType: 'app' | 'routes' | 'icons') => void
 
-// ==================== 默认配置 ====================
-
 /**
- * 默认应用配置
+ * 默认应用配置。
  */
 const defaultAppConfig: AppConfig = {
   app: {
     icon: 'Presentation',
     title: 'web-runtime-vue',
     version: '1.0.0',
-    description: 'ppt演示应用',
+    description: '只读预览运行时',
     features: {
       showPdfExportButton: true,
       menuMode: 'text'
@@ -95,9 +89,8 @@ const defaultAppConfig: AppConfig = {
   }
 }
 
-
 /**
- * 默认图标配置
+ * 默认图标配置。
  */
 const defaultIconConfig: IconConfigYaml = {
   lucide_icons: [],
@@ -111,145 +104,12 @@ const defaultIconConfig: IconConfigYaml = {
 }
 
 /**
- * 获取默认重定向路径
- * 根据路由配置中order最小的路由作为默认路由
+ * 配置缓存。
  */
-function getDefaultRedirectPath(): string {
-  if (!configState.routeConfig?.routes) {
-    return 'home' // 默认回退路径
-  }
-
-  // 找到order最小的路由
-  const sortedRoutes = [...configState.routeConfig.routes]
-    .filter(route => !route.meta.hidden) // 过滤隐藏路由
-    .sort((a, b) => a.meta.order - b.meta.order)
-
-  if (sortedRoutes.length > 0) {
-    return sortedRoutes[0].route
-  }
-
-  return 'home' // 默认回退路径
-}
+const configCache = new Map<string, unknown>()
 
 /**
- * 默认路由记录（动态生成）
- */
-function getDefaultRouteRecords(): RouteRecordRaw[] {
-  return [
-    {
-      path: '',
-      redirect: getDefaultRedirectPath()
-    } as RouteRecordRaw,
-    {
-      path: '/:pathMatch(.*)*',
-      name: 'NotFound',
-      component: dynamicImport('@/views/default/NotFoundPage.vue'),
-      meta: {
-        title: '页面未找到',
-        hidden: true
-      }
-    } as RouteRecordRaw
-  ]
-}
-
-// ==================== 动态组件加载 ====================
-
-/**
- * 动态导入组件函数
- * 完全依赖 routes.config.yaml 中的组件路径配置
- * @param componentPath 组件路径
- * @returns 返回动态导入函数
- */
-/**
- * 根据传入的组件路径进行动态导入并在失败时回退到 NotFound 组件
- * @param componentPath 组件路径（支持 '@/views/...' 或 'views/...' 以及自动转换为 '/src/...')
- * @returns 返回用于异步加载组件的函数
- */
-function dynamicImport(componentPath: string): () => Promise<any> {
-  return async () => {
-    try {
-      const modules = {
-        ...import.meta.glob('@/views/**/*.vue'),
-        ...import.meta.glob('/src/views/**/*.vue')
-      }
-
-      // 调试：打印所有可用的模块键
-
-
-      // 规范化组件路径
-      const normalizedPath = componentPath.startsWith('@/') ? componentPath : `@/${componentPath}`
-
-      // 在所有可用的模块中查找匹配的路径
-      let moduleLoader = modules[normalizedPath]
-
-
-      // 如果直接匹配失败，尝试路径变换匹配
-      if (!moduleLoader) {
-        // 检查是否需要进行路径转换 (@/ -> /src/)
-        const moduleKeys = Object.keys(modules)
-        // console.warn(`组件路径 "${componentPath}" 未找到。规范化路径: "${normalizedPath}"`)
-        // console.warn('可用的组件路径:', moduleKeys)
-
-        // 尝试将 @/ 转换为 /src/ 进行匹配
-        const srcPath = normalizedPath.replace('@/', '/src/')
-        // console.log('尝试转换为src路径:', srcPath)
-        // 如果 src 路径  匹配成功，直接返回
-        if (modules[srcPath]) {
-          moduleLoader = modules[srcPath]
-          // console.log(`src路径匹配成功: ${srcPath}`)
-        } else {
-          // 尝试根据文件名进行精确匹配
-          const fileName = normalizedPath.split('/').pop() // 获取文件名
-          const matchingKey = moduleKeys.find(key => {
-            const keyFileName = key.split('/').pop()
-            return keyFileName === fileName
-          })
-
-          if (matchingKey) {
-            moduleLoader = modules[matchingKey]
-            console.log(`通过文件名匹配找到组件: ${matchingKey}`)
-          }
-        }
-      }
-
-      if (moduleLoader) {
-        return await moduleLoader()
-      } else {
-        const fallbackKeys = [
-          '@/views/defaultpage/NotFoundPage.vue',
-          '/src/views/defaultpage/NotFoundPage.vue'
-        ]
-        for (const key of fallbackKeys) {
-          const loader = modules[key]
-          if (loader) {
-            return await loader()
-          }
-        }
-        throw new Error('NotFound组件也未找到')
-      }
-    } catch (error) {
-      console.error(`加载组件失败: ${componentPath}`, error)
-      // 创建一个简单的错误组件
-      return {
-        default: {
-          template: `<div class="error-component">组件加载失败: ${componentPath}</div>`
-        }
-      }
-    }
-  }
-}
-
-// ==================== 配置缓存 ====================
-
-/**
- * 配置缓存
- */
-const configCache = new Map<string, any>()
-
-// ==================== 状态管理 ====================
-
-/**
- * 配置状态
+ * 配置状态。
  */
 const configState = reactive({
   appConfig: null as AppConfig | null,
@@ -260,172 +120,270 @@ const configState = reactive({
 })
 
 /**
- * 配置变化监听器列表
+ * 配置变化监听器列表。
  */
 const listeners: ConfigChangeListener[] = []
 
-// ==================== YAML加载 ====================
-
 /**
- * 从URL加载YAML配置文件（带缓存）
- * @param url YAML文件的URL
- * @param useCache 是否使用缓存
- * @returns 解析后的配置对象
+ * 读取预加载配置中的指定分段。
+ * @param configType 配置分段名称
+ * @returns 预加载配置值
  */
-async function loadYamlFromUrl<T>(url: string, useCache = true): Promise<T> {
-  // 检查缓存
-  if (useCache && configCache.has(url)) {
-    return configCache.get(url)
+function getPreloadedConfigSection<T>(configType: 'app' | 'routes' | 'icons'): T | undefined {
+  const preloadedConfig = getRuntimePreloadedConfig()
+  const value = preloadedConfig?.[configType]
+  if (!value) {
+    return undefined
   }
-
-  try {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to load config from ${url}: ${response.statusText}`)
-    }
-    const yamlText = await response.text()
-    const config = parse(yamlText) as T
-
-    // 缓存配置
-    if (useCache) {
-      configCache.set(url, config)
-    }
-
-    return config
-  } catch (error) {
-    console.error(`Error loading YAML config from ${url}:`, error)
-    throw error
-  }
+  return value as T
 }
 
 /**
- * 清除配置缓存
- * @param url 可选，指定清除特定配置的缓存，不传则清除所有缓存
+ * 判断当前是否处于 SaaS 预览模式。
+ * @returns 是否为预览模式
+ */
+function isPreviewMode(): boolean {
+  return Boolean(getRuntimePreviewContext())
+}
+
+/**
+ * 读取 YAML 配置文件，可选使用内存缓存。
+ * @param url 配置 URL
+ * @param useCache 是否使用缓存
+ * @returns 解析后的配置对象
+ */
+export async function loadYamlFromUrl<T>(url: string, useCache = true): Promise<T> {
+  if (useCache && configCache.has(url)) {
+    return configCache.get(url) as T
+  }
+
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`加载配置失败：${url} -> ${response.status} ${response.statusText}`)
+  }
+
+  const yamlText = await response.text()
+  const config = parse(yamlText) as T
+  if (useCache) {
+    configCache.set(url, config)
+  }
+  return config
+}
+
+/**
+ * 清理配置缓存。
+ * @param url 指定 URL；不传时清空全部缓存
  */
 export function clearConfigCache(url?: string): void {
   if (url) {
     configCache.delete(url)
-  } else {
-    configCache.clear()
+    return
   }
+  configCache.clear()
 }
 
 /**
- * 加载应用配置
- * @param force 是否强制重新加载
+ * 在预览模式下校验预加载配置是否存在。
+ * @param configType 配置分段名称
+ */
+function assertPreviewConfigExists(configType: 'app' | 'routes' | 'icons' | 'themes'): never {
+  throw new Error(`预览模式缺少必需的预加载配置：${configType}`)
+}
+
+/**
+ * 加载应用配置。
+ * @param force 是否强制刷新
  * @returns 应用配置对象
  */
 export async function loadAppConfig(force = false): Promise<AppConfig> {
-  if (!configState.appConfig || force) {
-    try {
-      configState.isLoading = true
-      configState.error = null
-
-      const configUrl = buildConfigUrl('app')
-      configState.appConfig = await loadYamlFromUrl<AppConfig>(configUrl, !force)
-
-      notifyListeners('app')
-    } catch (error) {
-      console.warn('Failed to load app config from YAML, using default config:', error)
-      configState.appConfig = { ...defaultAppConfig }
-
-      configState.error = error instanceof Error ? error.message : 'Unknown error'
-    } finally {
-      configState.isLoading = false
-    }
+  if (configState.appConfig && !force) {
+    return configState.appConfig
   }
-  return configState.appConfig
+
+  try {
+    configState.isLoading = true
+    configState.error = null
+
+    const preloadedAppConfig = getPreloadedConfigSection<AppConfig>('app')
+    if (preloadedAppConfig) {
+      configState.appConfig = preloadedAppConfig
+      notifyListeners('app')
+      return preloadedAppConfig
+    }
+
+    if (isPreviewMode()) {
+      return assertPreviewConfigExists('app')
+    }
+
+    const configUrl = buildConfigUrl('app')
+    configState.appConfig = await loadYamlFromUrl<AppConfig>(configUrl, !force)
+    notifyListeners('app')
+  } catch (error) {
+    if (hasExternalConfigSource() || isPreviewMode()) {
+      configState.error = error instanceof Error ? error.message : 'Unknown error'
+      throw error
+    }
+
+    console.warn('加载应用配置失败，回退到默认配置：', error)
+    configState.appConfig = { ...defaultAppConfig }
+    configState.error = error instanceof Error ? error.message : 'Unknown error'
+  } finally {
+    configState.isLoading = false
+  }
+
+  return configState.appConfig || defaultAppConfig
 }
 
 /**
- * 加载路由配置
- * @param force 是否强制重新加载
+ * 加载路由配置。
+ * @param force 是否强制刷新
  * @returns 路由配置对象
  */
 export async function loadRouteConfig(force = false): Promise<RouteConfigYaml> {
-  if (!configState.routeConfig || force) {
-    try {
-      configState.isLoading = true
-      configState.error = null
-
-      const configUrl = buildConfigUrl('routes')
-      configState.routeConfig = await loadYamlFromUrl<RouteConfigYaml>(configUrl, !force)
-
-      notifyListeners('routes')
-    } catch (error) {
-      console.warn('Failed to load route config from YAML, using default config:', error)
-      configState.routeConfig = { routes: [] }
-      configState.error = error instanceof Error ? error.message : 'Unknown error'
-    } finally {
-      configState.isLoading = false
-    }
+  if (configState.routeConfig && !force) {
+    return configState.routeConfig
   }
-  return configState.routeConfig
+
+  try {
+    configState.isLoading = true
+    configState.error = null
+
+    const preloadedRouteConfig = getPreloadedConfigSection<RouteConfigYaml>('routes')
+    if (preloadedRouteConfig) {
+      configState.routeConfig = preloadedRouteConfig
+      notifyListeners('routes')
+      return preloadedRouteConfig
+    }
+
+    if (isPreviewMode()) {
+      return assertPreviewConfigExists('routes')
+    }
+
+    const configUrl = buildConfigUrl('routes')
+    configState.routeConfig = await loadYamlFromUrl<RouteConfigYaml>(configUrl, !force)
+    notifyListeners('routes')
+  } catch (error) {
+    if (hasExternalConfigSource() || isPreviewMode()) {
+      configState.error = error instanceof Error ? error.message : 'Unknown error'
+      throw error
+    }
+
+    console.warn('加载路由配置失败，回退到空路由：', error)
+    configState.routeConfig = { routes: [] }
+    configState.error = error instanceof Error ? error.message : 'Unknown error'
+  } finally {
+    configState.isLoading = false
+  }
+
+  return configState.routeConfig || { routes: [] }
 }
 
 /**
- * 加载图标配置
- * @param force 是否强制重新加载
+ * 加载图标配置。
+ * @param force 是否强制刷新
  * @returns 图标配置对象
  */
 export async function loadIconConfig(force = false): Promise<IconConfigYaml> {
-  if (!configState.iconConfig || force) {
-    try {
-      configState.isLoading = true
-      configState.error = null
-
-      const configUrl = buildConfigUrl('icons')
-      configState.iconConfig = await loadYamlFromUrl<IconConfigYaml>(configUrl, !force)
-
-      notifyListeners('icons')
-    } catch (error) {
-      console.warn('Failed to load icon config from YAML, using default config:', error)
-      configState.iconConfig = { ...defaultIconConfig }
-      configState.error = error instanceof Error ? error.message : 'Unknown error'
-    } finally {
-      configState.isLoading = false
-    }
+  if (configState.iconConfig && !force) {
+    return configState.iconConfig
   }
-  return configState.iconConfig
+
+  try {
+    configState.isLoading = true
+    configState.error = null
+
+    const preloadedIconConfig = getPreloadedConfigSection<IconConfigYaml>('icons')
+    if (preloadedIconConfig) {
+      configState.iconConfig = preloadedIconConfig
+      notifyListeners('icons')
+      return preloadedIconConfig
+    }
+
+    if (isPreviewMode()) {
+      return assertPreviewConfigExists('icons')
+    }
+
+    const configUrl = buildConfigUrl('icons')
+    configState.iconConfig = await loadYamlFromUrl<IconConfigYaml>(configUrl, !force)
+    notifyListeners('icons')
+  } catch (error) {
+    if (hasExternalConfigSource() || isPreviewMode()) {
+      configState.error = error instanceof Error ? error.message : 'Unknown error'
+      throw error
+    }
+
+    console.warn('加载图标配置失败，回退到默认图标配置：', error)
+    configState.iconConfig = { ...defaultIconConfig }
+    configState.error = error instanceof Error ? error.message : 'Unknown error'
+  } finally {
+    configState.isLoading = false
+  }
+
+  return configState.iconConfig || defaultIconConfig
 }
 
-// ==================== 路由转换 ====================
+/**
+ * 计算默认重定向路径。
+ * @returns 默认首页路由
+ */
+function getDefaultRedirectPath(): string {
+  if (!configState.routeConfig?.routes) {
+    return 'home'
+  }
+
+  const sortedRoutes = [...configState.routeConfig.routes]
+    .filter(route => !route.meta.hidden)
+    .sort((a, b) => a.meta.order - b.meta.order)
+
+  return sortedRoutes[0]?.route || 'home'
+}
 
 /**
- * 计算并分配页码
- * 遵循新的规则：父路由和子路由都分配页码
- * @param yamlRoutes YAML路由配置
- * @returns 带有页码的YAML路由配置
+ * 生成默认路由记录。
+ * @returns 默认路由列表
+ */
+function getDefaultRouteRecords(): RouteRecordRaw[] {
+  return [
+    {
+      path: '',
+      redirect: getDefaultRedirectPath()
+    } as RouteRecordRaw,
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: createViewModuleLoader('@/views/defaultpage/NotFoundPage.vue'),
+      meta: {
+        title: '页面未找到',
+        hidden: true
+      }
+    } as RouteRecordRaw
+  ]
+}
+
+/**
+ * 计算并分配页码。
+ * @param yamlRoutes YAML 路由配置
+ * @returns 带页码的路由配置副本
  */
 function calculatePageNumbers(yamlRoutes: RouteConfigYaml['routes']): RouteConfigYaml['routes'] {
-  // 创建副本以避免修改原始数据
   const routes = JSON.parse(JSON.stringify(yamlRoutes))
-
-  // 按order排序路由
   routes.sort((a: any, b: any) => (a.meta.order || 0) - (b.meta.order || 0))
 
   let currentPageNumber = 1
-
   routes.forEach((route: any) => {
     const hasChildren = route.children && route.children.length > 0
 
-    // 有子路由的父路由只是分组，不分配页码
-    // 没有子路由的路由是独立页面，分配页码
     if (!hasChildren && !route.meta?.hidden) {
       route.meta.pageNumber = currentPageNumber
-      currentPageNumber++
+      currentPageNumber += 1
     }
 
-    // 为子路由分配页码
     if (hasChildren) {
-      // 按order排序子路由
       route.children.sort((a: any, b: any) => (a.meta.order || 0) - (b.meta.order || 0))
-
       route.children.forEach((child: any) => {
-        // 排除hidden的路由
         if (!child.meta?.hidden) {
           child.meta.pageNumber = currentPageNumber
-          currentPageNumber++
+          currentPageNumber += 1
         }
       })
     }
@@ -435,12 +393,11 @@ function calculatePageNumbers(yamlRoutes: RouteConfigYaml['routes']): RouteConfi
 }
 
 /**
- * 将YAML路由配置转换为RouteConfig数组
- * @param yamlRoutes YAML路由配置
- * @returns RouteConfig数组
+ * 将 YAML 路由配置转换为运行时路由配置。
+ * @param yamlRoutes YAML 路由配置
+ * @returns RouteConfig 数组
  */
 function convertYamlRoutesToRouteConfig(yamlRoutes: RouteConfigYaml['routes']): RouteConfig[] {
-  // 先计算页码
   const routesWithPageNumbers = calculatePageNumbers(yamlRoutes)
 
   return routesWithPageNumbers.map(route => {
@@ -452,118 +409,102 @@ function convertYamlRoutesToRouteConfig(yamlRoutes: RouteConfigYaml['routes']): 
       name: route.route,
       order: route.meta.order,
       pageNumber: route.meta.pageNumber,
-      // 有子路由时父路由只是分组，不需要组件；无子路由时必须指定组件
-      component: hasChildren
-        ? undefined
-        : (route.component ? dynamicImport(route.component) : dynamicImport('@/views/default/NotFoundPage.vue')),
+      component: createViewModuleLoader(route.component || '@/views/defaultpage/NotFoundPage.vue'),
       meta: {
         ...route.meta,
-        componentPath: route.component // 保存原始组件路径供渲染预览可用
+        componentPath: route.component
       }
     }
 
     if (hasChildren) {
-      routeConfig.children = route.children!.map(child => {
-        const childConfig = {
-          path: child.route,
-          title: child.meta?.title || child.route,
-          name: `${route.route}-${child.route}`,
-          // 子路由必须指定component，使用动态导入
-          component: child.component ? dynamicImport(child.component) : dynamicImport('@/views/default/NotFoundPage.vue'),
-          meta: {
-            ...child.meta,
-            parent: route.route,
-            componentPath: child.component // 保存原始组件路径供渲染预览可用
-          }
+      routeConfig.children = route.children!.map(child => ({
+        path: child.route,
+        title: child.meta?.title || child.route,
+        name: `${route.route}-${child.route}`,
+        order: child.meta.order,
+        pageNumber: child.meta.pageNumber,
+        component: createViewModuleLoader(child.component || '@/views/defaultpage/NotFoundPage.vue'),
+        meta: {
+          ...child.meta,
+          parent: route.route,
+          componentPath: child.component
         }
-        return childConfig
-      })
+      }))
     }
+
     return routeConfig
   })
 }
 
-// ==================== 响应式配置 ====================
-
 /**
- * 获取当前路由配置
- * 完全依赖YAML配置，不再使用硬编码的默认配置
+ * 获取当前已转换的路由配置。
+ * @returns RouteConfig 数组
  */
 function getCurrentRouteConfigs(): RouteConfig[] {
-  // console.log('getCurrentRouteConfigs - configState.routeConfig:', configState.routeConfig)
-  if (!configState.routeConfig || !configState.routeConfig.routes) {
-    console.warn('路由配置未加载或为空，请检查 routes.config.yaml 文件')
+  if (!configState.routeConfig?.routes) {
+    console.warn('路由配置尚未加载，返回空路由列表。')
     return []
   }
-  const result = convertYamlRoutesToRouteConfig(configState.routeConfig.routes)
-  // console.log('getCurrentRouteConfigs - result:', result)
-  return result
+
+  return convertYamlRoutesToRouteConfig(configState.routeConfig.routes)
 }
 
 /**
- * 响应式应用配置
+ * 响应式应用配置。
  */
-export const appConfig = computed(() => {
-  return configState.appConfig || defaultAppConfig
-})
+export const appConfig = computed(() => configState.appConfig || defaultAppConfig)
 
 /**
- * 响应式路由配置数组
+ * 响应式路由配置数组。
  */
-export const routeConfigs = computed(() => {
-  return getCurrentRouteConfigs()
-})
+export const routeConfigs = computed(() => getCurrentRouteConfigs())
 
 /**
- * 响应式默认路由配置
+ * 响应式默认路由配置。
  */
-export const defaultRouteConfig = computed(() => {
-  return getDefaultRouteRecords()
-})
+export const defaultRouteConfig = computed(() => getDefaultRouteRecords())
 
 /**
- * 图标配置（计算属性）
+ * 响应式图标配置。
  */
-export const iconConfig = computed(() => {
-  return configState.iconConfig || defaultIconConfig
-})
-
-// ==================== 监听器管理 ====================
+export const iconConfig = computed(() => configState.iconConfig || defaultIconConfig)
 
 /**
- * 添加配置变化监听器
+ * 添加配置变化监听器。
+ * @param listener 监听器函数
  */
 export function addChangeListener(listener: ConfigChangeListener): void {
   listeners.push(listener)
 }
 
 /**
- * 移除配置变化监听器
+ * 移除配置变化监听器。
+ * @param listener 监听器函数
  */
 export function removeChangeListener(listener: ConfigChangeListener): void {
   const index = listeners.indexOf(listener)
-  if (index > -1) {
+  if (index >= 0) {
     listeners.splice(index, 1)
   }
 }
 
 /**
- * 通知所有监听器配置已变化
+ * 通知配置监听器。
+ * @param configType 变更的配置分段
  */
 function notifyListeners(configType: 'app' | 'routes' | 'icons'): void {
   listeners.forEach(listener => {
     try {
       listener(configType)
     } catch (error) {
-      console.error('Error in config change listener:', error)
+      console.error('配置监听器执行失败：', error)
     }
   })
 }
 
-// ==================== 异步获取器 ====================
-
 /**
- * 异步获取路由配置
+ * 异步获取路由配置数组。
+ * @returns RouteConfig 数组
  */
 export async function getRouteConfigsAsync(): Promise<RouteConfig[]> {
   await loadRouteConfig()
@@ -571,38 +512,34 @@ export async function getRouteConfigsAsync(): Promise<RouteConfig[]> {
 }
 
 /**
- * 异步获取默认路由配置
+ * 异步获取默认路由记录。
+ * @returns RouteRecordRaw 数组
  */
 export async function getDefaultRouteConfigAsync(): Promise<RouteRecordRaw[]> {
   await loadRouteConfig()
   return getDefaultRouteRecords()
 }
 
-// ==================== 初始化 ====================
-
 /**
- * 初始化配置系统
+ * 初始化配置系统。
  */
 export async function initializeConfig(): Promise<void> {
-  try {
-    await Promise.all([
-      loadAppConfig(),
-      loadRouteConfig(),
-      loadIconConfig()
-    ])
-    // console.log('Configuration system initialized successfully')
-    // console.log('configState after init:', configState)
-    // console.log('routeConfigs.value after init:', routeConfigs.value)
-  } catch (error) {
-    console.error('Failed to initialize configuration system:', error)
-  }
+  await Promise.all([
+    loadAppConfig(),
+    loadRouteConfig(),
+    loadIconConfig()
+  ])
 }
 
 /**
- * 重新加载所有配置
+ * 重新加载全部配置。
  */
 export async function reloadAllConfigs(): Promise<void> {
-  clearConfigCache() // 清除缓存
+  clearConfigCache()
+  configState.appConfig = null
+  configState.routeConfig = null
+  configState.iconConfig = null
+
   await Promise.all([
     loadAppConfig(true),
     loadRouteConfig(true),
@@ -611,16 +548,9 @@ export async function reloadAllConfigs(): Promise<void> {
 }
 
 /**
- * 获取图标配置的异步函数
+ * 异步获取图标配置。
  * @returns 图标配置对象
  */
 export async function getIconConfigAsync(): Promise<IconConfigYaml> {
-  return await loadIconConfig()
+  return loadIconConfig()
 }
-
-
-// 自动初始化
-initializeConfig()
-
-
-

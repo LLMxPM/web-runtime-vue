@@ -1,3 +1,7 @@
+<!--
+  文件用途：运行时主布局，负责整项目预览的导航、全屏、翻页与 PDF 导出。
+-->
+
 <template>
   <div class="responsive-layout" :class="{ 'responsive-layout--fullscreen': isFullscreen }" :style="themeStyles">
     <!-- 响应式侧边栏 -->
@@ -42,15 +46,6 @@
           <FileDown :size="16" />
         </button>
 
-        <!-- 编辑按钮 (仅开发模式显示) -->
-        <button v-if="isDev" class="nav-button" :class="{
-          'nav-button--fullscreen': isFullscreen,
-          'nav-button--disabled': !canEditCurrentPage
-        }" :disabled="!canEditCurrentPage" @click.stop="openEditModal"
-          :title="canEditCurrentPage ? '编辑当前页面' : '当前页面不可编辑'">
-          <Pencil :size="16" />
-        </button>
-
         <!-- 上一页按钮 -->
         <button class="nav-button nav-button--previous" :class="{
           'nav-button--disabled': !canGoPrevious,
@@ -82,13 +77,6 @@
           </ErrorBoundary>
         </FixedRatioContainer>
       </div>
-
-      <EditorModal v-if="isDev" v-model:visible="isEditModalVisible" title="编辑页面" :widthVw="95" :heightVh="95"
-        :showFooter="false" :zIndex="1100">
-        <SplitEditorPreview v-if="currentEditFilePath" :filePath="currentEditFilePath" :initialLeftPercent="55"
-          :initialAutoSave="true" @saved="handleEditSaved" />
-        <div v-else class="w-full h-full flex items-center justify-center text-[12px] text-gray-600">未找到可编辑的页面文件</div>
-      </EditorModal>
     </main>
 
     <!-- PDF导出对话框 -->
@@ -98,15 +86,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Maximize2,
   Minimize2,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
-  FileDown,
-  Pencil
+  FileDown
 } from 'lucide-vue-next'
 import ResponsiveSidebar from '@/layouts/ResponsiveSidebar.vue'
 import FixedRatioContainer from '@/layouts/FixedRatioContainer.vue'
@@ -116,14 +103,7 @@ import { useMenu } from '@/core/composables/useMenu'
 import { usePageNavigation } from '@/core/composables/usePageNavigation'
 import { PDFExportService } from '@/core/services/PDFExportService'
 import { appConfig } from '@/core/utils/config'
-import { loadRouteConfig } from '@/core/utils/config'
-import { normalizeViewComponentPath as svcNormalize } from '@/core/services/RouteConfigService'
 import { useTheme } from '@/core/composables/useTheme'
-
-const isDev = import.meta.env.DEV
-
-const SplitEditorPreview = isDev ? defineAsyncComponent(() => import('@/components/editor/SplitEditorPreview.vue')) : null as any
-const EditorModal = isDev ? defineAsyncComponent(() => import('@/components/editor/EditorModal.vue')) : null as any
 
 // 应用配置已迁移到 @/config/app.config.ts
 
@@ -155,7 +135,6 @@ const PADDING_SIZE = 64
  * 当前路由和路由器
  */
 const router = useRouter()
-const currentRoute = useRoute()
 
 /**
  * 使用菜单系统
@@ -416,81 +395,6 @@ const scaleRatio = computed(() => {
   const scaleY = availableHeight / DESIGN_HEIGHT
   return Math.min(scaleX, scaleY, 3)
 })
-
-/**
- * 计算属性：当前页面是否可编辑
- */
-const canEditCurrentPage = computed(() => {
-  const name = String(currentRoute.name || '')
-  return name !== 'NotFound'
-})
-
-/**
- * 状态：编辑弹窗与当前编辑文件路径
- */
-const isEditModalVisible = ref<boolean>(false)
-const currentEditFilePath = ref<string>('')
-
-/**
- * 打开编辑弹窗
- */
-const openEditModal = async (): Promise<void> => {
-  if (!canEditCurrentPage.value) return
-  currentEditFilePath.value = await resolveComponentPathForCurrentRoute()
-  isEditModalVisible.value = true
-}
-
-/**
- * 关闭编辑弹窗
- */
-const closeEditModal = (): void => {
-  isEditModalVisible.value = false
-}
-
-/**
- * 保存回调：可按需刷新或提示
- */
-const handleEditSaved = (_path: string): void => {
-  // 目前依赖 HMR 刷新，保留占位以便后续扩展
-}
-
-/**
- * 解析当前路由对应的组件文件路径（返回 'src/...'）
- */
-/**
- * 解析当前路由对应的组件文件路径（返回 'src/...'）
- * 优先使用唯一的路由名称进行匹配，避免子路由同名但父路由不同导致误匹配；
- * 若名称缺失则回退到完整路径精确匹配（移除查询与哈希并规范化斜杠）。
- */
-async function resolveComponentPathForCurrentRoute(): Promise<string> {
-  try {
-    const routeConfig = await loadRouteConfig()
-    const normalizePath = (p: string): string => {
-      const base = String(p || '').split('#')[0].split('?')[0]
-      return base.replace(/\/+$/, '')
-    }
-    const curPath = normalizePath(currentRoute.path || '')
-    const segments = curPath.split('/').filter(Boolean)
-    if (segments.length === 0) return ''
-    const parentSeg = segments[0]
-    for (const r of routeConfig.routes || []) {
-      if (String(r.route) === parentSeg) {
-        if (segments.length === 1) {
-          return svcNormalize(r.component)
-        }
-        const childSeg = segments[1]
-        if (Array.isArray(r.children)) {
-          const matchedChild = r.children.find(c => String(c.route) === childSeg)
-          if (matchedChild) {
-            return svcNormalize(matchedChild.component)
-          }
-        }
-        return ''
-      }
-    }
-  } catch { }
-  return ''
-}
 </script>
 
 <style scoped>
