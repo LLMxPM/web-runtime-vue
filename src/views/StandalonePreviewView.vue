@@ -19,17 +19,14 @@
 
 import ViewPreview from '@/components/editor/ViewPreview.vue'
 
-withDefaults(defineProps<{
+defineProps<{
   /** 页面逻辑路径，例如 src/views/foo/bar.vue */
   filePath: string
-  /** 设计稿宽度，未传时回退到默认值。 */
+  /** 设计稿宽度，未传时回退到项目配置。 */
   designWidth?: number
-  /** 设计稿高度，未传时回退到默认值。 */
+  /** 设计稿高度，未传时回退到项目配置。 */
   designHeight?: number
-}>(), {
-  designWidth: 1920,
-  designHeight: 1080,
-})
+}>()
 </script>
 
 <style scoped>

@@ -14,17 +14,28 @@ import { createViewModuleLoader } from './view-module'
 /**
  * 应用配置接口。
  */
+export interface RuntimePageConfig {
+  width: number
+  height: number
+}
+
 export interface AppConfig {
   app: {
     icon: string
     title: string
     version: string
     description: string
+    page?: Partial<RuntimePageConfig>
     features?: {
       showPdfExportButton?: boolean
       menuMode?: 'text' | 'preview'
     }
   }
+}
+
+export const DEFAULT_PAGE_CONFIG: RuntimePageConfig = {
+  width: 1920,
+  height: 1080,
 }
 
 /**
@@ -82,6 +93,7 @@ const defaultAppConfig: AppConfig = {
     title: 'web-runtime-vue',
     version: '1.0.0',
     description: '只读预览运行时',
+    page: { ...DEFAULT_PAGE_CONFIG },
     features: {
       showPdfExportButton: true,
       menuMode: 'text'
@@ -232,6 +244,22 @@ export async function loadAppConfig(force = false): Promise<AppConfig> {
   }
 
   return configState.appConfig || defaultAppConfig
+}
+
+/**
+ * 解析应用配置中的页面画布尺寸。
+ * @param config 当前应用配置
+ * @returns 已完成默认值兜底的页面尺寸
+ */
+export function resolveAppPageConfig(config?: AppConfig | null): RuntimePageConfig {
+  const pageConfig = config?.app?.page
+  const width = Number(pageConfig?.width)
+  const height = Number(pageConfig?.height)
+
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : DEFAULT_PAGE_CONFIG.width,
+    height: Number.isFinite(height) && height > 0 ? height : DEFAULT_PAGE_CONFIG.height,
+  }
 }
 
 /**
@@ -453,6 +481,11 @@ function getCurrentRouteConfigs(): RouteConfig[] {
  * 响应式应用配置。
  */
 export const appConfig = computed(() => configState.appConfig || defaultAppConfig)
+
+/**
+ * 响应式页面画布尺寸配置。
+ */
+export const appPageConfig = computed(() => resolveAppPageConfig(appConfig.value))
 
 /**
  * 响应式路由配置数组。

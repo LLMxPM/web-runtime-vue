@@ -1,6 +1,6 @@
 <!--
   文档用途：固定比例缩放容器组件
-  说明：用于将插槽内容按照设计尺寸（默认1920x1080）在不同屏幕与布局条件下进行等比缩放，适配本项目的PPT式页面布局。
+  说明：用于将插槽内容按照设计尺寸在不同屏幕与布局条件下进行等比缩放，适配本项目的 PPT 式页面布局。
 -->
 <template>
   <div class="fixed-ratio-container" :class="{ 'fixed-ratio-container--fullscreen': isFullscreen }"
@@ -50,8 +50,6 @@ const containerStyle = computed(() => {
 <style scoped>
 .fixed-ratio-container {
   position: relative;
-  width: 1920px;
-  height: 1080px;
   transform-origin: center center;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);

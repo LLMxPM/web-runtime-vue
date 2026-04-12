@@ -12,6 +12,7 @@
 ## 当前能力
 
 - 配置驱动的 PPT/演示页面渲染
+- `app.config.yaml` 驱动的页面画布尺寸（`app.page.width` / `app.page.height`）
 - 目录导航、翻页、全屏放映
 - 主题与图标配置加载
 - PDF 导出

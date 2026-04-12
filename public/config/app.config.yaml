@@ -3,6 +3,9 @@ app:
   title: web-runtime-vue
   version: ""
   description: ""
+  page:
+    width: 1920
+    height: 1080
   features:
     showPdfExportButton: true
     menuMode: preview
