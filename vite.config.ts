@@ -14,7 +14,10 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       host: '127.0.0.1',
-      port: 7373
+      port: 7373,
+      strictPort: true,
+      cors: true,
+      origin: 'http://127.0.0.1:7373'
     },
     plugins: [
       vue(),

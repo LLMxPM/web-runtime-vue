@@ -49,5 +49,6 @@ declare global {
     __RUNTIME_CONFIG_CONTEXT__?: RuntimeConfigContext
     __RUNTIME_PREVIEW_CONTEXT__?: RuntimePreviewContext
     __RUNTIME_PRELOADED_CONFIG__?: RuntimePreloadedConfigBundle
+    __EDITOR_RUNTIME_PREVIEW_READY__?: boolean
   }
 }

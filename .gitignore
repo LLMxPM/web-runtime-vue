@@ -28,3 +28,6 @@ dist-ssr
 
 # Preview runtime paths
 src/views/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]
+
+#env
+.env

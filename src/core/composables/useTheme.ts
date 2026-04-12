@@ -5,6 +5,7 @@
 import { computed, ref, type ComputedRef, type CSSProperties } from 'vue'
 
 import { loadYamlFromUrl } from '@/core/utils/config'
+import { resolveThemeFontFamily } from '@/core/utils/font-registry'
 import { buildConfigUrl, hasExternalConfigSource, resolveResourcePath, getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
 
 export type CustomTheme = string
@@ -285,9 +286,9 @@ export function useTheme(theme?: string | ComputedRef<string>) {
       '--theme-link-default': config.palette.link.default,
       '--theme-link-hover': config.palette.link.hover,
       '--theme-link-visited': config.palette.link.visited,
-      '--theme-font-heading': config.typography.headingfont,
-      '--theme-font-body': config.typography.bodyfont,
-      '--theme-font-code': config.typography.codefont,
+      '--theme-font-heading': resolveThemeFontFamily(config.typography.headingfont),
+      '--theme-font-body': resolveThemeFontFamily(config.typography.bodyfont),
+      '--theme-font-code': resolveThemeFontFamily(config.typography.codefont),
       '--theme-font-size-base': config.typography.baseFontSize
     } as ThemeStyles
 

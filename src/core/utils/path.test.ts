@@ -66,6 +66,58 @@ describe('runtime path helpers', () => {
     expect(resolveResourcePath('img/logo/ppt-e.png')).toBe('https://assets.example/releases/release_1/hashed/logo-a1b2c3.png')
   })
 
+  it('manifest key 大小写不一致时也应命中映射', () => {
+    setRuntimePreviewContext({
+      sessionId: 'sess_case',
+      tenantId: 'tenant_case',
+      projectId: 'project_case',
+      releaseId: 'release_case',
+      entryRoute: '/home',
+      assetBaseUrl: 'https://assets.example/releases/release_case',
+      traceId: 'trace_case'
+    })
+    setRuntimePreloadedConfig({
+      manifest: {
+        release_id: 'release_case',
+        tenant_id: 'tenant_case',
+        project_id: 'project_case',
+        entry_route: '/home',
+        modules: {},
+        assets: {
+          'top.svg': 'hashed/top-a1b2c3.svg'
+        }
+      }
+    })
+
+    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_case/hashed/top-a1b2c3.svg')
+  })
+
+  it('manifest key 带目录前缀时应支持 basename 兜底匹配', () => {
+    setRuntimePreviewContext({
+      sessionId: 'sess_basename',
+      tenantId: 'tenant_basename',
+      projectId: 'project_basename',
+      releaseId: 'release_basename',
+      entryRoute: '/home',
+      assetBaseUrl: 'https://assets.example/releases/release_basename',
+      traceId: 'trace_basename'
+    })
+    setRuntimePreloadedConfig({
+      manifest: {
+        release_id: 'release_basename',
+        tenant_id: 'tenant_basename',
+        project_id: 'project_basename',
+        entry_route: '/home',
+        modules: {},
+        assets: {
+          'icons/Top.svg': 'hashed/top-z9y8x7.svg'
+        }
+      }
+    })
+
+    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_basename/hashed/top-z9y8x7.svg')
+  })
+
   it('manifest 未命中时应拼接 asset base url', () => {
     setRuntimePreviewContext({
       sessionId: 'sess_2',

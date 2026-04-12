@@ -17,3 +17,6 @@ export * from './useMenu'
 
 // 页面导航
 export * from './usePageNavigation'
+
+// Backend 资源 URL 辅助（useAssetUrl / useBackgroundImage）
+export * from './useAsset'
