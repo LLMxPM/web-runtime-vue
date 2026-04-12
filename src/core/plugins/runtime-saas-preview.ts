@@ -68,6 +68,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
   const previewHeaderName = (options.previewHeaderName || DEFAULT_PREVIEW_HEADER).toLowerCase()
   const manifestCache = new Map<string, RuntimeReleaseManifest>()
   let basePath = ''
+  let assetBase = ''
 
   return {
     name: 'runtime-saas-preview',
@@ -75,6 +76,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
 
     configResolved(resolvedConfig) {
       basePath = normalizeBasePath(resolvedConfig.base)
+      assetBase = resolvedConfig.server?.origin ? resolvedConfig.server.origin + basePath : basePath
     },
 
     configureServer(server: ViteDevServer) {
@@ -112,7 +114,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
           assertManifestMatchesContext(manifest, verified.publicContext)
 
           sendHtml(res, buildPreviewHtml({
-            basePath,
+            assetBase,
             publicContext: verified.publicContext,
             configBundle: {
               ...configBundle,
@@ -482,12 +484,12 @@ function normalizePreviewSession(
  * @returns HTML 文本
  */
 function buildPreviewHtml(params: {
-  basePath: string
+  assetBase: string
   publicContext: RuntimePreviewContext
   configBundle: RuntimePreloadedConfigBundle
 }): string {
-  const viteClientPath = `${params.basePath || ''}/@vite/client`
-  const mainEntryPath = `${params.basePath || ''}/src/main.ts`
+  const viteClientPath = `${params.assetBase || ''}/@vite/client`
+  const mainEntryPath = `${params.assetBase || ''}/src/main.ts`
   const serializedContext = JSON.stringify(params.publicContext)
   const serializedConfig = JSON.stringify(params.configBundle)
 

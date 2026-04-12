@@ -28,11 +28,25 @@ export interface RuntimeReleaseManifest {
   published_at?: string
 }
 
+export interface RuntimeFontBundleItem {
+  asset_name: string
+  font_family: string
+  font_format: string
+  font_weight: string
+  font_style: string
+  font_display: string
+}
+
+export interface RuntimeFontBundle {
+  items: Record<string, RuntimeFontBundleItem>
+}
+
 export interface RuntimePreloadedConfigBundle {
   app?: unknown
   routes?: unknown
   icons?: unknown
   themes?: unknown
+  fonts?: RuntimeFontBundle
   manifest?: RuntimeReleaseManifest
 }
 

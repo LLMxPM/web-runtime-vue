@@ -2,23 +2,57 @@
  * 文件用途：应用入口，负责初始化只读预览运行时、配置系统、主题系统、图标系统与路由。
  */
 
-import { createApp } from 'vue'
+import { createApp, nextTick } from 'vue'
 
 import App from './App.vue'
 import { loadThemeConfigs } from './core/composables/useTheme'
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
+import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
 import { getPreviewEntryRoute } from './core/utils/path'
 
 import './styles/global.css'
 import './styles/fonts.css'
 
 /**
+ * 写入编辑器截图使用的运行时就绪标记。
+ * @param ready 当前预览是否已稳定可截图
+ */
+function setEditorRuntimePreviewReady(ready: boolean): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.__EDITOR_RUNTIME_PREVIEW_READY__ = ready
+}
+
+/**
+ * 等待预览页面完成首屏渲染与字体装载，再通知后端可以截图。
+ * 关键约束：
+ * 1. 需要在应用挂载完成后调用；
+ * 2. 使用双帧等待，尽量覆盖首轮布局和异步组件挂载。
+ */
+async function waitForPreviewStabilized(): Promise<void> {
+  await nextTick()
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve())
+    })
+  })
+
+  if (document.fonts?.ready) {
+    await document.fonts.ready
+  }
+}
+
+/**
  * 初始化并挂载应用。
  */
 async function initializeApp(): Promise<void> {
+  setEditorRuntimePreviewReady(false)
+
   try {
     await initializeConfig()
+    initializeRuntimeFontRegistry()
     await loadThemeConfigs()
     initializeStaticIcons()
 
@@ -29,12 +63,16 @@ async function initializeApp(): Promise<void> {
 
     const previewEntryRoute = getPreviewEntryRoute()
     if (previewEntryRoute) {
-      await router.replace(previewEntryRoute)
+      const targetPath = previewEntryRoute.startsWith('/') ? previewEntryRoute : `/${previewEntryRoute}`
+      await router.replace(targetPath)
     }
 
     await router.isReady()
     app.mount('#app')
+    await waitForPreviewStabilized()
+    setEditorRuntimePreviewReady(true)
   } catch (error) {
+    setEditorRuntimePreviewReady(false)
     console.error('应用初始化失败', error)
     document.body.innerHTML = `
       <div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:Segoe UI,PingFang SC,sans-serif;background:#f8fafc;">
