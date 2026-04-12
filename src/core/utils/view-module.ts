@@ -5,8 +5,8 @@
 import {
   buildRemoteModuleId,
   isBuiltinLocalViewPath,
-  normalizeViewModulePath,
-  toAliasViewPath,
+  normalizeRuntimeModulePath,
+  toAliasModulePath,
 } from '@/core/shared/runtime-preview'
 import { getRuntimePreviewContext } from '@/core/utils/path'
 
@@ -29,10 +29,10 @@ export function resolveViewModulePath(viewPath: string): {
   normalizedPath: string
   aliasPath: string
 } {
-  const normalizedPath = normalizeViewModulePath(viewPath)
+  const normalizedPath = normalizeRuntimeModulePath(viewPath)
   return {
     normalizedPath,
-    aliasPath: toAliasViewPath(normalizedPath)
+    aliasPath: toAliasModulePath(normalizedPath)
   }
 }
 
