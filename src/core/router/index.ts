@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import { generateRoutes } from '@/core/utils/route-generator'
 import { getRouteConfigsAsync, getDefaultRouteConfigAsync } from '@/core/utils/config'
 import { getPreviewEntryRoute } from '@/core/utils/path'
-import { normalizeViewModulePath } from '@/core/shared/runtime-preview'
+import { normalizeViewModulePath, resolvePreviewEntryModulePath } from '@/core/shared/runtime-preview'
 import StandalonePreviewView from '@/views/StandalonePreviewView.vue'
 
 /**
@@ -25,12 +25,13 @@ async function createAppRouter() {
   // console.log('生成的路由:', generatedRoutes)
 
   const previewEntryRoute = getPreviewEntryRoute()
-  const isDirectComponentPreview = previewEntryRoute && (previewEntryRoute.endsWith('.vue') || previewEntryRoute.startsWith('src/views/'))
+  const previewEntryModulePath = resolvePreviewEntryModulePath(previewEntryRoute)
+  const isDirectComponentPreview = Boolean(previewEntryModulePath)
   
   let standalonePreviewFilePath = ''
   let standaloneRoutePath = ''
   if (isDirectComponentPreview) {
-    standalonePreviewFilePath = normalizeViewModulePath(previewEntryRoute)
+    standalonePreviewFilePath = normalizeViewModulePath(previewEntryModulePath)
 
     // 路由显示的路径 URL
     standaloneRoutePath = previewEntryRoute.startsWith('/') ? previewEntryRoute : `/${previewEntryRoute}`

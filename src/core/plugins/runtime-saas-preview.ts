@@ -8,8 +8,10 @@ import type { Plugin, ViteDevServer } from 'vite'
 
 import {
   buildRemoteModuleId,
+  isPreviewEntryModuleRequest,
   isBuiltinLocalViewPath,
-  normalizeViewModulePath,
+  isRuntimeLocalPublicModulePath,
+  normalizeRuntimeModulePath,
   parseRemoteModuleId,
   type RuntimePreloadedConfigBundle,
   type RuntimePreviewContext,
@@ -55,6 +57,7 @@ interface RuntimeResolvedPreviewSession {
 const DEFAULT_PREVIEW_PATH = '/__preview'
 const DEFAULT_PREVIEW_HEADER = 'x-runtime-preview-context'
 const DEFAULT_PREVIEW_AUDIENCE = 'runtime-preview'
+const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
 
 /**
  * SaaS 预览插件：
@@ -128,6 +131,9 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
     },
 
     async resolveId(source, importer) {
+      if (source.startsWith(DISALLOWED_REMOTE_IMPORT_PREFIX)) {
+        return source
+      }
       if (parseRemoteModuleId(source)) {
         return source
       }
@@ -137,15 +143,31 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
         return null
       }
 
-      const resolvedViewPath = resolveRemoteViewImport(source, importerInfo.modulePath)
-      if (!resolvedViewPath || isBuiltinLocalViewPath(resolvedViewPath)) {
+      const resolveResult = resolveRemoteModuleImport(source, importerInfo.modulePath)
+      if (resolveResult.type === 'ignore') {
+        return null
+      }
+      if (resolveResult.type === 'disallowed') {
+        return `${DISALLOWED_REMOTE_IMPORT_PREFIX}${encodeURIComponent(resolveResult.source)}`
+      }
+      const resolvedModulePath = resolveResult.modulePath
+      if (!resolvedModulePath || isBuiltinLocalViewPath(resolvedModulePath) || isRuntimeLocalPublicModulePath(resolvedModulePath)) {
         return null
       }
 
-      return buildRemoteModuleId(importerInfo.sessionId, importerInfo.releaseId, resolvedViewPath)
+      return buildRemoteModuleId(importerInfo.sessionId, importerInfo.releaseId, resolvedModulePath)
     },
 
     async load(id) {
+      if (id.startsWith(DISALLOWED_REMOTE_IMPORT_PREFIX)) {
+        const rawSource = decodeURIComponent(id.slice(DISALLOWED_REMOTE_IMPORT_PREFIX.length))
+        throw new PreviewGatewayError(
+          403,
+          'RUNTIME_LOCAL_IMPORT_FORBIDDEN',
+          `远程模块引用了未开放的 Runtime 本地模块：${rawSource}`,
+        )
+      }
+
       const parsed = parseRemoteModuleId(id)
       if (!parsed) {
         return null
@@ -167,7 +189,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
       assertManifestMatchesContext(manifest, session.publicContext)
 
       const manifestEntry = manifest.modules[parsed.modulePath]
-      if (!manifestEntry) {
+      if (!manifestEntry && !isPreviewEntryModuleRequest(parsed.modulePath, session.publicContext.entryRoute)) {
         throw new PreviewGatewayError(404, 'MODULE_NOT_ALLOWED', `模块未包含在发布白名单中：${parsed.modulePath}`)
       }
 
@@ -196,22 +218,52 @@ class PreviewGatewayError extends Error {
  * @param importerPath 导入方逻辑路径
  * @returns 目标逻辑路径；非远程视图导入时返回 null
  */
-function resolveRemoteViewImport(source: string, importerPath: string): string | null {
+function resolveRemoteModuleImport(
+  source: string,
+  importerPath: string,
+): { type: 'remote'; modulePath: string } | { type: 'ignore' } | { type: 'disallowed'; source: string } {
   const normalizedSource = String(source || '').trim().replace(/\\/g, '/')
   if (!normalizedSource) {
-    return null
+    return { type: 'ignore' }
   }
 
-  if (normalizedSource.startsWith('@/views/') || normalizedSource.startsWith('/src/views/') || normalizedSource.startsWith('src/views/') || normalizedSource.startsWith('views/')) {
-    return normalizeViewModulePath(normalizedSource)
+  if (normalizedSource.startsWith('@workspace-components/')) {
+    return { type: 'remote', modulePath: normalizeRuntimeModulePath(normalizedSource) }
+  }
+
+  if (
+    normalizedSource.startsWith('@/views/')
+    || normalizedSource.startsWith('/src/views/')
+    || normalizedSource.startsWith('src/views/')
+    || normalizedSource.startsWith('views/')
+  ) {
+    return { type: 'remote', modulePath: normalizeRuntimeModulePath(normalizedSource) }
+  }
+
+  if (normalizedSource.startsWith('@/')) {
+    const normalizedModulePath = normalizeRuntimeModulePath(normalizedSource)
+    if (isRuntimeLocalPublicModulePath(normalizedModulePath) || isBuiltinLocalViewPath(normalizedModulePath)) {
+      return { type: 'ignore' }
+    }
+    return { type: 'disallowed', source: normalizedSource }
   }
 
   if (normalizedSource.startsWith('./') || normalizedSource.startsWith('../')) {
     const importerDir = posix.dirname(importerPath)
-    return normalizeViewModulePath(posix.normalize(posix.join(importerDir, normalizedSource)))
+    const normalizedModulePath = normalizeRuntimeModulePath(posix.normalize(posix.join(importerDir, normalizedSource)))
+    if (!normalizedModulePath) {
+      return { type: 'ignore' }
+    }
+    if (isRuntimeLocalPublicModulePath(normalizedModulePath) || isBuiltinLocalViewPath(normalizedModulePath)) {
+      return { type: 'ignore' }
+    }
+    if (normalizedModulePath.startsWith('src/views/') || normalizedModulePath.startsWith('src/workspace-components/')) {
+      return { type: 'remote', modulePath: normalizedModulePath }
+    }
+    return { type: 'ignore' }
   }
 
-  return null
+  return { type: 'ignore' }
 }
 
 /**
