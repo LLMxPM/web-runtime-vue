@@ -67,7 +67,12 @@
 
       <!-- 页面内容 -->
       <div class="page-content-wrapper">
-        <FixedRatioContainer :is-fullscreen="isFullscreen" :scale="scaleRatio">
+        <FixedRatioContainer
+          :is-fullscreen="isFullscreen"
+          :scale="scaleRatio"
+          :design-width="pageViewport.width"
+          :design-height="pageViewport.height"
+        >
           <ErrorBoundary>
             <router-view v-slot="{ Component, route }">
               <transition :name="isExportingPdf ? 'none' : 'page'" :mode="isExportingPdf ? undefined : 'out-in'">
@@ -102,7 +107,7 @@ import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 import { useMenu } from '@/core/composables/useMenu'
 import { usePageNavigation } from '@/core/composables/usePageNavigation'
 import { PDFExportService } from '@/core/services/PDFExportService'
-import { appConfig } from '@/core/utils/config'
+import { appConfig, appPageConfig } from '@/core/utils/config'
 import { useTheme } from '@/core/composables/useTheme'
 
 // 应用配置已迁移到 @/config/app.config.ts
@@ -122,9 +127,6 @@ const isExportingPdf = ref(false)
 /**
  * 固定比例缩放配置
  */
-// 设计尺寸在容器组件默认 1920x1080，这里用于缩放计算保持一致
-const DESIGN_WIDTH = 1920
-const DESIGN_HEIGHT = 1080
 // 侧边栏宽度（与容器旧逻辑保持一致）
 const SIDEBAR_EXPANDED_WIDTH = 280
 const SIDEBAR_COLLAPSED_WIDTH = 80
@@ -165,6 +167,11 @@ const { themeStyles } = useTheme()
 const shouldShowPdfExportButton = computed(() => {
   return appConfig.value.app.features?.showPdfExportButton ?? true
 })
+
+/**
+ * 当前项目的页面画布尺寸。
+ */
+const pageViewport = computed(() => appPageConfig.value)
 
 /**
  * 计算属性：处理后的导航项
@@ -391,8 +398,8 @@ const scaleRatio = computed(() => {
     availableHeight = screenHeight.value - PADDING_SIZE
   }
 
-  const scaleX = availableWidth / DESIGN_WIDTH
-  const scaleY = availableHeight / DESIGN_HEIGHT
+  const scaleX = availableWidth / pageViewport.value.width
+  const scaleY = availableHeight / pageViewport.value.height
   return Math.min(scaleX, scaleY, 3)
 })
 </script>

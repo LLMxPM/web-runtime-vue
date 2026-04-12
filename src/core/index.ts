@@ -37,8 +37,10 @@ export {
   initializeConfig,
   reloadAllConfigs,
   appConfig,
+  appPageConfig,
   routeConfigs,
   iconConfig,
+  resolveAppPageConfig,
   // 路由信息获取函数
 } from './utils/config'
 

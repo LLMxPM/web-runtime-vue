@@ -2,22 +2,28 @@
   文件用途：只读页面缩略预览组件。
   主要职责：
   1. 根据页面逻辑路径加载本地内建页或远程发布页模块；
-  2. 使用固定 1920x1080 画布按比例缩放；
+  2. 使用项目配置指定的页面画布按比例缩放；
   3. 供侧边栏缩略图与路由提示卡片复用。
 -->
 
 <template>
   <div class="w-full h-full flex items-center justify-center overflow-hidden" :ref="setContainerRef">
-    <FixedRatioContainer :isFullscreen="false" :scale="scale">
+    <FixedRatioContainer
+      :isFullscreen="false"
+      :scale="scale"
+      :design-width="effectiveDesignWidth"
+      :design-height="effectiveDesignHeight"
+    >
       <component :is="previewComponent" :key="refreshKey" />
     </FixedRatioContainer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { defineComponent, h, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
 
 import FixedRatioContainer from '@/layouts/FixedRatioContainer.vue'
+import { appPageConfig } from '@/core/utils/config'
 import { importViewModule } from '@/core/utils/view-module'
 
 interface Props {
@@ -29,8 +35,6 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  designWidth: 1920,
-  designHeight: 1080,
   scaleLimit: 3,
   refreshToken: 0
 })
@@ -40,6 +44,16 @@ const containerRef = ref<HTMLElement | null>(null)
 const scale = ref(1)
 const refreshKey = ref(0)
 let resizeObserver: ResizeObserver | null = null
+
+/**
+ * 当前生效的设计宽度；优先使用组件入参，否则回退到项目配置。
+ */
+const effectiveDesignWidth = computed(() => props.designWidth || appPageConfig.value.width)
+
+/**
+ * 当前生效的设计高度；优先使用组件入参，否则回退到项目配置。
+ */
+const effectiveDesignHeight = computed(() => props.designHeight || appPageConfig.value.height)
 
 /**
  * 记录预览容器并监听尺寸变化。
@@ -74,8 +88,8 @@ function computeScale(): void {
 
   const availableWidth = containerRef.value.clientWidth
   const availableHeight = containerRef.value.clientHeight
-  const scaleX = availableWidth / props.designWidth
-  const scaleY = availableHeight / props.designHeight
+  const scaleX = availableWidth / effectiveDesignWidth.value
+  const scaleY = availableHeight / effectiveDesignHeight.value
   scale.value = Math.min(scaleX, scaleY, props.scaleLimit)
 }
 
@@ -128,6 +142,10 @@ watch(() => props.filePath, () => {
 
 watch(() => props.refreshToken, () => {
   loadPreviewComponent()
+})
+
+watch([effectiveDesignWidth, effectiveDesignHeight], () => {
+  computeScale()
 })
 
 onUnmounted(() => {
