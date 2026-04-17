@@ -1,13 +1,13 @@
 # web-runtime-vue
 
-`web-runtime-vue` 现已调整为一个面向 SaaS 平台的只读预览 Runtime。它负责在内网环境中渲染“已发布版本”的整项目预览：加载 Backend 注入的预览上下文、消费标准化配置包、按发布产物白名单拉取页面模块，并保留导航、全屏与 PDF 导出等运行时能力。
+`web-runtime-vue` 现已调整为一个面向 SaaS 平台的只读预览 Runtime。它负责在内网环境中渲染“无状态 preview artifact”的整项目预览、单页面预览与组件预览：加载 Backend 注入的预览上下文、消费标准化配置包、按 artifact 白名单拉取远程模块，并保留导航、全屏与 PDF 导出等运行时能力。
 
 ## 运行时定位
 
 - **只读、无状态优先**：Runtime 不再提供浏览器直连本地文件系统、本地页面编辑器、资源管理器或配置面板。
-- **整项目预览**：复用真实应用启动链路，加载配置、主题、图标、路由与页面模块，而不是仅渲染单页组件。
+- **统一预览入口**：整项目预览、单页面预览和组件预览共享同一套 `PreviewContextToken + PreviewArtifact` 启动链路。
 - **远程虚拟模块**：项目页面源码通过发布产物按需拉取；公共壳层、布局与通用组件保留在 Runtime 本地。
-- **多租户隔离**：预览上下文以 `tenant_id + project_id + release_id` 为主键，跨租户/跨项目/跨版本请求会被拒绝。
+- **多租户隔离**：预览上下文以 `tenant_id + artifact_id + scope_type` 为主键，跨租户/跨作用域/跨 artifact 请求会被拒绝。
 
 ## 当前能力
 
@@ -17,7 +17,7 @@
 - 主题与图标配置加载
 - PDF 导出
 - 通过 `x-runtime-preview-context` + JWKS 验签启动整项目预览
-- 通过发布清单白名单解析远程页面模块与静态资源
+- 通过 preview artifact 清单白名单解析远程页面模块与静态资源
 
 ## 本地使用
 
@@ -61,11 +61,10 @@ pnpm build
 
 ### 3. Runtime 内部依赖的 Backend API
 
-- `GET /internal/runtime/preview-sessions/{session_id}`
-- `GET /internal/runtime/releases/{release_id}/manifest`
-- `GET /internal/runtime/releases/{release_id}/config-bundle`
-- `GET /internal/runtime/releases/{release_id}/modules?path=...`
-- `GET /internal/runtime/releases/{release_id}/assets/{asset_key}`（由资源地址或代理层承接）
+- `GET /internal/runtime/preview-artifacts/{artifact_id}/manifest`
+- `GET /internal/runtime/preview-artifacts/{artifact_id}/config-bundle`
+- `GET /internal/runtime/preview-artifacts/{artifact_id}/modules?path=...`
+- 资源通过 `asset_base_url + manifest.assets` 解析，不再依赖 preview session 恢复接口
 
 ### 4. 关键环境变量
 
@@ -83,6 +82,7 @@ pnpm build
 - [主题系统使用指南](docs/theme-usage-guide.md)
 - [图标系统使用指南](docs/icon-system-guide.md)
 - [路由配置指南](docs/routes-config-guide.md)
+- [组件预览 previewSchema 指南](docs/components/component-preview-schema-guide.md)
 
 ### 外部对接文档
 
@@ -94,7 +94,8 @@ pnpm build
 
 ## 说明
 
-- `public/config/routes.config.yaml` 中的 `component` 字段仍保持字符串形式，但在 SaaS 场景下它表示**发布产物中的逻辑模块路径**，不再意味着 Runtime 本地文件路径。
+- `public/config/routes.config.yaml` 中的 `component` 字段仍保持字符串形式，但在 SaaS 场景下它表示 **preview artifact 中的逻辑模块路径**，不再意味着 Runtime 本地文件路径。
+- Runtime 不再依赖 `preview-session` 恢复上下文；后续远程模块请求必须显式携带 `ctx=<PreviewContextToken>`。
 - 如果未来需要恢复作者态编辑、草稿预览或 HMR，请通过 Backend 工作区/发布 API 重新设计，不要恢复浏览器直写本地文件的旧方案。
 
 ## 许可证

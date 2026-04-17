@@ -1,5 +1,5 @@
 /**
- * 文件用途：提供 SaaS 化整项目预览入口、JWS 验签、发布产物预加载与远程虚拟模块解析能力。
+ * 文件用途：提供无状态预览入口、PreviewContextToken 验签、artifact 预加载与远程虚拟模块解析能力。
  */
 
 import { posix } from 'path'
@@ -13,9 +13,13 @@ import {
   isRuntimeLocalPublicModulePath,
   normalizeRuntimeModulePath,
   parseRemoteModuleId,
+  type ComponentPreviewMode,
+  type PreviewKind,
+  type PreviewScopeType,
   type RuntimePreloadedConfigBundle,
+  type RuntimePreviewArtifactManifest,
   type RuntimePreviewContext,
-  type RuntimeReleaseManifest,
+  type RuntimePreviewEntryDescriptor,
 } from '../shared/runtime-preview'
 
 interface RuntimeSaaSPreviewOptions {
@@ -31,27 +35,18 @@ interface RuntimeSaaSPreviewOptions {
 interface PreviewTokenClaims extends JWTPayload {
   sub: string
   tenant_id: string
-  project_id: string
-  release_id: string
-  entry_route: string
+  artifact_id: string
+  preview_kind: PreviewKind
+  scope_type: PreviewScopeType
+  workspace_id: string
+  project_id?: string
+  entry_descriptor: RuntimePreviewEntryDescriptor
   asset_base_url: string
   trace_id: string
+  component_preview_mode?: ComponentPreviewMode
+  component_code?: string
+  component_version_no?: number
   jti: string
-}
-
-interface RuntimePreviewSessionPayload {
-  session_id: string
-  tenant_id: string
-  project_id: string
-  release_id: string
-  entry_route: string
-  asset_base_url: string
-  trace_id: string
-  expires_at?: string | number
-}
-
-interface RuntimeResolvedPreviewSession {
-  publicContext: RuntimePreviewContext
 }
 
 const DEFAULT_PREVIEW_PATH = '/__preview'
@@ -60,16 +55,17 @@ const DEFAULT_PREVIEW_AUDIENCE = 'runtime-preview'
 const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
 
 /**
- * SaaS 预览插件：
+ * 无状态 SaaS 预览插件：
  * 1. 仅在 Vite serve 下生效；
- * 2. 对 HTML 入口执行 JWS 验签与配置预加载；
- * 3. 为项目页面提供基于发布产物白名单的远程模块加载；
- * 4. 不依赖进程内预览会话缓存，模块请求通过 Backend 预览会话接口恢复上下文。
+ * 2. 对 HTML 入口执行 PreviewContextToken 验签与 artifact 预加载；
+ * 3. 远程模块加载只依赖 `artifactId + ctx token`；
+ * 4. 不再通过 Backend 恢复 preview session。
  */
 export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = {}): Plugin {
   const previewPath = options.previewPath || DEFAULT_PREVIEW_PATH
   const previewHeaderName = (options.previewHeaderName || DEFAULT_PREVIEW_HEADER).toLowerCase()
-  const manifestCache = new Map<string, RuntimeReleaseManifest>()
+  const manifestCache = new Map<string, RuntimePreviewArtifactManifest>()
+  const previewTokenCache = new Map<string, string>()
   let basePath = ''
   let assetBase = ''
 
@@ -100,18 +96,18 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
             jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
             audience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
           })
+          previewTokenCache.set(verified.publicContext.artifactId, previewToken)
 
           const backendClient = createBackendClient({
             backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
             serviceJwt: options.serviceJwt || process.env.RUNTIME_SERVICE_JWT || '',
             serviceTokenAudience: options.serviceTokenAudience || process.env.RUNTIME_SERVICE_TOKEN_AUDIENCE || '',
-            previewSessionId: verified.publicContext.sessionId,
             previewToken,
           })
 
           const [manifest, configBundle] = await Promise.all([
-            fetchReleaseManifest(verified.releaseId, backendClient, manifestCache),
-            backendClient.fetchConfigBundle(verified.releaseId),
+            fetchArtifactManifest(verified.publicContext.artifactId, backendClient, manifestCache),
+            backendClient.fetchConfigBundle(verified.publicContext.artifactId),
           ])
 
           assertManifestMatchesContext(manifest, verified.publicContext)
@@ -119,6 +115,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
           sendHtml(res, buildPreviewHtml({
             assetBase,
             publicContext: verified.publicContext,
+            previewToken,
             configBundle: {
               ...configBundle,
               manifest,
@@ -155,7 +152,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
         return null
       }
 
-      return buildRemoteModuleId(importerInfo.sessionId, importerInfo.releaseId, resolvedModulePath)
+      return buildRemoteModuleId(importerInfo.artifactId, resolvedModulePath, importerInfo.previewToken)
     },
 
     async load(id) {
@@ -172,28 +169,36 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
       if (!parsed) {
         return null
       }
+      const effectivePreviewToken = parsed.previewToken || previewTokenCache.get(parsed.artifactId) || ''
+      if (!effectivePreviewToken) {
+        throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_REQUIRED', '远程模块请求缺少预览上下文令牌。')
+      }
+
+      const verified = await verifyPreviewToken(effectivePreviewToken, {
+        jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
+        audience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
+      })
+      if (verified.publicContext.artifactId !== parsed.artifactId) {
+        throw new PreviewGatewayError(403, 'ARTIFACT_MISMATCH', '预览 artifact 与远程模块请求不一致。')
+      }
+      previewTokenCache.set(parsed.artifactId, effectivePreviewToken)
 
       const backendClient = createBackendClient({
         backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
         serviceJwt: options.serviceJwt || process.env.RUNTIME_SERVICE_JWT || '',
         serviceTokenAudience: options.serviceTokenAudience || process.env.RUNTIME_SERVICE_TOKEN_AUDIENCE || '',
-        previewSessionId: parsed.sessionId,
+        previewToken: effectivePreviewToken,
       })
 
-      const session = await backendClient.fetchPreviewSession(parsed.sessionId)
-      if (session.publicContext.releaseId !== parsed.releaseId) {
-        throw new PreviewGatewayError(403, 'RELEASE_MISMATCH', '预览版本与会话上下文不一致。')
-      }
-
-      const manifest = await fetchReleaseManifest(parsed.releaseId, backendClient, manifestCache)
-      assertManifestMatchesContext(manifest, session.publicContext)
+      const manifest = await fetchArtifactManifest(parsed.artifactId, backendClient, manifestCache)
+      assertManifestMatchesContext(manifest, verified.publicContext)
 
       const manifestEntry = manifest.modules[parsed.modulePath]
-      if (!manifestEntry && !isPreviewEntryModuleRequest(parsed.modulePath, session.publicContext.entryRoute)) {
+      if (!manifestEntry && !isPreviewEntryModuleRequest(parsed.modulePath, verified.publicContext.entryDescriptor)) {
         throw new PreviewGatewayError(404, 'MODULE_NOT_ALLOWED', `模块未包含在发布白名单中：${parsed.modulePath}`)
       }
 
-      return backendClient.fetchModuleSource(parsed.releaseId, parsed.modulePath)
+      return backendClient.fetchModuleSource(parsed.artifactId, parsed.modulePath)
     },
   }
 }
@@ -310,14 +315,13 @@ function getPathname(rawUrl: string): string {
 }
 
 /**
- * 校验预览上下文 JWS，并构造可公开注入浏览器的上下文。
+ * 校验 PreviewContextToken，并构造可公开注入浏览器的上下文。
  * @param token JWS 令牌
  * @param options 校验选项
  * @returns 校验后的结果
  */
 async function verifyPreviewToken(token: string, options: { jwksUrl: string; audience: string }): Promise<{
   publicContext: RuntimePreviewContext
-  releaseId: string
 }> {
   if (!options.jwksUrl) {
     throw new PreviewGatewayError(503, 'JWKS_URL_MISSING', 'Runtime 未配置预览 JWKS 地址。')
@@ -329,22 +333,73 @@ async function verifyPreviewToken(token: string, options: { jwksUrl: string; aud
   })
 
   const claims = payload as PreviewTokenClaims
-  if (!claims.jti || !claims.tenant_id || !claims.project_id || !claims.release_id || !claims.entry_route || !claims.asset_base_url || !claims.trace_id) {
+  if (
+    !claims.jti
+    || !claims.tenant_id
+    || !claims.artifact_id
+    || !claims.preview_kind
+    || !claims.scope_type
+    || !claims.workspace_id
+    || !claims.entry_descriptor
+    || !claims.asset_base_url
+    || !claims.trace_id
+  ) {
     throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '预览上下文缺少必填声明。')
+  }
+
+  const entryDescriptor = normalizeEntryDescriptor(claims.entry_descriptor)
+  if (claims.scope_type === 'project' && !claims.project_id) {
+    throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '项目级预览缺少 project_id。')
   }
 
   return {
     publicContext: {
-      sessionId: claims.jti,
+      artifactId: String(claims.artifact_id),
       tenantId: String(claims.tenant_id),
-      projectId: String(claims.project_id),
-      releaseId: String(claims.release_id),
-      entryRoute: String(claims.entry_route),
+      previewKind: claims.preview_kind,
+      scopeType: claims.scope_type,
+      workspaceId: String(claims.workspace_id),
+      projectId: claims.project_id ? String(claims.project_id) : undefined,
+      entryDescriptor,
       assetBaseUrl: String(claims.asset_base_url),
       traceId: String(claims.trace_id),
+      componentPreviewMode: claims.component_preview_mode,
+      componentCode: claims.component_code ? String(claims.component_code) : undefined,
+      componentVersionNo: claims.component_version_no !== undefined ? Number(claims.component_version_no) : undefined,
     },
-    releaseId: String(claims.release_id),
   }
+}
+
+/**
+ * 规范化入口描述，避免非法 token 结构直接进入运行时。
+ * @param value token 中的入口描述
+ * @returns 规范化后的入口描述
+ */
+function normalizeEntryDescriptor(value: unknown): RuntimePreviewEntryDescriptor {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '预览入口描述格式非法。')
+  }
+
+  const source = value as Record<string, unknown>
+  const entryType = String(source.entry_type || '')
+  if (entryType === 'route') {
+    const route = String(source.route || '').trim()
+    if (!route) {
+      throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', 'route 预览缺少 route。')
+    }
+    return { entry_type: 'route', route }
+  }
+  if (entryType === 'module') {
+    const modulePath = normalizeRuntimeModulePath(String(source.module_path || ''))
+    if (!modulePath) {
+      throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', 'module 预览缺少 module_path。')
+    }
+    return { entry_type: 'module', module_path: modulePath }
+  }
+  if (entryType === 'component_host') {
+    return { entry_type: 'component_host' }
+  }
+  throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '未知的预览入口类型。')
 }
 
 /**
@@ -356,7 +411,6 @@ function createBackendClient(options: {
   backendApiBaseUrl: string
   serviceJwt: string
   serviceTokenAudience: string
-  previewSessionId?: string
   previewToken?: string
 }) {
   if (!options.backendApiBaseUrl) {
@@ -373,32 +427,27 @@ function createBackendClient(options: {
   if (options.previewToken) {
     defaultHeaders['x-runtime-preview-context'] = options.previewToken
   }
-  if (options.previewSessionId) {
-    defaultHeaders['x-runtime-preview-session-id'] = options.previewSessionId
-  }
   if (options.serviceTokenAudience) {
     defaultHeaders['x-runtime-service-audience'] = options.serviceTokenAudience
   }
 
   return {
-    async fetchPreviewSession(sessionId: string): Promise<RuntimeResolvedPreviewSession> {
-      const sessionPayload = await requestJson<RuntimePreviewSessionPayload>(
-        `${apiBaseUrl}/internal/runtime/preview-sessions/${encodeURIComponent(sessionId)}`,
-        defaultHeaders
+    async fetchManifest(artifactId: string): Promise<RuntimePreviewArtifactManifest> {
+      return requestJson<RuntimePreviewArtifactManifest>(
+        `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/manifest`,
+        defaultHeaders,
       )
-      return normalizePreviewSession(sessionId, sessionPayload)
     },
 
-    async fetchManifest(releaseId: string): Promise<RuntimeReleaseManifest> {
-      return requestJson<RuntimeReleaseManifest>(`${apiBaseUrl}/internal/runtime/releases/${encodeURIComponent(releaseId)}/manifest`, defaultHeaders)
+    async fetchConfigBundle(artifactId: string): Promise<RuntimePreloadedConfigBundle> {
+      return requestJson<RuntimePreloadedConfigBundle>(
+        `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/config-bundle`,
+        defaultHeaders,
+      )
     },
 
-    async fetchConfigBundle(releaseId: string): Promise<RuntimePreloadedConfigBundle> {
-      return requestJson<RuntimePreloadedConfigBundle>(`${apiBaseUrl}/internal/runtime/releases/${encodeURIComponent(releaseId)}/config-bundle`, defaultHeaders)
-    },
-
-    async fetchModuleSource(releaseId: string, modulePath: string): Promise<string> {
-      const url = `${apiBaseUrl}/internal/runtime/releases/${encodeURIComponent(releaseId)}/modules?path=${encodeURIComponent(modulePath)}`
+    async fetchModuleSource(artifactId: string, modulePath: string): Promise<string> {
+      const url = `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/modules?path=${encodeURIComponent(modulePath)}`
       const response = await fetch(url, {
         headers: {
           ...defaultHeaders,
@@ -453,96 +502,83 @@ async function toPreviewError(response: Response, fallbackCode: string): Promise
 
 /**
  * 校验 manifest 与预览上下文声明是否一致。
- * @param manifest 发布清单
- * @param verifiedToken 已校验的令牌信息
+ * @param manifest preview artifact manifest
+ * @param previewContext 已校验的公开上下文
  */
 function assertManifestMatchesContext(
-  manifest: RuntimeReleaseManifest,
+  manifest: RuntimePreviewArtifactManifest,
   previewContext: RuntimePreviewContext,
 ): void {
   if (
-    manifest.release_id !== previewContext.releaseId
+    manifest.artifact_id !== previewContext.artifactId
     || manifest.tenant_id !== previewContext.tenantId
-    || manifest.project_id !== previewContext.projectId
+    || manifest.preview_kind !== previewContext.previewKind
+    || manifest.owner_scope?.scope_type !== previewContext.scopeType
+    || String(manifest.owner_scope?.workspace_id || '') !== previewContext.workspaceId
   ) {
-    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '发布清单与预览上下文不一致。')
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '预览清单与预览上下文不一致。')
+  }
+
+  if (previewContext.scopeType === 'project' && String(manifest.owner_scope?.project_id || '') !== String(previewContext.projectId || '')) {
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '项目级预览 project_id 不一致。')
+  }
+
+  if (!isEntryDescriptorEqual(manifest.entry_descriptor, previewContext.entryDescriptor)) {
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '预览入口描述与 artifact 清单不一致。')
   }
 }
 
 /**
- * 按发布版本读取清单，允许缓存不可变 manifest 以减少重复请求。
- * @param releaseId 发布版本 ID
+ * 比较两个入口描述是否语义一致。
+ * @param left 左侧入口描述
+ * @param right 右侧入口描述
+ * @returns 是否一致
+ */
+function isEntryDescriptorEqual(left: RuntimePreviewEntryDescriptor, right: RuntimePreviewEntryDescriptor): boolean {
+  return (
+    left.entry_type === right.entry_type
+    && String(left.route || '') === String(right.route || '')
+    && String(left.module_path || '') === String(right.module_path || '')
+  )
+}
+
+/**
+ * 按 artifact 读取清单，允许缓存不可变 manifest 以减少重复请求。
+ * @param artifactId preview artifact ID
  * @param backendClient Backend 客户端
  * @param manifestCache manifest 缓存
- * @returns 发布清单
+ * @returns 预览清单
  */
-async function fetchReleaseManifest(
-  releaseId: string,
+async function fetchArtifactManifest(
+  artifactId: string,
   backendClient: ReturnType<typeof createBackendClient>,
-  manifestCache: Map<string, RuntimeReleaseManifest>,
-): Promise<RuntimeReleaseManifest> {
-  const cachedManifest = manifestCache.get(releaseId)
+  manifestCache: Map<string, RuntimePreviewArtifactManifest>,
+): Promise<RuntimePreviewArtifactManifest> {
+  const cachedManifest = manifestCache.get(artifactId)
   if (cachedManifest) {
     return cachedManifest
   }
 
-  const manifest = await backendClient.fetchManifest(releaseId)
-  manifestCache.set(releaseId, manifest)
+  const manifest = await backendClient.fetchManifest(artifactId)
+  manifestCache.set(artifactId, manifest)
   return manifest
 }
 
 /**
- * 将 Backend 返回的预览会话结构转换为 Runtime 使用的公开上下文。
- * @param expectedSessionId 期望的会话 ID
- * @param payload Backend 返回的会话数据
- * @returns 已规范化的预览会话
- */
-function normalizePreviewSession(
-  expectedSessionId: string,
-  payload: RuntimePreviewSessionPayload,
-): RuntimeResolvedPreviewSession {
-  if (
-    !payload?.session_id
-    || !payload.tenant_id
-    || !payload.project_id
-    || !payload.release_id
-    || !payload.entry_route
-    || !payload.asset_base_url
-    || !payload.trace_id
-  ) {
-    throw new PreviewGatewayError(401, 'PREVIEW_SESSION_INVALID', '预览会话上下文缺少必填字段。')
-  }
-
-  if (payload.session_id !== expectedSessionId) {
-    throw new PreviewGatewayError(403, 'PREVIEW_SESSION_MISMATCH', '预览会话标识与请求不一致。')
-  }
-
-  return {
-    publicContext: {
-      sessionId: payload.session_id,
-      tenantId: String(payload.tenant_id),
-      projectId: String(payload.project_id),
-      releaseId: String(payload.release_id),
-      entryRoute: String(payload.entry_route),
-      assetBaseUrl: String(payload.asset_base_url),
-      traceId: String(payload.trace_id),
-    }
-  }
-}
-
-/**
- * 生成预览页 HTML，并注入公开上下文与预加载配置。
+ * 生成预览页 HTML，并注入公开上下文、预加载配置与 PreviewContextToken。
  * @param params HTML 参数
  * @returns HTML 文本
  */
 function buildPreviewHtml(params: {
   assetBase: string
   publicContext: RuntimePreviewContext
+  previewToken: string
   configBundle: RuntimePreloadedConfigBundle
 }): string {
   const viteClientPath = `${params.assetBase || ''}/@vite/client`
   const mainEntryPath = `${params.assetBase || ''}/src/main.ts`
   const serializedContext = JSON.stringify(params.publicContext)
+  const serializedToken = JSON.stringify(params.previewToken)
   const serializedConfig = JSON.stringify(params.configBundle)
 
   return `<!doctype html>
@@ -557,6 +593,7 @@ function buildPreviewHtml(params: {
     </style>
     <script>
       window.__RUNTIME_PREVIEW_CONTEXT__ = ${serializedContext};
+      window.__RUNTIME_PREVIEW_TOKEN__ = ${serializedToken};
       window.__RUNTIME_PRELOADED_CONFIG__ = ${serializedConfig};
     </script>
     <script type="module" src="${viteClientPath}"></script>
@@ -609,8 +646,8 @@ function sendPreviewError(res: any, error: unknown): void {
   </head>
   <body>
     <div class="card">
-      <h1 class="title">整项目预览启动失败</h1>
-      <p class="desc">请联系 Backend 或平台团队检查预览上下文 JWS、发布产物清单以及 Runtime 到 Backend 的内部接口连通性。</p>
+      <h1 class="title">预览启动失败</h1>
+      <p class="desc">请检查 PreviewContextToken、preview artifact 清单以及 Runtime 到 Backend 的内部接口连通性。</p>
       <div class="meta">
         <div><span class="code">HTTP ${previewError.statusCode}</span></div>
         <div>错误码：${escapeHtml(previewError.code)}</div>

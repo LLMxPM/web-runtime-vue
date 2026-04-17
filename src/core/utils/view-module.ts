@@ -8,7 +8,7 @@ import {
   normalizeRuntimeModulePath,
   toAliasModulePath,
 } from '@/core/shared/runtime-preview'
-import { getRuntimePreviewContext } from '@/core/utils/path'
+import { getRuntimePreviewContext, getRuntimePreviewToken } from '@/core/utils/path'
 
 const LOCAL_VIEW_MODULES = {
   ...import.meta.glob('@/views/**/*.vue'),
@@ -76,11 +76,15 @@ export async function importViewModule(viewPath: string): Promise<any> {
     if (!previewContext) {
       return importFallbackModule()
     }
+    const previewToken = getRuntimePreviewToken()
+    if (!previewToken) {
+      return importFallbackModule()
+    }
 
     const remoteModuleId = buildRemoteModuleId(
-      previewContext.sessionId,
-      previewContext.releaseId,
-      normalizedPath
+      previewContext.artifactId,
+      normalizedPath,
+      previewToken,
     )
     return import(/* @vite-ignore */ remoteModuleId)
   }

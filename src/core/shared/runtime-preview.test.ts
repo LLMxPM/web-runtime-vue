@@ -42,23 +42,34 @@ describe('runtime preview shared helpers', () => {
   })
 
   it('应构造并解析稳定的远程模块 ID', () => {
-    const remoteId = buildRemoteModuleId('sess_1', 'release_1', '@/views/demo/Page.vue')
+    const remoteId = buildRemoteModuleId('artifact_1', '@/views/demo/Page.vue', 'signed-preview-token')
     const parsed = parseRemoteModuleId(remoteId)
 
-    expect(remoteId).toContain('/@runtime-release/')
+    expect(remoteId).toContain('/@runtime-preview/')
+    expect(remoteId).toContain('/src/views/demo/Page.vue?ctx=')
     expect(parsed).toEqual({
-      sessionId: 'sess_1',
-      releaseId: 'release_1',
-      modulePath: 'src/views/demo/Page.vue'
+      artifactId: 'artifact_1',
+      modulePath: 'src/views/demo/Page.vue',
+      previewToken: 'signed-preview-token',
     })
     expect(toAliasViewPath(parsed?.modulePath || '')).toBe('@/views/demo/Page.vue')
   })
 
+  it('应在 Vue 子请求丢失 ctx 后仍能从路径解析远程模块逻辑路径', () => {
+    const parsed = parseRemoteModuleId('/@runtime-preview/artifact_1/src/workspace-components/CMP_DEMO/v/1.vue?vue&type=style&index=0&lang.css')
+
+    expect(parsed).toEqual({
+      artifactId: 'artifact_1',
+      modulePath: 'src/workspace-components/CMP_DEMO/v/1.vue',
+      previewToken: undefined,
+    })
+  })
+
   it('应仅将单页面预览的页面模块识别为入口模块请求', () => {
-    expect(resolvePreviewEntryModulePath('src/views/demo/Page.vue')).toBe('src/views/demo/Page.vue')
-    expect(resolvePreviewEntryModulePath('/home')).toBe('')
-    expect(isPreviewEntryModuleRequest('src/views/demo/Page.vue', 'src/views/demo/Page.vue')).toBe(true)
-    expect(isPreviewEntryModuleRequest('src/views/demo/Page.vue', '/home')).toBe(false)
+    expect(resolvePreviewEntryModulePath({ entry_type: 'module', module_path: 'src/views/demo/Page.vue' })).toBe('src/views/demo/Page.vue')
+    expect(resolvePreviewEntryModulePath({ entry_type: 'route', route: '/home' })).toBe('')
+    expect(isPreviewEntryModuleRequest('src/views/demo/Page.vue', { entry_type: 'module', module_path: 'src/views/demo/Page.vue' })).toBe(true)
+    expect(isPreviewEntryModuleRequest('src/views/demo/Page.vue', { entry_type: 'route', route: '/home' })).toBe(false)
   })
 
   it('应将资源路径规范化为 manifest key', () => {

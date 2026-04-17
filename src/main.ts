@@ -9,7 +9,7 @@ import { loadThemeConfigs } from './core/composables/useTheme'
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
-import { getPreviewEntryRoute } from './core/utils/path'
+import { getPreviewEntryNavigationPath } from './core/utils/path'
 
 import './styles/global.css'
 import './styles/fonts.css'
@@ -61,9 +61,9 @@ async function initializeApp(): Promise<void> {
     const app = createApp(App)
     app.use(router)
 
-    const previewEntryRoute = getPreviewEntryRoute()
-    if (previewEntryRoute) {
-      const targetPath = previewEntryRoute.startsWith('/') ? previewEntryRoute : `/${previewEntryRoute}`
+    const previewEntryPath = getPreviewEntryNavigationPath()
+    if (previewEntryPath) {
+      const targetPath = previewEntryPath.startsWith('/') ? previewEntryPath : `/${previewEntryPath}`
       await router.replace(targetPath)
     }
 

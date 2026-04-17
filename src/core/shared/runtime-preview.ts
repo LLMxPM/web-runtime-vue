@@ -1,15 +1,40 @@
 /**
- * 文件用途：定义 SaaS 预览运行时共享契约、远程模块标识与资源路径解析辅助函数。
+ * 文件用途：定义无状态预览运行时共享契约、远程模块标识与资源路径解析辅助函数。
  */
 
+export type PreviewKind = 'project' | 'page' | 'component'
+export type PreviewScopeType = 'project' | 'workspace_component'
+export type PreviewEntryType = 'route' | 'module' | 'component_host'
+export type ComponentPreviewMode = 'saved' | 'draft'
+
+export interface RuntimePreviewEntryDescriptor {
+  entry_type: PreviewEntryType
+  route?: string
+  module_path?: string
+}
+
+export interface RuntimePreviewOwnerScope {
+  scope_type: PreviewScopeType
+  workspace_id: string
+  project_id?: string
+  component_code?: string
+  component_version_no?: number
+  preview_mode?: ComponentPreviewMode
+}
+
 export interface RuntimePreviewContext {
-  sessionId: string
+  artifactId: string
   tenantId: string
-  projectId: string
-  releaseId: string
-  entryRoute: string
+  previewKind: PreviewKind
+  scopeType: PreviewScopeType
+  workspaceId: string
+  projectId?: string
+  entryDescriptor: RuntimePreviewEntryDescriptor
   assetBaseUrl: string
   traceId: string
+  componentPreviewMode?: ComponentPreviewMode
+  componentCode?: string
+  componentVersionNo?: number
 }
 
 export interface RuntimeReleaseManifestModule {
@@ -17,11 +42,14 @@ export interface RuntimeReleaseManifestModule {
   hash?: string
 }
 
-export interface RuntimeReleaseManifest {
-  release_id: string
+export interface RuntimePreviewArtifactManifest {
+  artifact_id: string
   tenant_id: string
-  project_id: string
-  entry_route: string
+  preview_kind: PreviewKind
+  owner_scope: RuntimePreviewOwnerScope
+  entry_descriptor: RuntimePreviewEntryDescriptor
+  project_id?: string
+  workspace_id?: string
   modules: Record<string, string | RuntimeReleaseManifestModule>
   assets: Record<string, string>
   version?: string
@@ -46,17 +74,101 @@ export interface RuntimeModuleResolverConfig {
   public_local_prefixes?: string[]
 }
 
+export type ComponentPreviewFieldType = 'string' | 'textarea' | 'number' | 'boolean' | 'select' | 'json'
+
+export interface ComponentPreviewSelectOption {
+  label: string
+  value: string | number | boolean
+}
+
+export interface ComponentPreviewPropField {
+  type: ComponentPreviewFieldType
+  label?: string
+  description?: string
+  required?: boolean
+  default?: unknown
+  placeholder?: string
+  options?: ComponentPreviewSelectOption[]
+}
+
+export interface ComponentPreviewSlotTextNode {
+  type: 'text'
+  value: string
+}
+
+export interface ComponentPreviewSlotHtmlNode {
+  type: 'html'
+  value: string
+}
+
+export interface ComponentPreviewSlotComponentNode {
+  type: 'component'
+  component: string
+  props?: Record<string, unknown>
+  children?: ComponentPreviewSlotNode[]
+}
+
+export type ComponentPreviewSlotNode =
+  | ComponentPreviewSlotTextNode
+  | ComponentPreviewSlotHtmlNode
+  | ComponentPreviewSlotComponentNode
+
+export interface ComponentPreviewSlotField {
+  label?: string
+  description?: string
+  default?: ComponentPreviewSlotNode[]
+}
+
+export interface ComponentPreviewMockField {
+  label?: string
+  description?: string
+  default?: unknown
+}
+
+export interface ComponentPreviewPreset {
+  key: string
+  label: string
+  description?: string
+  props?: Record<string, unknown>
+  slots?: Record<string, ComponentPreviewSlotNode[]>
+  mocks?: Record<string, unknown>
+}
+
+export interface ComponentPreviewSchema {
+  props?: Record<string, ComponentPreviewPropField>
+  slots?: Record<string, ComponentPreviewSlotField>
+  mocks?: Record<string, ComponentPreviewMockField>
+  presets?: ComponentPreviewPreset[]
+}
+
+export interface RuntimeComponentPreviewCanvasConfig {
+  width?: number
+  height?: number
+  padding?: number
+  background?: string
+}
+
+export interface RuntimeComponentPreviewConfig {
+  component_import_path: string
+  component_code: string
+  component_version_no: number
+  display_name?: string
+  schema?: ComponentPreviewSchema | null
+  canvas?: RuntimeComponentPreviewCanvasConfig
+}
+
 export interface RuntimePreloadedConfigBundle {
   app?: unknown
   routes?: unknown
   icons?: unknown
   themes?: unknown
   fonts?: RuntimeFontBundle
-  manifest?: RuntimeReleaseManifest
+  manifest?: RuntimePreviewArtifactManifest
   module_resolver?: RuntimeModuleResolverConfig
+  component_preview?: RuntimeComponentPreviewConfig
 }
 
-export const RUNTIME_REMOTE_MODULE_PREFIX = '/@runtime-release'
+export const RUNTIME_REMOTE_MODULE_PREFIX = '/@runtime-preview'
 
 const BUILTIN_LOCAL_VIEW_PREFIXES = [
   'src/views/defaultpage/',
@@ -118,15 +230,30 @@ export function normalizeRuntimeModulePath(rawPath: string): string {
 
 /**
  * 解析单页面预览入口对应的页面模块路径。
- * @param entryRoute 预览入口声明，可能是路由路径或页面模块路径
+ * @param entryDescriptor 预览入口描述
  * @returns 页面模块逻辑路径；非直接页面模块预览时返回空串
  */
-export function resolvePreviewEntryModulePath(entryRoute: string): string {
-  const normalizedPath = normalizeRuntimeModulePath(entryRoute)
+export function resolvePreviewEntryModulePath(entryDescriptor?: RuntimePreviewEntryDescriptor | null): string {
+  if (!entryDescriptor || entryDescriptor.entry_type !== 'module') {
+    return ''
+  }
+  const normalizedPath = normalizeRuntimeModulePath(entryDescriptor.module_path || '')
   if (!normalizedPath.startsWith('src/views/') || !normalizedPath.endsWith('.vue')) {
     return ''
   }
   return normalizedPath
+}
+
+/**
+ * 解析项目级预览入口路由。
+ * @param entryDescriptor 预览入口描述
+ * @returns 入口路由；未命中时返回空串
+ */
+export function resolvePreviewEntryRoute(entryDescriptor?: RuntimePreviewEntryDescriptor | null): string {
+  if (!entryDescriptor || entryDescriptor.entry_type !== 'route') {
+    return ''
+  }
+  return String(entryDescriptor.route || '').trim()
 }
 
 /**
@@ -179,16 +306,25 @@ export function toAliasModulePath(normalizedPath: string): string {
 
 /**
  * 构建浏览器侧可直接动态导入的远程模块标识。
- * @param sessionId 预览会话 ID
- * @param releaseId 发布版本 ID
- * @param modulePath 视图逻辑路径
+ * 关键约束：
+ * 1. 逻辑模块路径必须编码到 pathname 中，避免 Vue SFC 子请求丢失 `path` 查询参数；
+ * 2. `ctx` 仍保留在 query 中，供首个模块请求完成鉴权与 token 缓存。
+ * @param artifactId preview artifact ID
+ * @param modulePath 逻辑模块路径
+ * @param previewToken 预览上下文 token
  * @returns 远程模块 ID
  */
-export function buildRemoteModuleId(sessionId: string, releaseId: string, modulePath: string): string {
+export function buildRemoteModuleId(artifactId: string, modulePath: string, previewToken: string): string {
   const normalizedPath = normalizeRuntimeModulePath(modulePath)
-  const fileName = normalizedPath.split('/').filter(Boolean).pop() || 'remote-module.vue'
-  const safeFileName = fileName.endsWith('.vue') ? fileName : `${fileName}.vue`
-  return `${RUNTIME_REMOTE_MODULE_PREFIX}/${encodeURIComponent(sessionId)}/${encodeURIComponent(releaseId)}/${safeFileName}?path=${encodeURIComponent(normalizedPath)}`
+  const searchParams = new URLSearchParams({
+    ctx: previewToken,
+  })
+  const encodedModulePath = normalizedPath
+    .split('/')
+    .filter(Boolean)
+    .map(segment => encodeURIComponent(segment))
+    .join('/')
+  return `${RUNTIME_REMOTE_MODULE_PREFIX}/${encodeURIComponent(artifactId)}/${encodedModulePath}?${searchParams.toString()}`
 }
 
 /**
@@ -196,38 +332,54 @@ export function buildRemoteModuleId(sessionId: string, releaseId: string, module
  * @param id 模块 ID
  * @returns 解析结果，非远程模块时返回 null
  */
-export function parseRemoteModuleId(id: string): { sessionId: string; releaseId: string; modulePath: string } | null {
+export function parseRemoteModuleId(id: string): { artifactId: string; modulePath: string; previewToken?: string } | null {
   if (!id.startsWith(RUNTIME_REMOTE_MODULE_PREFIX)) {
     return null
   }
 
   const [pathPart, queryPart = ''] = id.split('?', 2)
   const segments = pathPart.split('/').filter(Boolean)
-  if (segments.length < 4) {
+  if (segments.length < 3) {
     return null
   }
 
-  const sessionId = decodeURIComponent(segments[1] || '')
-  const releaseId = decodeURIComponent(segments[2] || '')
+  const artifactId = decodeURIComponent(segments[1] || '')
   const searchParams = new URLSearchParams(queryPart)
-  const modulePath = normalizeRuntimeModulePath(searchParams.get('path') || '')
-  if (!sessionId || !releaseId || !modulePath) {
+  const encodedModulePathSegments = segments.slice(2)
+  const modulePath = normalizeRuntimeModulePath(
+    encodedModulePathSegments.map(segment => decodeURIComponent(segment)).join('/'),
+  )
+  const previewToken = searchParams.get('ctx') || undefined
+  if (!artifactId || !modulePath) {
     return null
   }
 
-  return { sessionId, releaseId, modulePath }
+  return { artifactId, modulePath, previewToken }
 }
 
 /**
  * 判断当前远程模块请求是否命中了单页面预览入口页。
  * @param modulePath 本次请求的远程模块逻辑路径
- * @param previewEntryRoute 预览上下文中的入口声明
+ * @param entryDescriptor 预览入口描述
  * @returns 是否为入口页模块请求
  */
-export function isPreviewEntryModuleRequest(modulePath: string, previewEntryRoute: string): boolean {
+export function isPreviewEntryModuleRequest(modulePath: string, entryDescriptor?: RuntimePreviewEntryDescriptor | null): boolean {
   const normalizedModulePath = normalizeRuntimeModulePath(modulePath)
-  const previewEntryModulePath = resolvePreviewEntryModulePath(previewEntryRoute)
+  const previewEntryModulePath = resolvePreviewEntryModulePath(entryDescriptor)
   return Boolean(normalizedModulePath && previewEntryModulePath && normalizedModulePath === previewEntryModulePath)
+}
+
+/**
+ * 判断当前上下文是否为组件预览宿主页。
+ * @param previewContext 公开预览上下文
+ * @returns 是否为组件预览
+ */
+export function isComponentPreviewContext(previewContext?: RuntimePreviewContext | null): boolean {
+  return Boolean(
+    previewContext
+    && previewContext.previewKind === 'component'
+    && previewContext.entryDescriptor?.entry_type === 'component_host',
+  )
 }
 
 /**

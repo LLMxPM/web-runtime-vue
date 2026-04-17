@@ -1,27 +1,37 @@
 # Backend 对接 API
 
-本文档面向 Backend/平台团队，定义 Runtime 依赖的公开预览入口和内部发布产物接口。
+本文档面向 Backend/平台团队，定义 Runtime 依赖的公开预览入口和内部 preview artifact 接口。
 
-## 1. 公开预览入口
+## 1. 总体原则
+
+- Preview 为**无状态、短生命周期**链路，不保存可恢复的 preview session。
+- Backend 负责创建临时 `PreviewArtifact`，并签发自包含的 `PreviewContextToken`。
+- Runtime 只认两类输入：
+  - `x-runtime-preview-context: <PreviewContextToken>`
+  - `/internal/runtime/preview-artifacts/{artifact_id}/...`
+
+## 2. 公开预览入口
 
 该入口由 Backend 提供给浏览器访问，Runtime 不直接对外暴露。
 
-### `GET /preview/projects/{project_id}/releases/{release_id}`
+### 推荐入口
+
+`GET /preview/artifacts/{artifact_id}?token=<PreviewContextToken>`
 
 #### 处理职责
 
 - 校验用户登录态
-- 校验租户/项目/发布版本 ACL
-- 生成短期预览上下文 JWS
+- 校验租户/项目/工作空间权限
+- 校验 token 与 `artifact_id` 一致
 - 反向代理到 Runtime：`GET /__preview`
 
 #### 代理到 Runtime 时必须附带的请求头
 
 ```http
-x-runtime-preview-context: <JWS>
+x-runtime-preview-context: <PreviewContextToken>
 ```
 
-## 2. Runtime 内部 API
+## 3. Runtime 内部 API
 
 以下接口由 Backend 提供给 Runtime 调用，默认都要求服务级鉴权。
 
@@ -29,53 +39,35 @@ x-runtime-preview-context: <JWS>
 
 ```http
 Authorization: Bearer <RUNTIME_SERVICE_JWT>
-x-runtime-preview-context: <JWS>
-x-runtime-preview-session-id: <session_id>
+x-runtime-preview-context: <PreviewContextToken>
 x-runtime-service-audience: runtime-backend
 Accept: application/json
 ```
 
-## 3. 获取预览会话
+## 4. 获取 Preview Artifact Manifest
 
-### `GET /internal/runtime/preview-sessions/{session_id}`
-
-#### 说明
-
-- 用于 Runtime 在远程模块请求阶段恢复预览上下文
-- 该接口不依赖 Runtime 进程内缓存
-- `session_id` 建议直接复用预览 JWS 的 `jti`
+### `GET /internal/runtime/preview-artifacts/{artifact_id}/manifest`
 
 #### 成功响应示例
 
 ```json
 {
-  "session_id": "sess_20260411_001",
+  "artifact_id": "rel_20260411_001",
   "tenant_id": "tenant_a",
-  "project_id": "proj_demo",
-  "release_id": "rel_20260411_001",
-  "entry_route": "/home",
-  "asset_base_url": "https://assets.example/releases/rel_20260411_001",
-  "trace_id": "trace_20260411_abc"
-}
-```
-
-## 4. 获取发布清单
-
-### `GET /internal/runtime/releases/{release_id}/manifest`
-
-#### 成功响应示例
-
-```json
-{
-  "release_id": "rel_20260411_001",
-  "tenant_id": "tenant_a",
-  "project_id": "proj_demo",
-  "entry_route": "/home",
-  "version": "2026.04.11-1",
-  "published_at": "2026-04-11T10:00:00Z",
+  "preview_kind": "page",
+  "owner_scope": {
+    "scope_type": "project",
+    "project_id": "proj_demo",
+    "workspace_id": "ws_demo"
+  },
+  "entry_descriptor": {
+    "entry_type": "module",
+    "module_path": "src/views/project/HomePage.vue"
+  },
+  "version": "preview-artifact",
   "modules": {
-    "src/views/project/HomePage.vue": {
-      "path": "src/views/project/HomePage.vue",
+    "src/workspace-components/CMP_DEMO/v/1.vue": {
+      "path": "src/workspace-components/CMP_DEMO/v/1.vue",
       "hash": "sha256:abc123"
     }
   },
@@ -85,98 +77,59 @@ Accept: application/json
 }
 ```
 
+#### 关键约束
+
+- `artifact_id` 必须与 token 中的 `artifact_id` 一致
+- `preview_kind / owner_scope / entry_descriptor` 必须与 token 中声明一致
+- 单页面预览入口模块允许不进入 `modules` 白名单，但仍必须能通过 `modules?path=` 拉到源码
+
 ## 5. 获取标准化配置包
 
-### `GET /internal/runtime/releases/{release_id}/config-bundle`
+### `GET /internal/runtime/preview-artifacts/{artifact_id}/config-bundle`
 
-#### 成功响应示例
+#### 说明
+
+- 返回 Runtime 启动所需的 JSON 配置包
+- 项目/页面预览必须包含 `app/routes/icons/themes/fonts/module_resolver`
+- 组件预览额外包含 `component_preview`
+
+#### 组件预览片段示例
 
 ```json
 {
-  "app": {
-    "app": {
-      "title": "Demo Runtime",
-      "icon": "Presentation",
-      "version": "1.0.0",
-      "description": "Published release preview",
-      "features": {
-        "showPdfExportButton": true,
-        "menuMode": "preview"
-      }
-    }
-  },
-  "routes": {
-    "routes": [
-      {
-        "route": "home",
-        "component": "@/views/project/HomePage.vue",
-        "meta": {
-          "title": "首页",
-          "order": 0
-        }
-      }
-    ]
-  },
-  "icons": {
-    "lucide_icons": ["Presentation"],
-    "static_icons": [],
-    "config": {
-      "default_size": 20,
-      "default_stroke_width": 2
-    }
-  },
-  "themes": {
-    "themes": {
-      "lightblue": {
-        "name": "白底蓝色",
-        "description": "默认主题",
-        "logo": "img/logo/ppt-e.png",
-        "palette": {
-          "text": {
-            "primary": "#0D286A",
-            "secondary": "#1D5297",
-            "invert": "#ffffff"
-          },
-          "background": {
-            "default": "#ffffff",
-            "invert": "#0D286A"
-          },
-          "border": {
-            "default": "#e5e7eb",
-            "subtle": "#d1d5db"
-          },
-          "link": {
-            "default": "#3b82f6",
-            "hover": "#2563eb",
-            "visited": "#7c3aed"
-          },
-          "accent": ["#0D286A"]
-        },
-        "typography": {
-          "headingfont": "思源黑体",
-          "bodyfont": "思源黑体",
-          "codefont": "SourceCodePro",
-          "baseFontSize": "16px"
+  "component_preview": {
+    "component_import_path": "@workspace-components/CMP_DEMO/v/1",
+    "component_code": "CMP_DEMO",
+    "component_version_no": 1,
+    "display_name": "示例组件",
+    "schema": {
+      "props": {
+        "title": {
+          "type": "string",
+          "default": "Hello Preview"
         }
       }
     },
-    "default": {
-      "theme": "lightblue"
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "padding": 48,
+      "background": "#f8fafc"
     }
   }
 }
 ```
 
-## 6. 获取页面模块源码
+## 6. 获取远程模块源码
 
-### `GET /internal/runtime/releases/{release_id}/modules?path={logical_module_path}`
+### `GET /internal/runtime/preview-artifacts/{artifact_id}/modules?path={logical_module_path}`
 
 #### 请求示例
 
 ```http
-GET /internal/runtime/releases/rel_20260411_001/modules?path=src%2Fviews%2Fproject%2FHomePage.vue
+GET /internal/runtime/preview-artifacts/rel_20260411_001/modules?path=src%2Fviews%2Fproject%2FHomePage.vue
 Authorization: Bearer <RUNTIME_SERVICE_JWT>
-x-runtime-preview-session-id: <session_id>
+x-runtime-preview-context: <PreviewContextToken>
 Accept: text/plain
 ```
 
@@ -190,39 +143,62 @@ Accept: text/plain
 ```json
 {
   "code": "MODULE_NOT_FOUND",
-  "message": "Module src/views/project/HomePage.vue not found in release rel_20260411_001"
+  "message": "Module src/views/project/HomePage.vue not found in preview artifact rel_20260411_001"
 }
 ```
 
-## 7. 资源访问
+## 7. PreviewContextToken Claims
 
-可以有两种实现方式：
+Runtime 至少依赖以下声明：
 
-### 方式 A：Backend 代理资源
+- 公共字段
+  - `tenant_id`
+  - `artifact_id`
+  - `preview_kind`
+  - `scope_type`
+  - `workspace_id`
+  - `entry_descriptor`
+  - `asset_base_url`
+  - `trace_id`
+  - `iat`
+  - `exp`
+  - `jti`
+- 项目/页面预览额外要求
+  - `project_id`
+- 组件预览可选字段
+  - `component_preview_mode`
+  - `component_code`
+  - `component_version_no`
 
-- `GET /internal/runtime/releases/{release_id}/assets/{asset_key}`
-- Runtime 或资源代理层读取对象存储并返回文件内容
+#### 关键约束
 
-### 方式 B：直接返回可拼接的资源基地址
+- 组件预览 token **不要求 `project_id`**
+- `scope_type=project` 时必须携带 `project_id`
+- Runtime 后续远程模块请求不再恢复 preview session，而是直接透传 `ctx=<PreviewContextToken>`
 
-- 在 JWS 中通过 `asset_base_url` 指定资源根地址
+## 8. 资源访问
+
+推荐方式：
+
+- 在 token 中通过 `asset_base_url` 指定资源根地址
 - manifest 的 `assets` 存储相对资源路径
+- Runtime 通过 `asset_base_url + manifest.assets[key]` 拼出最终资源 URL
 
-## 8. 状态码建议
+## 9. 状态码建议
 
 - `200`：成功
 - `400`：请求参数非法
-- `401`：服务级 JWT 无效
-- `403`：租户/项目/发布版本上下文不匹配
-- `404`：发布版本、模块或资源不存在
-- `409`：发布状态不允许访问
+- `401`：服务级 JWT 或 PreviewContextToken 无效
+- `403`：token、artifact、scope 或入口描述不匹配
+- `404`：artifact、模块或资源不存在
+- `409`：artifact 状态不允许访问
 - `500`：内部错误
 
-## 9. 对接检查清单
+## 10. 对接检查清单
 
-- 是否能生成符合契约的 JWS
-- 是否能基于 `jti` 建立并查询预览会话
+- 是否能生成符合契约的 `PreviewContextToken`
 - 是否已暴露 JWKS 地址
-- 是否实现 preview-sessions/manifest/config-bundle/modules 接口
-- 是否校验服务级 JWT 与预览上下文一致性
-- 是否能按发布版本返回不可变资源
+- 是否实现 `preview-artifacts/manifest/config-bundle/modules` 接口
+- 是否校验服务级 JWT 与 PreviewContextToken 一致性
+- 是否保证组件预览不要求 `project_id`
+- 是否保证 artifact 按 TTL 清理，而不是持久化为可恢复会话

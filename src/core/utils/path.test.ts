@@ -11,6 +11,7 @@ import {
   setRuntimeConfigContext,
   setRuntimePreloadedConfig,
   setRuntimePreviewContext,
+  setRuntimePreviewToken,
 } from './path'
 
 beforeEach(() => {
@@ -20,6 +21,7 @@ beforeEach(() => {
 afterEach(() => {
   setRuntimeConfigContext(undefined)
   setRuntimePreviewContext(undefined)
+  setRuntimePreviewToken(undefined)
   setRuntimePreloadedConfig(undefined)
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -42,20 +44,28 @@ describe('runtime path helpers', () => {
 
   it('应优先使用 manifest 资源映射解析资源路径', () => {
     setRuntimePreviewContext({
-      sessionId: 'sess_1',
+      artifactId: 'artifact_1',
       tenantId: 'tenant_1',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_1',
       projectId: 'project_1',
-      releaseId: 'release_1',
-      entryRoute: '/home',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
       assetBaseUrl: 'https://assets.example/releases/release_1',
-      traceId: 'trace_1'
+      traceId: 'trace_1',
     })
     setRuntimePreloadedConfig({
       manifest: {
-        release_id: 'release_1',
+        artifact_id: 'artifact_1',
         tenant_id: 'tenant_1',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_1',
+          workspace_id: 'workspace_1',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
         project_id: 'project_1',
-        entry_route: '/home',
         modules: {},
         assets: {
           'img/logo/ppt-e.png': 'hashed/logo-a1b2c3.png'
@@ -68,20 +78,28 @@ describe('runtime path helpers', () => {
 
   it('manifest key 大小写不一致时也应命中映射', () => {
     setRuntimePreviewContext({
-      sessionId: 'sess_case',
+      artifactId: 'artifact_case',
       tenantId: 'tenant_case',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_case',
       projectId: 'project_case',
-      releaseId: 'release_case',
-      entryRoute: '/home',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
       assetBaseUrl: 'https://assets.example/releases/release_case',
-      traceId: 'trace_case'
+      traceId: 'trace_case',
     })
     setRuntimePreloadedConfig({
       manifest: {
-        release_id: 'release_case',
+        artifact_id: 'artifact_case',
         tenant_id: 'tenant_case',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_case',
+          workspace_id: 'workspace_case',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
         project_id: 'project_case',
-        entry_route: '/home',
         modules: {},
         assets: {
           'top.svg': 'hashed/top-a1b2c3.svg'
@@ -94,20 +112,28 @@ describe('runtime path helpers', () => {
 
   it('manifest key 带目录前缀时应支持 basename 兜底匹配', () => {
     setRuntimePreviewContext({
-      sessionId: 'sess_basename',
+      artifactId: 'artifact_basename',
       tenantId: 'tenant_basename',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_basename',
       projectId: 'project_basename',
-      releaseId: 'release_basename',
-      entryRoute: '/home',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
       assetBaseUrl: 'https://assets.example/releases/release_basename',
-      traceId: 'trace_basename'
+      traceId: 'trace_basename',
     })
     setRuntimePreloadedConfig({
       manifest: {
-        release_id: 'release_basename',
+        artifact_id: 'artifact_basename',
         tenant_id: 'tenant_basename',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_basename',
+          workspace_id: 'workspace_basename',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
         project_id: 'project_basename',
-        entry_route: '/home',
         modules: {},
         assets: {
           'icons/Top.svg': 'hashed/top-z9y8x7.svg'
@@ -120,13 +146,15 @@ describe('runtime path helpers', () => {
 
   it('manifest 未命中时应拼接 asset base url', () => {
     setRuntimePreviewContext({
-      sessionId: 'sess_2',
+      artifactId: 'artifact_2',
       tenantId: 'tenant_2',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_2',
       projectId: 'project_2',
-      releaseId: 'release_2',
-      entryRoute: '/overview',
+      entryDescriptor: { entry_type: 'route', route: '/overview' },
       assetBaseUrl: 'https://assets.example/releases/release_2/',
-      traceId: 'trace_2'
+      traceId: 'trace_2',
     })
 
     expect(resolveResourcePath('./fonts/demo.woff2')).toBe('https://assets.example/releases/release_2/fonts/demo.woff2')

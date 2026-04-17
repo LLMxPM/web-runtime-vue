@@ -6,7 +6,7 @@ import type {
   RuntimePreloadedConfigBundle,
   RuntimePreviewContext,
 } from '@/core/shared/runtime-preview'
-import { normalizeAssetKey } from '@/core/shared/runtime-preview'
+import { normalizeAssetKey, resolvePreviewEntryModulePath } from '@/core/shared/runtime-preview'
 
 export type ConfigFileName = 'app' | 'routes' | 'themes' | 'icons'
 
@@ -90,6 +90,32 @@ export function setRuntimePreviewContext(context?: RuntimePreviewContext): void 
     return
   }
   window.__RUNTIME_PREVIEW_CONTEXT__ = context
+}
+
+/**
+ * 读取浏览器侧注入的预览上下文 token。
+ * @returns 预览上下文 token；非预览模式返回空串
+ */
+export function getRuntimePreviewToken(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return String(window.__RUNTIME_PREVIEW_TOKEN__ || '')
+}
+
+/**
+ * 写入预览上下文 token，仅供测试或受控入口注入。
+ * @param token 预览上下文 token；传空则清理
+ */
+export function setRuntimePreviewToken(token?: string): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+  if (!token) {
+    delete window.__RUNTIME_PREVIEW_TOKEN__
+    return
+  }
+  window.__RUNTIME_PREVIEW_TOKEN__ = token
 }
 
 /**
@@ -259,7 +285,30 @@ function getAssetBaseName(assetKey: string): string {
  * @returns 入口路由；无预览上下文时返回空串
  */
 export function getPreviewEntryRoute(): string {
-  return String(getRuntimePreviewContext()?.entryRoute || '').trim()
+  return String(getRuntimePreviewContext()?.entryDescriptor?.route || '').trim()
+}
+
+/**
+ * 获取当前预览上下文对应的首屏导航路径。
+ * @returns 路由路径；无预览上下文时返回空串
+ */
+export function getPreviewEntryNavigationPath(): string {
+  const previewContext = getRuntimePreviewContext()
+  const entryDescriptor = previewContext?.entryDescriptor
+  if (!entryDescriptor) {
+    return ''
+  }
+  if (entryDescriptor.entry_type === 'route') {
+    return String(entryDescriptor.route || '').trim()
+  }
+  if (entryDescriptor.entry_type === 'module') {
+    const modulePath = resolvePreviewEntryModulePath(entryDescriptor)
+    return modulePath ? `/${modulePath}` : ''
+  }
+  if (entryDescriptor.entry_type === 'component_host') {
+    return '/__component-preview'
+  }
+  return ''
 }
 
 /**

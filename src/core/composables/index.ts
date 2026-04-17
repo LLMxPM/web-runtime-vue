@@ -19,4 +19,7 @@ export * from './useMenu'
 export * from './usePageNavigation'
 
 // Backend 资源 URL 辅助（useAssetUrl / useBackgroundImage）
-export * from './useAsset'
+export * from './useAsset'
+
+// 组件预览 mock 注入
+export * from './useComponentPreviewMock'
