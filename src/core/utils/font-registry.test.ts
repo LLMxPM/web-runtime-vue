@@ -53,20 +53,28 @@ afterEach(async () => {
 describe('runtime font registry', () => {
   it('应根据预加载字体配置注入动态 @font-face', () => {
     setRuntimePreviewContext({
-      sessionId: 'sess_font',
+      artifactId: 'artifact_font',
       tenantId: 'tenant_font',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_font',
       projectId: 'project_font',
-      releaseId: 'release_font',
-      entryRoute: '/home',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
       assetBaseUrl: 'https://assets.example/runtime-font',
       traceId: 'trace_font',
     })
     setRuntimePreloadedConfig({
       manifest: {
-        release_id: 'release_font',
+        artifact_id: 'artifact_font',
         tenant_id: 'tenant_font',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_font',
+          workspace_id: 'workspace_font',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
         project_id: 'project_font',
-        entry_route: '/home',
         modules: {},
         assets: {
           'SourceHanSansSC-VF.otf.woff2': 'fonts/source-han-sans.woff2',

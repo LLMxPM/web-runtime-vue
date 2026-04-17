@@ -85,6 +85,13 @@ export interface ThemeStyles extends CSSProperties {
  */
 interface ThemeConfigFile {
   themes: Record<string, ThemeConfig>
+  default?: {
+    theme?: string
+  }
+}
+
+type ResolvedThemeConfigFile = {
+  themes: Record<string, ThemeConfig>
   default: {
     theme: string
   }
@@ -96,7 +103,7 @@ const defaultTheme = ref<string>('white')
 /**
  * 默认白色主题，作为本地 demo 的兜底配置。
  */
-function buildDefaultThemeConfig(): ThemeConfigFile {
+function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
   return {
     themes: {
       white: {
@@ -159,9 +166,38 @@ function isPreviewMode(): boolean {
  * @param config 主题配置文件结构
  */
 function applyThemeConfig(config: ThemeConfigFile): void {
-  themeConfigs.value = config.themes
-  defaultTheme.value = config.default.theme
-  availableThemes.value = Object.keys(config.themes)
+  const normalizedConfig = normalizeThemeConfig(config)
+  themeConfigs.value = normalizedConfig.themes
+  defaultTheme.value = normalizedConfig.default.theme
+  availableThemes.value = Object.keys(normalizedConfig.themes)
+}
+
+/**
+ * 规范化主题配置，确保缺省字段不会导致 Runtime 初始化失败。
+ * @param rawConfig 原始主题配置
+ * @returns 可安全消费的主题配置
+ */
+function normalizeThemeConfig(rawConfig: ThemeConfigFile): ResolvedThemeConfigFile {
+  const fallbackConfig = buildDefaultThemeConfig()
+  const resolvedThemes = rawConfig?.themes && typeof rawConfig.themes === 'object'
+    ? rawConfig.themes
+    : {}
+  const themeKeys = Object.keys(resolvedThemes)
+  if (themeKeys.length === 0) {
+    return fallbackConfig
+  }
+
+  const candidateDefaultTheme = rawConfig?.default?.theme
+  const resolvedDefaultTheme = candidateDefaultTheme && resolvedThemes[candidateDefaultTheme]
+    ? candidateDefaultTheme
+    : themeKeys[0]
+
+  return {
+    themes: resolvedThemes,
+    default: {
+      theme: resolvedDefaultTheme,
+    },
+  }
 }
 
 /**

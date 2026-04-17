@@ -1,83 +1,81 @@
 # 鉴权与安全契约
 
-本文档定义 Browser、Backend、Runtime 之间的鉴权边界，以及 Runtime 到 Backend 的内部访问约束。
+本文档定义 Browser、Backend、Runtime 在无状态预览链路中的鉴权边界，以及 Runtime 访问 Backend 内部 artifact 接口时的安全约束。
 
 ## 1. 总体原则
 
-- 用户身份只由 Backend 负责校验
-- Runtime 不维护用户体系，不解析浏览器 Cookie/JWT
-- Runtime 只信任 Backend 注入的短期 JWS 与服务级 JWT
-- 发布产物访问必须绑定租户、项目和发布版本上下文
+- 用户身份与权限只由 Backend 负责校验。
+- Runtime 不维护用户体系，不解析浏览器 Cookie/JWT。
+- 预览上下文统一使用短生命周期 `PreviewContextToken`。
+- Preview 为无状态链路，不保存也不恢复 preview session。
+- 预览产物访问必须同时绑定 token 中的 `artifact_id`、`preview_kind`、`scope_type` 与入口描述。
 
 ## 2. Browser -> Backend
 
-- Browser 使用平台已有登录态访问 Backend 公开预览入口
+- Browser 使用平台已有登录态访问 Backend 公开预览入口。
 - Backend 校验：
   - 用户是否登录
   - 用户是否属于目标租户
-  - 用户是否有目标项目访问权限
-  - 用户是否有目标发布版本预览权限
+  - 用户是否有目标项目或工作空间权限
+  - 用户是否有目标 preview artifact 的访问权限
+- Backend 校验通过后，反向代理到 Runtime `/__preview`，并透传预览上下文 token。
 
 ## 3. Backend -> Runtime
 
 Backend 代理到 Runtime 时，必须注入：
 
-- 请求头：`x-runtime-preview-context: <JWS>`
+- 请求头：`x-runtime-preview-context: <PreviewContextToken>`
 
 Runtime 通过 `RUNTIME_PREVIEW_JWKS_URL` 获取 JWKS 并离线验签。
 
-### 预览上下文 JWS 必填声明
+### PreviewContextToken 必填声明
 
 - `iss`
 - `aud`
 - `sub`
 - `tenant_id`
-- `project_id`
-- `release_id`
-- `entry_route`
+- `artifact_id`
+- `preview_kind`
+- `scope_type`
+- `workspace_id`
+- `entry_descriptor`
 - `asset_base_url`
+- `trace_id`
+- `iat`
 - `exp`
 - `jti`
-- `trace_id`
+
+### 按场景裁剪的附加声明
+
+- 项目/页面预览额外要求：
+  - `project_id`
+- 组件预览可选：
+  - `component_preview_mode`
+  - `component_code`
+  - `component_version_no`
 
 ### 验签失败处理
 
-- JWS 缺失：`401 PREVIEW_CONTEXT_REQUIRED`
-- JWS 声明不完整：`401 PREVIEW_CONTEXT_INVALID`
-- JWS 过期或签名非法：`401`
-- manifest 与 JWS 的租户/项目/版本不一致：`403 MANIFEST_CONTEXT_MISMATCH`
+- Token 缺失：`401 PREVIEW_CONTEXT_REQUIRED`
+- Token 声明不完整：`401 PREVIEW_CONTEXT_INVALID`
+- Token 过期或签名非法：`401`
+- manifest 与 token 的租户、artifact、scope 或入口描述不一致：`403 MANIFEST_CONTEXT_MISMATCH`
 
 ## 4. Runtime -> Backend
 
-Runtime 调用 Backend 内部发布产物 API 时，统一使用服务级短期 JWT/JWS：
+Runtime 调用 Backend 内部 preview artifact API 时，统一使用服务级 JWT，并继续透传原始预览上下文：
 
 - `Authorization: Bearer <RUNTIME_SERVICE_JWT>`
+- `x-runtime-preview-context: <PreviewContextToken>`
 - 可选请求头：`x-runtime-service-audience: <RUNTIME_SERVICE_TOKEN_AUDIENCE>`
-- HTML 首屏链路会透传原始 `x-runtime-preview-context`
-- 远程模块链路会携带 `x-runtime-preview-session-id`
 
 Backend 应同时校验：
 
 - 服务身份是否合法
 - `aud` 是否匹配内部 API 约定
-- 透传的预览上下文或预览会话是否与请求的 `release_id` 一致
-- 当前服务是否被允许读取该租户/项目/版本的发布产物
-
-### 预览会话查询接口
-
-为避免 Runtime 依赖单机内存缓存，Backend 需要提供可重复查询的预览会话接口：
-
-- `GET /internal/runtime/preview-sessions/{session_id}`
-
-该接口至少返回：
-
-- `session_id`
-- `tenant_id`
-- `project_id`
-- `release_id`
-- `entry_route`
-- `asset_base_url`
-- `trace_id`
+- 当前请求的 `artifact_id` 是否与 token 一致
+- token 中的 `preview_kind / scope_type / entry_descriptor` 是否与 manifest 一致
+- 当前服务是否被允许读取该租户下对应 scope 的 preview artifact
 
 ## 5. 资源与模块白名单
 
@@ -85,30 +83,33 @@ Runtime 对远程模块和资源采用双层约束：
 
 ### 第一层：预览上下文约束
 
-- 当前请求必须属于同一个 `tenant_id + project_id + release_id`
+- 当前请求必须属于同一个 `tenant_id + artifact_id`
+- 项目/页面预览还必须匹配 `project_id`
+- 组件预览不得额外要求 `project_id`
 
 ### 第二层：manifest 白名单
 
-- 页面模块必须在 `manifest.modules` 中存在
+- 普通远程模块必须存在于 `manifest.modules`
+- 单页面预览的入口模块允许不进入 `manifest.modules`，但豁免范围仅限 token 中声明的 `entry_descriptor.module_path`
 - 静态资源应优先命中 `manifest.assets`
 
 ## 6. 错误码建议
 
 | HTTP | code | 含义 |
 | --- | --- | --- |
-| 401 | `PREVIEW_CONTEXT_REQUIRED` | 缺少预览上下文 JWS |
+| 401 | `PREVIEW_CONTEXT_REQUIRED` | 缺少预览上下文 token |
 | 401 | `PREVIEW_CONTEXT_INVALID` | 预览上下文声明不完整或非法 |
-| 401 | `PREVIEW_SESSION_INVALID` | 预览会话内容非法或字段不完整 |
 | 403 | `MANIFEST_CONTEXT_MISMATCH` | manifest 与预览上下文不一致 |
-| 403 | `PREVIEW_SESSION_MISMATCH` | 预览会话标识与请求不一致 |
-| 403 | `RELEASE_MISMATCH` | 模块请求的发布版本与上下文不一致 |
-| 404 | `MODULE_NOT_ALLOWED` | 模块不在 manifest 白名单中 |
+| 403 | `PREVIEW_ARTIFACT_MISMATCH` | token 与请求的 artifact 不一致 |
+| 403 | `SCOPE_CONTEXT_MISMATCH` | 项目/工作空间归属与 token 不一致 |
+| 404 | `ARTIFACT_NOT_FOUND` | preview artifact 不存在 |
+| 404 | `MODULE_NOT_FOUND` | 模块不存在 |
 | 5xx | `BACKEND_REQUEST_FAILED` | Runtime 调用 Backend 内部 API 失败 |
 
 ## 7. 安全建议
 
-- `RUNTIME_SERVICE_JWT` 应由部署系统或密钥管理系统注入，避免落库或提交仓库
-- `exp` 建议控制在分钟级
-- `jti` 用于链路追踪与审计
-- Runtime 和 Backend 间建议走内网或 Service Mesh
-- 如平台支持，建议叠加 mTLS
+- `RUNTIME_SERVICE_JWT` 应由部署系统或密钥管理系统注入，避免落库或提交仓库。
+- `PreviewContextToken.exp` 建议控制在分钟级。
+- `jti` 仅用于链路追踪与审计，不承载会话恢复语义。
+- Runtime 和 Backend 间建议走内网或 Service Mesh。
+- 如平台支持，建议叠加 mTLS。
