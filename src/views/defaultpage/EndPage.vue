@@ -1,5 +1,5 @@
 <template>
-  <DefaultContainer >
+  <DefaultContainer>
     <div class="relative h-full w-full overflow-hidden">
       <!-- 背景图片 -->
       <div class="background-image absolute inset-0 h-full w-full"></div>
@@ -21,11 +21,11 @@
               了解AI，用好AI
             </p>
           </div>
-          
+
           <!-- 底部联系信息 -->
           <div class="contact-info mb-16">
             <div class="contact-item mb-4">
-              <Icon name="Github" class="inline-block mr-3 text-invert" :size="28" />
+              <Icon name="Github" color="#ffffff" class="inline-block mr-3" :size="28" />
               <span class="text-invert text-2xl">web-runtime-vue</span>
             </div>
           </div>
@@ -81,16 +81,12 @@ onMounted(() => {
  * 使用CSS变量获取当前主题的背景色，并通过透明度实现渐变效果
  */
 .gradient-overlay {
-  background: linear-gradient(
-    to right,
-    rgb(from var(--tw-color-bg-invert) r g b / 1) 0%,
-    rgb(from var(--tw-color-bg-invert) r g b / 0.9) 35%,
-    rgb(from var(--tw-color-bg-invert) r g b / 0.7) 70%,
-    rgb(from var(--tw-color-bg-invert) r g b / 0.5) 100%
-  );
-  pointer-events: none; /* 确保蒙版不影响鼠标事件 */
+  background: linear-gradient(to right,
+      rgb(from var(--tw-color-bg-invert) r g b / 1) 0%,
+      rgb(from var(--tw-color-bg-invert) r g b / 0.9) 35%,
+      rgb(from var(--tw-color-bg-invert) r g b / 0.7) 70%,
+      rgb(from var(--tw-color-bg-invert) r g b / 0.5) 100%);
+  pointer-events: none;
+  /* 确保蒙版不影响鼠标事件 */
 }
 </style>
-
-
-

@@ -73,6 +73,40 @@ const COLOR_INTENSITY_MAP: Record<string, number> = {
 }
 
 /**
+ * 根据主题变量和色阶生成可直接用于 style 的颜色表达式。
+ * 说明：
+ * - 基础色直接返回 CSS 变量，避免 `rgb(from var(...))` 在 SVG 内联样式中兼容性不足
+ * - 浅色阶使用 `color-mix` 与白色混合
+ * - 深色阶使用 `color-mix` 与黑色混合
+ * @param cssVar 主题 CSS 变量名
+ * @param intensity 色阶，如 50/100/700
+ * @returns 可直接用于 CSS color/fill/stroke 的颜色值
+ */
+function buildThemeColorValue(cssVar: string, intensity?: string): string {
+  if (!intensity || COLOR_INTENSITY_MAP[intensity] === 1) {
+    return `var(${cssVar})`
+  }
+
+  const intensityValue = COLOR_INTENSITY_MAP[intensity]
+  if (typeof intensityValue !== 'number') {
+    return `var(${cssVar})`
+  }
+
+  const intensityNumber = Number(intensity)
+  if (Number.isNaN(intensityNumber)) {
+    return `var(${cssVar})`
+  }
+
+  if (intensityNumber < 500) {
+    const colorPercent = Math.max(0, Math.min(100, (1 - intensityValue) * 100))
+    return `color-mix(in srgb, var(${cssVar}) ${colorPercent}%, white)`
+  }
+
+  const colorPercent = Math.max(0, Math.min(100, intensityValue * 100))
+  return `color-mix(in srgb, var(${cssVar}) ${colorPercent}%, black)`
+}
+
+/**
  * 检查字符串是否为有效的颜色值
  * @param color 颜色字符串
  * @returns 是否为有效颜色值
@@ -116,15 +150,17 @@ export function resolveColor(colorInput?: string): string | undefined {
   if (!colorInput) {
     return undefined
   }
-  
-  // 如果已经是有效的颜色值，直接返回
-  if (isValidColor(colorInput)) {
-    return colorInput
+
+  const trimmedInput = colorInput.trim()
+  if (!trimmedInput) {
+    return undefined
   }
   
-  // 移除可能的前缀空格
-  const trimmedInput = colorInput.trim()
-  
+  // 如果已经是有效的颜色值，直接返回
+  if (isValidColor(trimmedInput)) {
+    return trimmedInput
+  }
+
   // 处理带强度的颜色类（如 primary-500, accent1-300）
   const intensityMatch = trimmedInput.match(/^(.+)-(\d+)$/)
   if (intensityMatch) {
@@ -132,30 +168,18 @@ export function resolveColor(colorInput?: string): string | undefined {
     const cssVar = THEME_COLOR_MAP[baseColor]
     
     if (cssVar && COLOR_INTENSITY_MAP[intensity]) {
-      const intensityValue = COLOR_INTENSITY_MAP[intensity]
-      
-      if (intensityValue === 1) {
-        // 默认强度，直接使用 CSS 变量
-        return `rgb(from var(${cssVar}) r g b)`
-      } else if (intensityValue > 1) {
-        // 浅色调（50-400）
-        const lightenFactor = intensityValue
-        return `rgb(from var(${cssVar}) calc(r + (255 - r) * ${lightenFactor}) calc(g + (255 - g) * ${lightenFactor}) calc(b + (255 - b) * ${lightenFactor}))`
-      } else {
-        // 深色调（600-900）
-        return `rgb(from var(${cssVar}) calc(r * ${intensityValue}) calc(g * ${intensityValue}) calc(b * ${intensityValue}))`
-      }
+      return buildThemeColorValue(cssVar, intensity)
     }
   }
   
   // 处理基础颜色类
   const cssVar = THEME_COLOR_MAP[trimmedInput]
   if (cssVar) {
-    return `rgb(from var(${cssVar}) r g b)`
+    return buildThemeColorValue(cssVar)
   }
   
   // 如果都不匹配，返回原始输入（可能是自定义 CSS 变量或其他格式）
-  return colorInput
+  return trimmedInput
 }
 
 /**
