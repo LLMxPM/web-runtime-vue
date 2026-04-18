@@ -77,13 +77,13 @@ describe('runtime font registry', () => {
         project_id: 'project_font',
         modules: {},
         assets: {
-          'SourceHanSansSC-VF.otf.woff2': 'fonts/source-han-sans.woff2',
+          'SourceHanSansSC-VF': 'fonts/source-han-sans.woff2',
         },
       },
       fonts: {
         items: {
-          'SourceHanSansSC-VF.otf.woff2': {
-            asset_name: 'SourceHanSansSC-VF.otf.woff2',
+          'SourceHanSansSC-VF': {
+            asset_name: 'SourceHanSansSC-VF',
             font_family: '思源黑体',
             font_format: 'woff2',
             font_weight: '100 900',
@@ -107,8 +107,8 @@ describe('runtime font registry', () => {
     setRuntimePreloadedConfig({
       fonts: {
         items: {
-          'SourceHanSansSC-VF.otf.woff2': {
-            asset_name: 'SourceHanSansSC-VF.otf.woff2',
+          'SourceHanSansSC-VF': {
+            asset_name: 'SourceHanSansSC-VF',
             font_family: '思源黑体',
             font_format: 'woff2',
             font_weight: '400',
@@ -119,7 +119,7 @@ describe('runtime font registry', () => {
       },
     })
 
-    expect(resolveThemeFontFamily('SourceHanSansSC-VF.otf.woff2')).toBe('思源黑体')
+    expect(resolveThemeFontFamily('SourceHanSansSC-VF')).toBe('思源黑体')
     expect(resolveThemeFontFamily('思源黑体')).toBe('思源黑体')
     expect(resolveThemeFontFamily('system-ui')).toBe('system-ui')
   })
@@ -139,9 +139,9 @@ describe('runtime font registry', () => {
               accent: ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666'],
             },
             typography: {
-              headingfont: 'SourceHanSansSC-VF.otf.woff2',
+              headingfont: 'SourceHanSansSC-VF',
               bodyfont: '思源黑体',
-              codefont: 'SourceCodePro-Regular.ttf.woff2',
+              codefont: 'SourceCodePro-Regular',
               baseFontSize: '16px',
             },
           },
@@ -152,16 +152,16 @@ describe('runtime font registry', () => {
       },
       fonts: {
         items: {
-          'SourceHanSansSC-VF.otf.woff2': {
-            asset_name: 'SourceHanSansSC-VF.otf.woff2',
+          'SourceHanSansSC-VF': {
+            asset_name: 'SourceHanSansSC-VF',
             font_family: '思源黑体',
             font_format: 'woff2',
             font_weight: '100 900',
             font_style: 'normal',
             font_display: 'swap',
           },
-          'SourceCodePro-Regular.ttf.woff2': {
-            asset_name: 'SourceCodePro-Regular.ttf.woff2',
+          'SourceCodePro-Regular': {
+            asset_name: 'SourceCodePro-Regular',
             font_family: 'SourceCodePro',
             font_format: 'woff2',
             font_weight: '400',

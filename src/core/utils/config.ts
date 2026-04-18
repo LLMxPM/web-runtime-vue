@@ -23,7 +23,6 @@ export interface AppConfig {
   app: {
     icon: string
     title: string
-    version: string
     description: string
     page?: Partial<RuntimePageConfig>
     features?: {
@@ -68,15 +67,28 @@ export interface RouteConfigYaml {
 /**
  * 图标配置结构。
  */
-export interface IconConfigYaml {
-  lucide_icons: Record<string, string[]> | string[]
-  static_icons: Record<string, Array<{ name: string; src: string }>> | Array<{ name: string; src: string }>
-  config: {
-    default_size?: number
-    default_stroke_width?: number
-    fallback_behavior?: string
-    placeholder_text?: string
+export interface IconAnalysisConfig {
+  schema_version: number
+  kind: 'icon'
+  icon: {
+    format: 'svg' | 'image' | 'unknown'
+    render_mode: 'inline_svg' | 'image'
+    style: 'stroke' | 'fill' | 'mixed' | 'complex' | 'unknown'
+    inline_safe: boolean
+    stroke_width_editable: boolean
+    analysis_status: 'analyzed' | 'unsupported' | 'error'
+    reasons: string[]
   }
+}
+
+export interface StaticIconConfigItem {
+  name: string
+  src: string
+  analysis?: IconAnalysisConfig | null
+}
+
+export interface IconConfigYaml {
+  static_icons: StaticIconConfigItem[]
 }
 
 /**
@@ -89,9 +101,8 @@ export type ConfigChangeListener = (configType: 'app' | 'routes' | 'icons') => v
  */
 const defaultAppConfig: AppConfig = {
   app: {
-    icon: 'Presentation',
+    icon: 'slider',
     title: 'web-runtime-vue',
-    version: '1.0.0',
     description: '只读预览运行时',
     page: { ...DEFAULT_PAGE_CONFIG },
     features: {
@@ -105,14 +116,7 @@ const defaultAppConfig: AppConfig = {
  * 默认图标配置。
  */
 const defaultIconConfig: IconConfigYaml = {
-  lucide_icons: [],
   static_icons: [],
-  config: {
-    default_size: 20,
-    default_stroke_width: 2,
-    fallback_behavior: 'show_placeholder',
-    placeholder_text: '?'
-  }
 }
 
 /**

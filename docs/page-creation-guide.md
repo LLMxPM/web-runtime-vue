@@ -25,7 +25,7 @@
        - `DrawioChart.vue`：用于渲染drawio图表
        - `Icon.vue`：用于渲染图标
     - **3.3 静态资源**  
-     静态资源（如图片、图标等）放在 `public` 目录下，注意引用时需要import { resolveResourcePath } from '@/core/utils/path' 处理路径。
+     工作空间资源（如图片、图标等）统一使用逻辑名 `asset.name` 引用；Runtime `public/` 目录下的内建静态文件仍可通过 `resolveResourcePath` 访问。
 
 4. **配置路由**  
    在 `routes.config.yaml` 中添加对应路由。
@@ -55,7 +55,7 @@ touch src/views/my-new-module/MyNewPage.vue
       <div class="space-y-6 p-6">
         <!-- 使用图标系统和Tailwind类 -->
         <div class="flex items-center mb-4">
-          <Icon name="FileText" :size="24" color="text-primary" />
+          <Icon name="file-text" :size="24" color="text-primary" />
           <h2 class="font-heading text-2xl font-semibold text-primary">页面内容</h2>
         </div>
         
@@ -98,7 +98,7 @@ routes:
     component: "@/views/my-new-module/MyNewModuleIndex.vue"  # 父路由组件
     meta:
       title: "我的新模块"
-      icon: "FileText"  # 图标名称，需在 icons.config.yaml 中配置
+      icon: "file-text"  # 图标名称必须等于工作空间图标资源的 asset.name
       order: 10
     children:
       - route: "page1"
@@ -115,7 +115,7 @@ routes:
 
 **💡 快速提示**：
 - **主题系统**：使用Tailwind类 + CSS变量映射，支持配置驱动的主题切换，详见 [`theme-usage-guide.md`](./theme-usage-guide.md)
-- **图标系统**：使用 `Icon` 组件，支持Lucide图标库，详见 [`icon-system-guide.md`](./icon-system-guide.md)
+- **图标系统**：使用 `Icon` 组件，图标名称统一填写图标资源的逻辑名，详见 [`icon-system-guide.md`](./icon-system-guide.md)
 - **路由配置**：YAML配置驱动的路由系统，详见 [`routes-config-guide.md`](./routes-config-guide.md)
 - **样式规范**：优先使用语义化Tailwind类，动态内容使用 `theme-content` 工具类
 

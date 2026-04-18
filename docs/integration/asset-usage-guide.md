@@ -6,16 +6,16 @@
 
 ## 核心原则
 
-**Vue 页面只需传资源的 `original_name`（上传时的文件名），其余全部由框架自动完成。**
+**Vue 页面只需传资源的逻辑名 `asset.name`，其余全部由框架自动完成。**
 
 Backend 生成预览时，已将所有信息注入到 Runtime 的 window 上下文中：
 
 ```
-manifest.assets = { "background.png": "a3f8b2c1...", "logo.svg": "b5c8d3e2..." }
+manifest.assets = { "background": "a3f8b2c1...", "logo-mark": "b5c8d3e2..." }
 assetBaseUrl    = "http://backend/api/v1/public/assets/{workspaceId}"
 ```
 
-`resolveResourcePath(original_name)` 完成全部解析：`original_name → file_hash → 完整 URL`。
+`resolveResourcePath(asset.name)` 完成全部解析：`asset.name → file_hash → 完整 URL`。
 
 ---
 
@@ -29,7 +29,7 @@ import AssetImage from '@/components/common/AssetImage.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero.png" alt="产品主图" class="w-full rounded-xl" />
+  <AssetImage name="product-hero" alt="产品主图" class="w-full rounded-xl" />
 </template>
 ```
 
@@ -41,7 +41,7 @@ import AssetBackground from '@/components/common/AssetBackground.vue'
 </script>
 
 <template>
-  <AssetBackground name="background.png" class="min-h-screen">
+  <AssetBackground name="background" class="min-h-screen">
     <h1>页面标题</h1>
   </AssetBackground>
 </template>
@@ -55,8 +55,8 @@ import AssetBackground from '@/components/common/AssetBackground.vue'
 <script setup lang="ts">
 import { useAssetSrc, useAssetBackground } from '@/core/composables'
 
-const src = useAssetSrc('product-hero.png')
-const bgStyle = useAssetBackground('background.png')
+const src = useAssetSrc('product-hero')
+const bgStyle = useAssetBackground('background')
 </script>
 
 <template>
@@ -105,4 +105,5 @@ const logoSrc = resolveResourcePath('img/logo/ppt-e.png')
 - [ ] `<style>` 中没有 `url('/...')`
 - [ ] 图片用 `<AssetImage>` 或 `useAssetSrc` 绑定
 - [ ] 背景图用 `<AssetBackground>` 或 `useAssetBackground` 绑定
-- [ ] 资源名使用 `original_name`（上传时的文件名）
+- [ ] 工作空间资源统一使用逻辑名 `asset.name`
+- [ ] 不依赖大小写、后缀或 basename 兜底解析

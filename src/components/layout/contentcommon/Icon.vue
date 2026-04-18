@@ -12,7 +12,7 @@ import AppIcon from '@/components/common/AppIcon.vue';
 
 interface Props {
   /**
-   * @description 图标名称，必须是icons.config.yaml中定义的名称
+   * @description 图标名称，必须是 icons.config.yaml 或预加载配置中的逻辑资源名
    */
   name: string;
   /**
@@ -29,7 +29,7 @@ interface Props {
    */
   class?: string;
   /**
-   * @description 线条宽度（仅对 Lucide 图标生效）
+   * @description 线条宽度，仅对支持能力标记的内联静态 SVG 生效
    */
   strokeWidth?: number;
 }

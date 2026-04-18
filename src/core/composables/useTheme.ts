@@ -48,15 +48,27 @@ export interface TypographyConfig {
 }
 
 /**
+ * 图标默认样式配置。
+ */
+export interface ThemeIconConfig {
+  default_size: number
+  default_stroke_width: number
+}
+
+/**
  * 单个主题配置。
  */
 export interface ThemeConfig {
   name: string
   description: string
+  app?: {
+    icon?: string
+  }
   logo?: string
   invertLogo?: string
   palette: PaletteConfig
   typography: TypographyConfig
+  icon: ThemeIconConfig
 }
 
 /**
@@ -77,6 +89,8 @@ export interface ThemeStyles extends CSSProperties {
   '--theme-font-body': string
   '--theme-font-code': string
   '--theme-font-size-base': string
+  '--theme-icon-default-size': string
+  '--theme-icon-default-stroke-width': string
   [key: `--theme-accent-${number}`]: string
 }
 
@@ -109,6 +123,9 @@ function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
       white: {
         name: '白色经典',
         description: '纯净白色，简约经典',
+        app: {
+          icon: 'slider'
+        },
         logo: 'img/logo/ppt-e.png',
         palette: {
           text: {
@@ -136,6 +153,10 @@ function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
           bodyfont: 'Noto Sans SC',
           codefont: 'Fira Code',
           baseFontSize: '16px'
+        },
+        icon: {
+          default_size: 20,
+          default_stroke_width: 2
         }
       }
     },
@@ -179,9 +200,22 @@ function applyThemeConfig(config: ThemeConfigFile): void {
  */
 function normalizeThemeConfig(rawConfig: ThemeConfigFile): ResolvedThemeConfigFile {
   const fallbackConfig = buildDefaultThemeConfig()
-  const resolvedThemes = rawConfig?.themes && typeof rawConfig.themes === 'object'
+  const rawThemes = rawConfig?.themes && typeof rawConfig.themes === 'object'
     ? rawConfig.themes
     : {}
+  const fallbackTheme = fallbackConfig.themes.white
+  const resolvedThemes = Object.fromEntries(
+    Object.entries(rawThemes).map(([key, theme]) => [
+      key,
+      {
+        ...theme,
+        icon: {
+          default_size: theme?.icon?.default_size ?? fallbackTheme.icon.default_size,
+          default_stroke_width: theme?.icon?.default_stroke_width ?? fallbackTheme.icon.default_stroke_width
+        }
+      }
+    ])
+  )
   const themeKeys = Object.keys(resolvedThemes)
   if (themeKeys.length === 0) {
     return fallbackConfig
@@ -325,7 +359,9 @@ export function useTheme(theme?: string | ComputedRef<string>) {
       '--theme-font-heading': resolveThemeFontFamily(config.typography.headingfont),
       '--theme-font-body': resolveThemeFontFamily(config.typography.bodyfont),
       '--theme-font-code': resolveThemeFontFamily(config.typography.codefont),
-      '--theme-font-size-base': config.typography.baseFontSize
+      '--theme-font-size-base': config.typography.baseFontSize,
+      '--theme-icon-default-size': `${config.icon.default_size}px`,
+      '--theme-icon-default-stroke-width': String(config.icon.default_stroke_width)
     } as ThemeStyles
 
     config.palette.accent.forEach((color, index) => {

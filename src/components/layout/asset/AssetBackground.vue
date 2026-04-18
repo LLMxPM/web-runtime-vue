@@ -1,6 +1,6 @@
 <!--
   文件用途：AssetBackground — 将 Backend 托管资源设置为容器背景图。
-  传入 name（original_name）即可，workspaceId 和路径解析由内部自动完成。
+  传入 name（asset.name）即可，workspaceId 和路径解析由内部自动完成。
 -->
 <template>
   <div :style="[backgroundStyle, sizeStyle, props.style]" :class="props.class" v-bind="$attrs">
@@ -13,7 +13,7 @@
  * AssetBackground
  *
  * 使用示例：
- *   <AssetBackground name="background.png" class="hero-section">
+ *   <AssetBackground name="background" class="hero-section">
  *     <h1>标题内容</h1>
  *   </AssetBackground>
  *
@@ -26,7 +26,7 @@
  *   />
  *
  * Props:
- *   name     — 资源的 original_name（上传时的文件名，必传）
+ *   name     — 资源的逻辑名 `asset.name`（必传）
  *   fallback — 未命中 manifest 时的兜底图 URL（可选）
  *   size     — background-size，默认 "cover"
  *   position — background-position，默认 "center"
@@ -38,7 +38,7 @@ import { computed } from 'vue'
 import { useAssetBackground } from '@/core/composables/useAsset'
 
 interface Props {
-  /** 资源的 original_name（上传时的文件名） */
+  /** 资源的逻辑名 `asset.name` */
   name: string
   /** 未命中 manifest 时的兜底图 URL */
   fallback?: string

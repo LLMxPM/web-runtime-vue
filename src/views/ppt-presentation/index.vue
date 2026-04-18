@@ -334,7 +334,7 @@ const pages: Page[] = [
           {
             title: "图标支持",
             items: [
-              "统一Icon组件，集成Lucide图标库",
+              "统一 Icon 组件，图标名称与资源逻辑名保持一致",
               "支持自定义图标扩展",
               "按需使用，配置化管理"
             ]
@@ -383,7 +383,6 @@ const pages: Page[] = [
 app:
   icon: "Presentation"
   title: "web-runtime-vue"
-  version: "1.0.0"
   features:
     showPdfExportButton: true`
       },

@@ -1,7 +1,6 @@
 app:
   icon: slider
   title: web-runtime-vue
-  version: ""
   description: ""
   page:
     width: 1920

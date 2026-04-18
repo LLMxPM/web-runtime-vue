@@ -1,6 +1,6 @@
 <!--
   文件用途：AssetImage — 基于 manifest 资源名称渲染 Backend 托管图片。
-  传入 name（original_name）即可，workspaceId 和路径解析由内部自动完成。
+  传入 name（asset.name）即可，workspaceId 和路径解析由内部自动完成。
 -->
 <template>
   <img v-if="src" :src="src" :alt="alt" :class="props.class" :style="props.style" v-bind="$attrs" />
@@ -16,10 +16,10 @@
  * AssetImage
  *
  * 使用示例：
- *   <AssetImage name="background.png" alt="背景图" class="w-full" />
+ *   <AssetImage name="background" alt="背景图" class="w-full" />
  *
  * Props:
- *   name     — 资源的 original_name（上传时的文件名，必传）
+ *   name     — 资源的逻辑名 `asset.name`（必传）
  *   alt      — img 的 alt 属性
  *   fallback — 未命中 manifest 时的兜底图 URL（可选）
  *   class    — 传递给 img 的 class
@@ -27,13 +27,13 @@
  *   showFallbackPlaceholder — 未解析时是否渲染占位 span，默认 true
  *
  * 关于 name：
- *   manifest.assets 中的 key 为资源上传时的 original_name，
- *   例：上传 "background.png" 后，name 传 "background.png" 即可。
+ *   manifest.assets 中的 key 为资源逻辑名 `asset.name`，
+ *   例：上传 "background.png" 后，默认 name 为 "background"。
  */
 import { useAssetSrc } from '@/core/composables/useAsset'
 
 interface Props {
-  /** 资源的 original_name（上传时的文件名） */
+  /** 资源的逻辑名 `asset.name` */
   name: string
   /** img alt 属性 */
   alt?: string

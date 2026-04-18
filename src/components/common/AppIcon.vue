@@ -1,6 +1,5 @@
 <!--
-  文件用途：通用图标组件 AppIcon。支持 Lucide 图标与静态资源图标展示。
-  本次更新：为静态 SVG 图标提供内联渲染与颜色配置能力（可通过 color 属性设置）。
+  文件用途：通用图标组件 AppIcon，仅支持静态资源图标展示，并支持静态 SVG 颜色配置。
 -->
 <template>
   <span 
@@ -8,25 +7,15 @@
     :class="[
       props.class,
       {
-        'app-icon--lucide': isLucideIcon,
         'app-icon--static': isStaticIcon,
         'app-icon--disabled': props.disabled
       }
     ]"
     :style="iconStyle"
   >
-    <!-- Lucide 图标 -->
-    <component
-      v-if="showIcon && isLucideIcon"
-      :is="iconComponent"
-      :size="effectiveSize"
-      :stroke-width="effectiveStrokeWidth"
-      :color="resolvedColor"
-    />
-    
     <!-- 静态 SVG 图标（内联渲染以支持颜色配置） -->
     <span
-      v-else-if="showIcon && isStaticSvg && coloredSvgContent"
+      v-if="showStaticSvg"
       class="app-icon__static-svg"
       :style="iconStyle"
       v-html="coloredSvgContent"
@@ -36,7 +25,7 @@
 
     <!-- 静态图标 -->
     <img
-      v-else-if="showIcon && isStaticIcon && staticIconSrc"
+      v-else-if="showStaticImage"
       :src="staticIconSrc"
       :alt="iconDescription || props.name || 'Icon'"
       class="app-icon__static"
@@ -64,8 +53,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useIcon } from '@/core/composables/useIcon'
+import { useTheme } from '@/core/composables/useTheme'
 import { resolveColor } from '@/core/utils/colorResolver'
-import { iconConfig as globalIconConfig } from '@/core/utils/config'
 
 interface Props {
   /** 图标名称 */
@@ -84,7 +73,7 @@ interface Props {
   disabled?: boolean
   /** 自定义类名 */
   class?: string
-  /** 线条宽度（仅Lucide图标） */
+  /** 线条宽度，仅对支持能力标记的内联静态 SVG 生效 */
   strokeWidth?: number
   /** 回退显示内容（当图标不存在时） */
   fallback?: string
@@ -96,21 +85,23 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用图标 composable
 const {
-  iconComponent,
-  iconConfig,
   iconExists,
-  iconType,
-  isLucideIcon,
   isStaticIcon,
   isStaticSvg,
   staticIconSrc,
   iconDescription,
-  staticSvgContent
+  staticSvgContent,
+  supportsStrokeWidth,
 } = useIcon(computed(() => props.name))
 
+const { themeConfig } = useTheme()
+
 const effectiveSize = computed(() => {
-  const cfg = globalIconConfig.value?.config
-  return (props.size ?? cfg?.default_size ?? 24) as number | string
+  return (props.size ?? themeConfig.value?.icon.default_size ?? 20) as number | string
+})
+
+const effectiveStrokeWidth = computed(() => {
+  return props.strokeWidth ?? themeConfig.value?.icon.default_stroke_width
 })
 
 const iconSize = computed(() => {
@@ -123,11 +114,6 @@ const iconSize = computed(() => {
     return `${size}px`
   }
   return size
-})
-
-const effectiveStrokeWidth = computed(() => {
-  const cfg = globalIconConfig.value?.config
-  return props.strokeWidth ?? cfg?.default_stroke_width ?? 2
 })
 
 // 计算解析后的颜色值
@@ -146,22 +132,19 @@ const iconStyle = computed(() => ({
   opacity: props.disabled ? 0.5 : 1
 }))
 
-// 计算是否显示图标
-const showIcon = computed(() => {
-  return iconExists.value && iconComponent.value
+const showStaticSvg = computed(() => {
+  return iconExists.value && isStaticSvg.value && Boolean(coloredSvgContent.value)
 })
 
-const fallbackBehavior = computed(() => globalIconConfig.value?.config?.fallback_behavior || 'show_placeholder')
-const placeholderText = computed(() => globalIconConfig.value?.config?.placeholder_text ?? '?')
+const showStaticImage = computed(() => {
+  return iconExists.value && isStaticIcon.value && Boolean(staticIconSrc.value) && !showStaticSvg.value
+})
+
 const showFallback = computed(() => {
-  return (!iconExists.value || !iconComponent.value) && props.name && fallbackBehavior.value !== 'hide'
+  return Boolean(props.name) && !showStaticSvg.value && !showStaticImage.value
 })
-const fallbackContent = computed(() => {
-  if (fallbackBehavior.value === 'show_initial') {
-    return props.name?.charAt(0)?.toUpperCase() || placeholderText.value
-  }
-  return placeholderText.value
-})
+
+const fallbackContent = computed(() => props.fallback || '?')
 
 /**
  * 为静态 SVG 文本注入颜色与尺寸
@@ -173,7 +156,7 @@ const fallbackContent = computed(() => {
  * @param color 解析后的颜色值（可为 undefined）
  * @returns 处理后的 SVG 文本
  */
-function colorizeSvg(svg: string, color?: string): string {
+function colorizeSvg(svg: string, color?: string, strokeWidth?: number): string {
   if (!svg) return svg
 
   let s = svg
@@ -181,15 +164,15 @@ function colorizeSvg(svg: string, color?: string): string {
   // 1) 去除根 svg width/height 以便容器控制尺寸
   s = s.replace(/<svg([^>]*)>/i, (match, attrs) => {
     let newAttrs = attrs
-      .replace(/\swidth="[^"]*"/gi, '')
-      .replace(/\sheight="[^"]*"/gi, '')
+      .replace(/\swidth=(["'])(.*?)\1/gi, '')
+      .replace(/\sheight=(["'])(.*?)\1/gi, '')
 
     // 注入 width/height="100%" 保持自适应容器
     newAttrs = `${newAttrs} width="100%" height="100%"`
 
     if (color) {
-      if (/style="[^"]*"/i.test(newAttrs)) {
-        newAttrs = newAttrs.replace(/style="([^"]*)"/i, (m, val) => `style="${val};color:${color}"`)
+      if (/style=(["'])(.*?)\1/i.test(newAttrs)) {
+        newAttrs = newAttrs.replace(/style=(["'])(.*?)\1/i, (m, quote, val) => `style=${quote}${val};color:${color}${quote}`)
       } else {
         newAttrs = `${newAttrs} style="color:${color}"`
       }
@@ -198,22 +181,57 @@ function colorizeSvg(svg: string, color?: string): string {
   })
 
   // 2) 将非 none/非 url(#...) 的 fill/stroke 替换为 currentColor
-  s = s.replace(/fill="(.*?)"/gi, (m, val) => {
-    if (val === 'none' || /^url\(#/.test(val)) return m
-    return 'fill="currentColor"'
+  s = s.replace(/fill=(["'])(.*?)\1/gi, (m, quote, val) => {
+    const normalizedValue = String(val || '').trim().toLowerCase()
+    if (normalizedValue === 'none' || /^url\(#/.test(normalizedValue)) return m
+    return `fill=${quote}currentColor${quote}`
   })
-  s = s.replace(/stroke="(.*?)"/gi, (m, val) => {
-    if (val === 'none' || /^url\(#/.test(val)) return m
-    return 'stroke="currentColor"'
+  s = s.replace(/stroke=(["'])(.*?)\1/gi, (m, quote, val) => {
+    const normalizedValue = String(val || '').trim().toLowerCase()
+    if (normalizedValue === 'none' || /^url\(#/.test(normalizedValue)) return m
+    return `stroke=${quote}currentColor${quote}`
   })
 
+  if (typeof strokeWidth === 'number' && Number.isFinite(strokeWidth) && strokeWidth > 0) {
+    s = injectStrokeWidth(s, strokeWidth)
+  }
+
   return s
+}
+
+/**
+ * 仅对显式声明了 stroke 的标签写入描边宽度，避免误改填充型或复杂 SVG。
+ * @param svg 已完成着色处理的 SVG 文本
+ * @param strokeWidth 目标描边宽度
+ * @returns 注入描边宽度后的 SVG 文本
+ */
+function injectStrokeWidth(svg: string, strokeWidth: number): string {
+  return svg.replace(/<([a-zA-Z][\w:-]*)([^<>]*?)(\s*\/?)>/g, (match, tagName, attrs, closingMark) => {
+    if (tagName.startsWith('/')) {
+      return match
+    }
+    if (!/\sstroke=(["'])(.*?)\1/i.test(attrs)) {
+      return match
+    }
+    const strokeMatch = attrs.match(/\sstroke=(["'])(.*?)\1/i)
+    const strokeValue = strokeMatch?.[2]?.trim().toLowerCase() || ''
+    if (!strokeValue || strokeValue === 'none' || strokeValue.startsWith('url(#')) {
+      return match
+    }
+    if (/\sstroke-width=(["'])(.*?)\1/i.test(attrs)) {
+      return `<${tagName}${attrs.replace(/\sstroke-width=(["'])(.*?)\1/i, (_matched, quote) => ` stroke-width=${quote}${strokeWidth}${quote}`)}${closingMark}>`
+    }
+    return `<${tagName}${attrs} stroke-width="${strokeWidth}"${closingMark}>`
+  })
 }
 
 // 计算：着色后的 SVG 文本
 const coloredSvgContent = computed(() => {
   const svg = staticSvgContent.value || ''
-  return colorizeSvg(svg, resolvedColor.value)
+  const strokeWidth = supportsStrokeWidth.value && typeof effectiveStrokeWidth.value === 'number'
+    ? effectiveStrokeWidth.value
+    : undefined
+  return colorizeSvg(svg, resolvedColor.value, strokeWidth)
 })
 
 </script>
@@ -225,10 +243,6 @@ const coloredSvgContent = computed(() => {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
-}
-
-.app-icon--lucide {
-  /* Lucide图标特定样式 */
 }
 
 .app-icon--static {

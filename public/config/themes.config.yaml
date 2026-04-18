@@ -2,6 +2,8 @@ themes:
   dark:
     name: 深邃背景
     description: 黑底白字，专业风格
+    app:
+      icon: slider
     logo: img/logo/ppt-e-white.png
     invertLogo: img/logo/ppt-e.png
     palette:
@@ -31,9 +33,14 @@ themes:
       bodyfont: 思源黑体
       codefont: SourceCodePro
       baseFontSize: 16px
+    icon:
+      default_size: 20
+      default_stroke_width: 2
   lightblue:
     name: 白底蓝色
     description: 白底蓝色主题，简约经典
+    app:
+      icon: slider
     logo: img/logo/ppt-e.png
     invertLogo: img/logo/ppt-e-white.png
     palette:
@@ -63,5 +70,8 @@ themes:
       bodyfont: 思源黑体
       codefont: SourceCodePro
       baseFontSize: 16px
+    icon:
+      default_size: 20
+      default_stroke_width: 2
 default:
   theme: lightblue

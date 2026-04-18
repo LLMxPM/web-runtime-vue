@@ -18,7 +18,7 @@ function getRuntimeFontItems(): Record<string, RuntimeFontBundleItem> {
 
 /**
  * 将主题中的字体引用解析为真实 font-family。
- * 优先按 asset_name 命中，其次兼容历史 font_family 直接匹配。
+ * 优先按字体资源逻辑名 asset_name 命中，其次兼容历史 font_family 直接匹配。
  * @param rawReference 主题中的原始字体引用
  * @returns 可直接写入 CSS 的 font-family
  */

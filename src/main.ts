@@ -8,6 +8,7 @@ import App from './App.vue'
 import { loadThemeConfigs } from './core/composables/useTheme'
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
+import { initializeRuntimeFaviconSync } from './core/utils/favicon'
 import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
 import { getPreviewEntryNavigationPath } from './core/utils/path'
 
@@ -55,6 +56,7 @@ async function initializeApp(): Promise<void> {
     initializeRuntimeFontRegistry()
     await loadThemeConfigs()
     initializeStaticIcons()
+    initializeRuntimeFaviconSync()
 
     const { default: routerPromise } = await import('./core/router')
     const router = await routerPromise
