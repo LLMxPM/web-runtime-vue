@@ -227,11 +227,11 @@ export function resolveResourcePath(resourcePath: string): string {
 }
 
 /**
- * 解析 manifest.assets 中的资源映射，支持规范化、大小写无关与 basename 兜底匹配。
+ * 解析 manifest.assets 中的资源映射，只允许按规范化后的精确 key 命中。
  * 关键约束：
- * 1. 优先精确匹配规范化 key；
- * 2. 其次大小写无关匹配完整 key；
- * 3. 最后按文件名（basename）匹配，兼容带目录前缀的 key。
+ * 1. 工作空间资源必须使用 manifest 中声明的逻辑名；
+ * 2. 不再支持大小写无关匹配；
+ * 3. 不再支持 basename 或目录前缀兜底。
  * @param assetMapping manifest.assets 映射
  * @param normalizedAssetKey 已规范化的资源 key
  * @returns 命中的映射路径；未命中返回 undefined
@@ -242,42 +242,7 @@ function resolveMappedAssetPath(assetMapping: Record<string, string>, normalized
     return undefined
   }
 
-  const directMappedPath = assetMapping[targetKey]
-  if (directMappedPath) {
-    return directMappedPath
-  }
-
-  const targetKeyLower = targetKey.toLowerCase()
-  const targetBaseName = getAssetBaseName(targetKey)
-  const targetBaseNameLower = targetBaseName.toLowerCase()
-
-  for (const [mappingKey, mappingPath] of Object.entries(assetMapping)) {
-    const normalizedMappingKey = normalizeAssetKey(mappingKey)
-    if (!normalizedMappingKey || !mappingPath) {
-      continue
-    }
-
-    if (normalizedMappingKey.toLowerCase() === targetKeyLower) {
-      return mappingPath
-    }
-
-    const mappingBaseName = getAssetBaseName(normalizedMappingKey)
-    if (mappingBaseName === targetBaseName || mappingBaseName.toLowerCase() === targetBaseNameLower) {
-      return mappingPath
-    }
-  }
-
-  return undefined
-}
-
-/**
- * 提取资源 key 的 basename。
- * @param assetKey 资源 key
- * @returns 文件名部分；为空时返回原 key
- */
-function getAssetBaseName(assetKey: string): string {
-  const segments = String(assetKey || '').split('/').filter(Boolean)
-  return segments[segments.length - 1] || String(assetKey || '')
+  return assetMapping[targetKey]
 }
 
 /**

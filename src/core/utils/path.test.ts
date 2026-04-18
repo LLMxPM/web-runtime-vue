@@ -76,7 +76,7 @@ describe('runtime path helpers', () => {
     expect(resolveResourcePath('img/logo/ppt-e.png')).toBe('https://assets.example/releases/release_1/hashed/logo-a1b2c3.png')
   })
 
-  it('manifest key 大小写不一致时也应命中映射', () => {
+  it('manifest key 大小写不一致时不应命中映射，而是按原路径回退', () => {
     setRuntimePreviewContext({
       artifactId: 'artifact_case',
       tenantId: 'tenant_case',
@@ -107,10 +107,10 @@ describe('runtime path helpers', () => {
       }
     })
 
-    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_case/hashed/top-a1b2c3.svg')
+    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_case/Top.svg')
   })
 
-  it('manifest key 带目录前缀时应支持 basename 兜底匹配', () => {
+  it('manifest key 带目录前缀时不应支持 basename 兜底匹配', () => {
     setRuntimePreviewContext({
       artifactId: 'artifact_basename',
       tenantId: 'tenant_basename',
@@ -141,7 +141,7 @@ describe('runtime path helpers', () => {
       }
     })
 
-    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_basename/hashed/top-z9y8x7.svg')
+    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_basename/Top.svg')
   })
 
   it('manifest 未命中时应拼接 asset base url', () => {

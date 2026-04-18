@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
 import { defineAsyncComponent } from 'vue'
-import { loadIconConfig, type IconConfigYaml } from './config'
+import { loadIconConfig, type IconAnalysisConfig, type IconConfigYaml } from './config'
 
 /**
  * 图标类型定义
@@ -8,29 +8,16 @@ import { loadIconConfig, type IconConfigYaml } from './config'
 export interface IconConfig {
   /** 图标组件 */
   component: Component
-  /** 图标类型：lucide 或 static */
-  type: 'lucide' | 'static'
-  /** 静态图标的路径（仅当type为static时使用） */
+  /** 图标类型：当前仅支持 static */
+  type: 'static'
+  /** 静态图标的路径 */
   src?: string
   /** 图标描述 */
   description?: string
   /** 图标分类 */
   category?: string
-}
-
-/**
- * 动态导入 Lucide 图标的辅助函数
- * @param iconName 图标名称
- * @returns 图标组件或null
- */
-async function importLucideIcon(iconName: string): Promise<Component | null> {
-  try {
-    const lucideModule = await import('lucide-vue-next')
-    return lucideModule[iconName] || null
-  } catch (error) {
-    console.warn(`Failed to import Lucide icon: ${iconName}`, error)
-    return null
-  }
+  /** 结构化分析元数据 */
+  analysis?: IconAnalysisConfig | null
 }
 
 /**
@@ -79,13 +66,10 @@ class IconRegistry {
     try {
       // 加载图标配置
       this.iconConfig = await loadIconConfig()
-      
-      // 注册 Lucide 图标
-      await this.registerLucideIcons()
-      
+
       // 注册静态图标
       this.registerStaticIcons()
-      
+
       this.initialized = true
     } catch (error) {
       console.error('Failed to initialize icon registry:', error)
@@ -94,48 +78,20 @@ class IconRegistry {
   }
 
   /**
-   * 注册 Lucide 图标
-   */
-  private async registerLucideIcons(): Promise<void> {
-    if (!this.iconConfig?.lucide_icons) return
-    const li = this.iconConfig.lucide_icons as any
-    if (Array.isArray(li)) {
-      for (const iconName of li as string[]) {
-        const component = await importLucideIcon(iconName)
-        if (component) {
-          this.icons.set(iconName, { component, type: 'lucide', description: `Lucide ${iconName} icon` })
-        }
-      }
-    } else {
-      for (const [category, icons] of Object.entries(li as Record<string, string[]>)) {
-        for (const iconName of icons) {
-          const component = await importLucideIcon(iconName)
-          if (component) {
-            this.icons.set(iconName, { component, type: 'lucide', description: `Lucide ${iconName} icon`, category })
-          }
-        }
-      }
-    }
-  }
-
-  /**
    * 注册静态图标
    */
   private registerStaticIcons(): void {
     if (!this.iconConfig?.static_icons) return
-    const si = this.iconConfig.static_icons as any
-    if (Array.isArray(si)) {
-      for (const iconConfig of si as Array<{ name: string; src: string }>) {
-        const component = createStaticIconComponent(iconConfig.src, iconConfig.name)
-        this.icons.set(iconConfig.name, { component, type: 'static', src: iconConfig.src, description: iconConfig.name || 'Static icon' })
-      }
-    } else {
-      for (const [category, icons] of Object.entries(si as Record<string, Array<{ name: string; src: string }>>)) {
-        for (const iconConfig of icons) {
-          const component = createStaticIconComponent(iconConfig.src, iconConfig.name)
-          this.icons.set(iconConfig.name, { component, type: 'static', src: iconConfig.src, description: iconConfig.name || 'Static icon', category })
-        }
-      }
+
+    for (const iconConfig of this.iconConfig.static_icons) {
+      const component = createStaticIconComponent(iconConfig.src, iconConfig.name)
+      this.icons.set(iconConfig.name, {
+        component,
+        type: 'static',
+        src: iconConfig.src,
+        description: iconConfig.name || 'Static icon',
+        analysis: iconConfig.analysis ?? null,
+      })
     }
   }
   
@@ -220,7 +176,7 @@ class IconRegistry {
    * @param type 图标类型
    * @returns 图标名称数组
    */
-  async getIconNamesByType(type: 'lucide' | 'static'): Promise<string[]> {
+  async getIconNamesByType(type: 'static'): Promise<string[]> {
     await this.ensureInitialized()
     return Array.from(this.icons.entries())
       .filter(([, config]) => config.type === type)
@@ -326,7 +282,7 @@ export const getAllIconNames = async (): Promise<string[]> => {
  * @param type 图标类型
  * @returns 图标名称数组
  */
-export const getIconNamesByType = async (type: 'lucide' | 'static'): Promise<string[]> => {
+export const getIconNamesByType = async (type: 'static'): Promise<string[]> => {
   return await iconRegistry.getIconNamesByType(type)
 }
 

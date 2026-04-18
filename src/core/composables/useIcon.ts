@@ -1,7 +1,6 @@
 /**
- * 文件用途：提供图标使用相关的 Vue Composable，包括图标获取、类型判断、
- *           批量处理与注册功能。本次更新新增静态 SVG 图标的内容加载，
- *           以支持在组件内联渲染并进行颜色配置。
+ * 文件用途：提供图标使用相关的 Vue Composable，包括图标获取、批量处理与注册功能。
+ *           当前运行时仅支持静态图标，并为静态 SVG 图标提供内联渲染与颜色配置能力。
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { getIcon, hasIcon, getIconConfig } from '@/core/utils/icon-registry'
@@ -62,7 +61,12 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
       iconExists.value = exists
 
       // 若是静态 SVG 图标，尝试加载其内容
-      if (config?.type === 'static' && config.src && config.src.toLowerCase().endsWith('.svg')) {
+      if (
+        config?.type === 'static' &&
+        config.src &&
+        config.src.toLowerCase().endsWith('.svg') &&
+        config.analysis?.icon.render_mode === 'inline_svg'
+      ) {
         const src = resolveResourcePath(config.src)
         try {
           const res = await fetch(src)
@@ -95,17 +99,22 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
   /**
    * 计算属性：图标类型
    */
-  const iconType = computed((): 'lucide' | 'static' | undefined => {
+  const iconType = computed((): 'static' | undefined => {
     return iconConfig.value?.type
   })
-  
+
   /**
-   * 计算属性：是否为Lucide图标
+   * 计算属性：图标结构化分析元数据。
    */
-  const isLucideIcon = computed((): boolean => {
-    return iconType.value === 'lucide'
+  const iconAnalysis = computed(() => iconConfig.value?.analysis ?? null)
+
+  /**
+   * 计算属性：静态图标实际渲染模式。
+   */
+  const staticRenderMode = computed((): 'inline_svg' | 'image' => {
+    return iconAnalysis.value?.icon.render_mode === 'inline_svg' ? 'inline_svg' : 'image'
   })
-  
+
   /**
    * 计算属性：是否为静态图标
    */
@@ -118,7 +127,23 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
    */
   const isStaticSvg = computed((): boolean => {
     const src = iconConfig.value?.src
-    return isStaticIcon.value && typeof src === 'string' && src.toLowerCase().endsWith('.svg')
+    return (
+      isStaticIcon.value &&
+      staticRenderMode.value === 'inline_svg' &&
+      typeof src === 'string' &&
+      src.toLowerCase().endsWith('.svg')
+    )
+  })
+
+  /**
+   * 计算属性：当前静态 SVG 是否允许调整描边宽度。
+   */
+  const supportsStrokeWidth = computed((): boolean => {
+    return Boolean(
+      iconAnalysis.value?.icon.stroke_width_editable &&
+      staticRenderMode.value === 'inline_svg' &&
+      isStaticSvg.value,
+    )
   })
   
   /**
@@ -152,9 +177,11 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
     
     // 类型判断
     iconType,
-    isLucideIcon,
+    iconAnalysis,
     isStaticIcon,
     isStaticSvg,
+    staticRenderMode,
+    supportsStrokeWidth,
     
     // 静态图标相关
     staticIconSrc,
@@ -222,14 +249,11 @@ export function useIcons(iconNames: string[]) {
    * 计算属性：按类型分组的图标
    */
   const iconsByType = computed(() => {
-    const lucideIcons: string[] = []
     const staticIcons: string[] = []
     const unknownIcons: string[] = []
     
     iconInstances.forEach(icon => {
-      if (icon.isLucideIcon.value) {
-        lucideIcons.push(icon.name)
-      } else if (icon.isStaticIcon.value) {
+      if (icon.isStaticIcon.value) {
         staticIcons.push(icon.name)
       } else {
         unknownIcons.push(icon.name)
@@ -237,7 +261,6 @@ export function useIcons(iconNames: string[]) {
     })
     
     return {
-      lucide: lucideIcons,
       static: staticIcons,
       unknown: unknownIcons
     }
@@ -332,7 +355,7 @@ export function useIconRegistry() {
   /**
    * 根据类型获取图标名称
    */
-  const getIconNamesByType = async (type: 'lucide' | 'static') => {
+  const getIconNamesByType = async (type: 'static') => {
     try {
       return await (await import('@/core/utils/icon-registry')).getIconNamesByType(type)
     } catch (err) {

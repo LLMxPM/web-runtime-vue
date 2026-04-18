@@ -1,3 +1,4 @@
+<!-- 文件用途：响应式侧边导航栏，负责应用标题、目录折叠、悬浮菜单与页面预览提示。 -->
 <template>
   <div class="relative z-[100]">
     <aside
@@ -7,14 +8,19 @@
         <div class="flex-1 flex items-center justify-center">
           <transition name="logo-fade" mode="out-in">
             <div v-if="!isCollapsed" key="title" class="flex items-center justify-center gap-3">
-              <Icon v-if="appConfig.icon" :name="appConfig.icon"
-                class="text-blue-600 flex-shrink-0 transition-all duration-200" :size="24" />
+              <Icon
+                v-if="appConfig.icon"
+                :name="appConfig.icon"
+                class="flex-shrink-0 transition-all duration-200"
+                :size="24"
+              />
               <h1 class="text-[22px] font-bold text-gray-900 m-0 text-center">
                 {{ appConfig.title }}
               </h1>
             </div>
             <div v-else key="icon"
-              class="w-10 h-10 bg-slate-50 text-blue-500 rounded-xl flex items-center justify-center font-bold text-[20px] cursor-pointer transition-all duration-200 shadow-sm border border-slate-200 hover:scale-105 hover:bg-slate-100 hover:text-blue-600 hover:shadow-md hover:border-slate-300"
+              class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center font-bold text-[20px] cursor-pointer transition-all duration-200 shadow-sm border border-slate-200 hover:scale-105 hover:bg-slate-100 hover:shadow-md hover:border-slate-300"
+              :class="appConfig.icon ? '' : 'text-blue-500 hover:text-blue-600'"
               :title="appConfig.title">
               <Icon v-if="appConfig.icon" :name="appConfig.icon" :size="20" />
               <span v-else>
@@ -217,7 +223,6 @@ interface Props {
   appConfig: {
     icon?: string
     title: string
-    version?: string
     description?: string
     features?: {
       menuMode?: 'text' | 'preview'

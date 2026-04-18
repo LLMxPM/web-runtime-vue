@@ -1,6 +1,8 @@
 # 路由配置指南
 
-本文档详细说明了项目中路由配置文件 `public/config/routes.config.yaml` 的使用方法和参数说明。
+本文档详细说明 Runtime 消费的路由配置结构与参数说明。
+
+> 平台集成仓库中的项目路由已改为由 Editor 通过 UI 编排，并由 Backend 以结构化数据存储和下发；这里的内容主要用于说明 Runtime 最终接收到的路由结构，而不是指导在平台侧手改项目级 `routes.config.yaml`。
 
 ## 快速开始
 

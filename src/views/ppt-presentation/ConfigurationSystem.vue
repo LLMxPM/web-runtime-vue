@@ -43,10 +43,6 @@ import Icon from '@/components/layout/contentcommon/Icon.vue'
               <span class="text-secondary ml-2">"web-runtime-vue"</span>
             </div>
             <div class="flex ml-4">
-              <span class="text-accent2">version:</span>
-              <span class="text-secondary ml-2">"1.0.0"</span>
-            </div>
-            <div class="flex ml-4">
               <span class="text-accent2">features.menuMode:</span>
               <span class="text-secondary ml-2">"preview"</span>
             </div>

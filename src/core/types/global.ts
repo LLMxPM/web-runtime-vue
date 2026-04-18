@@ -10,7 +10,6 @@ import type { RuntimeConfigContext } from '@/core/utils/path'
 
 export interface AppConfig {
   title: string
-  version: string
   description?: string
   logo?: string
 }
