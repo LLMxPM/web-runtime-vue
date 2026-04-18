@@ -9,6 +9,34 @@ import type { Component } from 'vue'
 import { resolveResourcePath } from '@/core/utils/path'
 
 /**
+ * 判断图标配置是否应按内联 SVG 方式处理。
+ * 关键约束：
+ * 1. 预览模式下 backend 下发的 `src` 可能只是逻辑资源名（例如 `github`），不能再依赖 `.svg` 后缀判断；
+ * 2. 优先以结构化分析元数据为准，确保 dev / preview 两条链路行为一致；
+ * 3. 为兼容旧配置，当缺少 format 元数据时仍允许回退到 `.svg` 后缀识别。
+ * @param config 图标配置
+ * @returns 是否应以内联 SVG 方式加载
+ */
+function shouldUseInlineSvg(config?: IconConfig): boolean {
+  if (config?.type !== 'static') {
+    return false
+  }
+
+  const renderMode = config.analysis?.icon.render_mode
+  if (renderMode !== 'inline_svg') {
+    return false
+  }
+
+  const format = config.analysis?.icon.format
+  if (format === 'svg') {
+    return true
+  }
+
+  const src = String(config.src || '').trim().toLowerCase()
+  return src.endsWith('.svg')
+}
+
+/**
  * 图标使用的 Composable
  * @param iconName 图标名称（可以是响应式的）
  */
@@ -61,12 +89,7 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
       iconExists.value = exists
 
       // 若是静态 SVG 图标，尝试加载其内容
-      if (
-        config?.type === 'static' &&
-        config.src &&
-        config.src.toLowerCase().endsWith('.svg') &&
-        config.analysis?.icon.render_mode === 'inline_svg'
-      ) {
+      if (shouldUseInlineSvg(config) && config?.src) {
         const src = resolveResourcePath(config.src)
         try {
           const res = await fetch(src)
@@ -126,13 +149,7 @@ export function useIcon(iconName: string | ComputedRef<string | undefined> | Com
    * 计算属性：是否为静态 SVG 图标
    */
   const isStaticSvg = computed((): boolean => {
-    const src = iconConfig.value?.src
-    return (
-      isStaticIcon.value &&
-      staticRenderMode.value === 'inline_svg' &&
-      typeof src === 'string' &&
-      src.toLowerCase().endsWith('.svg')
-    )
+    return isStaticIcon.value && shouldUseInlineSvg(iconConfig.value)
   })
 
   /**

@@ -209,3 +209,17 @@ static_icons:
         analysis_status: analyzed
         reasons:
           - 内置示例图标按描边型 SVG 处理。
+  - name: Github
+    src: img/icon/github.svg
+    analysis:
+      schema_version: 1
+      kind: icon
+      icon:
+        format: svg
+        render_mode: inline_svg
+        style: fill
+        inline_safe: true
+        stroke_width_editable: true
+        analysis_status: analyzed
+        reasons:
+          - 内置示例图标按描边型 SVG 处理。
