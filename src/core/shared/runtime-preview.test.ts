@@ -65,6 +65,16 @@ describe('runtime preview shared helpers', () => {
     })
   })
 
+  it('应识别 Vue SFC 子请求中的相对远程模块 importer', () => {
+    const parsed = parseRemoteModuleId('../../../@runtime-preview/366/src/views/PG20260328003.vue?ctx=signed-preview-token')
+
+    expect(parsed).toEqual({
+      artifactId: '366',
+      modulePath: 'src/views/PG20260328003.vue',
+      previewToken: 'signed-preview-token',
+    })
+  })
+
   it('应仅将单页面预览的页面模块识别为入口模块请求', () => {
     expect(resolvePreviewEntryModulePath({ entry_type: 'module', module_path: 'src/views/demo/Page.vue' })).toBe('src/views/demo/Page.vue')
     expect(resolvePreviewEntryModulePath({ entry_type: 'route', route: '/home' })).toBe('')

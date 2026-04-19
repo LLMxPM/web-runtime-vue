@@ -22,7 +22,7 @@
             <h3 class="font-heading text-2xl font-bold text-primary mb-6">系统架构图</h3>
             <div class="w-full">
               <DrawioChart 
-                src="/img/flow/project-architecture.drawio" 
+                :src="projectArchitectureDrawioUrl" 
                 width="100%" 
                 height="590px" 
               />
@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { projectArchitectureDrawioUrl } from '@/assets/runtime-shell'
 import DefaultContentPage from '@/components/layout/pagecontainer/DefaultContentPage.vue'
 import Icon from '@/components/layout/contentcommon/Icon.vue'
 import DrawioChart from '@/components/layout/contentcommon/DrawioChart.vue'

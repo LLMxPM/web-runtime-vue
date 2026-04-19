@@ -65,8 +65,10 @@ describe('runtime useIcon', () => {
     setRuntimePreloadedConfig({
       manifest: {
         artifact_id: 'artifact-1',
+        artifact_kind: 'preview_artifact',
         tenant_id: 'tenant-1',
         preview_kind: 'component',
+        asset_base_url: 'http://127.0.0.1:8000/api/v1/public/assets/1',
         owner_scope: {
           scope_type: 'workspace_component',
           workspace_id: '1',

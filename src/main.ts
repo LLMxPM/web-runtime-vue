@@ -13,7 +13,6 @@ import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
 import { getPreviewEntryNavigationPath } from './core/utils/path'
 
 import './styles/global.css'
-import './styles/fonts.css'
 
 /**
  * 写入编辑器截图使用的运行时就绪标记。

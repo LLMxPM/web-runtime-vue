@@ -65,9 +65,8 @@ Runtime 通过 `RUNTIME_PREVIEW_JWKS_URL` 获取 JWKS 并离线验签。
 
 Runtime 调用 Backend 内部 preview artifact API 时，统一使用服务级 JWT，并继续透传原始预览上下文：
 
-- `Authorization: Bearer <RUNTIME_SERVICE_JWT>`
+- `Authorization: Bearer <RuntimeServiceAccessToken>`
 - `x-runtime-preview-context: <PreviewContextToken>`
-- 可选请求头：`x-runtime-service-audience: <RUNTIME_SERVICE_TOKEN_AUDIENCE>`
 
 Backend 应同时校验：
 
@@ -108,7 +107,7 @@ Runtime 对远程模块和资源采用双层约束：
 
 ## 7. 安全建议
 
-- `RUNTIME_SERVICE_JWT` 应由部署系统或密钥管理系统注入，避免落库或提交仓库。
+- `RuntimeServiceAccessToken` 应由 Backend 在发起 preview/build 请求时短期签发，并通过内网请求头下发给 Runtime。
 - `PreviewContextToken.exp` 建议控制在分钟级。
 - `jti` 仅用于链路追踪与审计，不承载会话恢复语义。
 - Runtime 和 Backend 间建议走内网或 Service Mesh。

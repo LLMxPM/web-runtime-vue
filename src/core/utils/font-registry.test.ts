@@ -66,8 +66,10 @@ describe('runtime font registry', () => {
     setRuntimePreloadedConfig({
       manifest: {
         artifact_id: 'artifact_font',
+        artifact_kind: 'preview_artifact',
         tenant_id: 'tenant_font',
         preview_kind: 'project',
+        asset_base_url: 'https://assets.example/runtime-font',
         owner_scope: {
           scope_type: 'project',
           project_id: 'project_font',
@@ -77,7 +79,7 @@ describe('runtime font registry', () => {
         project_id: 'project_font',
         modules: {},
         assets: {
-          'SourceHanSansSC-VF': 'fonts/source-han-sans.woff2',
+          'SourceHanSansSC-VF': 'hash-source-han-sans',
         },
       },
       fonts: {
@@ -99,7 +101,7 @@ describe('runtime font registry', () => {
 
     expect(styleElement).not.toBeNull()
     expect(cssText).toContain("font-family: '思源黑体'")
-    expect(cssText).toContain("url('https://assets.example/runtime-font/fonts/source-han-sans.woff2')")
+    expect(cssText).toContain("url('https://assets.example/runtime-font/hash-source-han-sans')")
     expect(cssText).toContain("font-weight: 100 900;")
   })
 

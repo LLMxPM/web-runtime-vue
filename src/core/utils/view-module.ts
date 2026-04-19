@@ -3,16 +3,35 @@
  */
 
 import {
+  type RuntimePreloadedConfigBundle,
   buildRemoteModuleId,
   isBuiltinLocalViewPath,
   normalizeRuntimeModulePath,
   toAliasModulePath,
 } from '@/core/shared/runtime-preview'
-import { getRuntimePreviewContext, getRuntimePreviewToken } from '@/core/utils/path'
+import { getRuntimePreviewContext, getRuntimePreviewToken, getRuntimePreloadedConfig } from '@/core/utils/path'
 
-const LOCAL_VIEW_MODULES = {
+/**
+ * Runtime 壳层内建默认页面模块。
+ * 关键约束：
+ * 1. 仅保留远程预览/发布仍必须依赖的默认页面；
+ * 2. 主要用于 NotFound 等兜底页，以及 preview / build_release 下仍需本地加载的默认页。
+ */
+const BUILTIN_VIEW_MODULES = {
+  ...import.meta.glob('@/views/defaultpage/*.vue'),
+  ...import.meta.glob('/src/views/defaultpage/*.vue')
+}
+
+/**
+ * Runtime 本地开发 / 本地构建模式可加载的页面模块。
+ * 关键约束：
+ * 1. 仅在非 preview、非 backend build_release 模式下启用；
+ * 2. 允许加载 `src/views/**` 下的本地页面，支撑 runtime 独立项目形态；
+ * 3. 是否真正启用由运行模式判断，而不是由 glob 白名单决定。
+ */
+const LOCAL_RUNTIME_VIEW_MODULES = {
   ...import.meta.glob('@/views/**/*.vue'),
-  ...import.meta.glob('/src/views/**/*.vue')
+  ...import.meta.glob('/src/views/**/*.vue'),
 }
 
 const NOT_FOUND_FALLBACK_KEYS = [
@@ -51,6 +70,51 @@ export function shouldUseRemoteViewModule(normalizedPath: string): boolean {
 }
 
 /**
+ * 判断当前页面模块是否应在 build release 模式下按本地构建产物加载。
+ * @param normalizedPath 已规范化的逻辑路径
+ * @param preloadedConfig 当前预加载配置
+ * @returns 是否应走 build release 本地模块
+ */
+export function shouldUseBuildReleaseLocalViewModule(
+  normalizedPath: string,
+  preloadedConfig?: RuntimePreloadedConfigBundle,
+): boolean {
+  const manifest = preloadedConfig?.manifest
+  if (!normalizedPath || isBuiltinLocalViewPath(normalizedPath)) {
+    return false
+  }
+  if (manifest?.artifact_kind !== 'build_release') {
+    return false
+  }
+  return Boolean(manifest.modules?.[normalizedPath])
+}
+
+/**
+ * 判断当前页面模块是否应在 Runtime 本地模式下按本地页面模块加载。
+ * @param normalizedPath 已规范化的逻辑路径
+ * @param preloadedConfig 当前预加载配置
+ * @returns 是否应走 runtime 本地页面模块
+ */
+export function shouldUseLocalRuntimeViewModule(
+  normalizedPath: string,
+  preloadedConfig?: RuntimePreloadedConfigBundle,
+): boolean {
+  if (!normalizedPath || !normalizedPath.startsWith('src/views/') || !normalizedPath.endsWith('.vue')) {
+    return false
+  }
+
+  if (getRuntimePreviewContext()) {
+    return false
+  }
+
+  if (preloadedConfig?.manifest?.artifact_kind === 'build_release') {
+    return false
+  }
+
+  return true
+}
+
+/**
  * 生成页面模块的动态导入器。
  * @param viewPath 页面逻辑路径
  * @returns 异步模块导入函数
@@ -66,6 +130,7 @@ export function createViewModuleLoader(viewPath: string): () => Promise<any> {
  */
 export async function importViewModule(viewPath: string): Promise<any> {
   const { normalizedPath, aliasPath } = resolveViewModulePath(viewPath)
+  const preloadedConfig = getRuntimePreloadedConfig()
 
   if (!normalizedPath) {
     return importFallbackModule()
@@ -89,7 +154,17 @@ export async function importViewModule(viewPath: string): Promise<any> {
     return import(/* @vite-ignore */ remoteModuleId)
   }
 
-  const localModuleLoader = resolveLocalViewModuleLoader(aliasPath)
+  const builtinLoader = resolveBuiltinViewModuleLoader(aliasPath)
+  if (builtinLoader) {
+    return builtinLoader()
+  }
+
+  const buildReleaseLoader = resolveBuildReleaseViewModuleLoader(aliasPath, normalizedPath, preloadedConfig)
+  if (buildReleaseLoader) {
+    return buildReleaseLoader()
+  }
+
+  const localModuleLoader = resolveLocalRuntimeViewModuleLoader(aliasPath, normalizedPath, preloadedConfig)
   if (localModuleLoader) {
     return localModuleLoader()
   }
@@ -98,22 +173,75 @@ export async function importViewModule(viewPath: string): Promise<any> {
 }
 
 /**
- * 解析本地页面模块导入器。
+ * 解析内建默认页面模块导入器。
  * @param aliasPath `@/views/...` 形式的别名路径
  * @returns 对应导入器；未命中时返回 null
  */
-function resolveLocalViewModuleLoader(aliasPath: string): (() => Promise<any>) | null {
+function resolveBuiltinViewModuleLoader(aliasPath: string): (() => Promise<any>) | null {
   if (!aliasPath) {
     return null
   }
+  if (!isBuiltinLocalViewPath(normalizeRuntimeModulePath(aliasPath))) {
+    return null
+  }
 
-  const directLoader = LOCAL_VIEW_MODULES[aliasPath]
+  const directLoader = BUILTIN_VIEW_MODULES[aliasPath]
   if (directLoader) {
     return directLoader
   }
 
   const srcPath = aliasPath.replace('@/', '/src/')
-  return LOCAL_VIEW_MODULES[srcPath] || null
+  return BUILTIN_VIEW_MODULES[srcPath] || null
+}
+
+/**
+ * 解析 Runtime 本地模式下的页面模块导入器。
+ * @param aliasPath `@/views/...` 形式的别名路径
+ * @param normalizedPath `src/views/...` 形式的逻辑路径
+ * @param preloadedConfig 当前预加载配置
+ * @returns 对应导入器；未命中时返回 null
+ */
+function resolveLocalRuntimeViewModuleLoader(
+  aliasPath: string,
+  normalizedPath: string,
+  preloadedConfig?: RuntimePreloadedConfigBundle,
+): (() => Promise<any>) | null {
+  if (!shouldUseLocalRuntimeViewModule(normalizedPath, preloadedConfig)) {
+    return null
+  }
+
+  const directLoader = LOCAL_RUNTIME_VIEW_MODULES[aliasPath]
+  if (directLoader) {
+    return directLoader
+  }
+
+  const srcPath = aliasPath.replace('@/', '/src/')
+  return LOCAL_RUNTIME_VIEW_MODULES[srcPath] || null
+}
+
+/**
+ * 解析 build release 模式下的本地页面模块导入器。
+ * @param aliasPath `@/views/...` 形式的别名路径
+ * @param normalizedPath `src/views/...` 形式的逻辑路径
+ * @param preloadedConfig 当前预加载配置
+ * @returns 对应导入器；未命中时返回 null
+ */
+function resolveBuildReleaseViewModuleLoader(
+  aliasPath: string,
+  normalizedPath: string,
+  preloadedConfig?: RuntimePreloadedConfigBundle,
+): (() => Promise<any>) | null {
+  if (!shouldUseBuildReleaseLocalViewModule(normalizedPath, preloadedConfig)) {
+    return null
+  }
+
+  const directLoader = LOCAL_RUNTIME_VIEW_MODULES[aliasPath]
+  if (directLoader) {
+    return directLoader
+  }
+
+  const srcPath = aliasPath.replace('@/', '/src/')
+  return LOCAL_RUNTIME_VIEW_MODULES[srcPath] || null
 }
 
 /**
@@ -122,7 +250,7 @@ function resolveLocalViewModuleLoader(aliasPath: string): (() => Promise<any>) |
  */
 async function importFallbackModule(): Promise<any> {
   for (const fallbackKey of NOT_FOUND_FALLBACK_KEYS) {
-    const loader = LOCAL_VIEW_MODULES[fallbackKey]
+    const loader = BUILTIN_VIEW_MODULES[fallbackKey]
     if (loader) {
       return loader()
     }

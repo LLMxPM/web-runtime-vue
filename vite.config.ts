@@ -6,6 +6,7 @@ import { resolve } from 'path'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+import runtimeBuildRunner from './src/core/plugins/runtime-build-runner'
 import runtimeSaaSPreview from './src/core/plugins/runtime-saas-preview'
 
 export default defineConfig(({ mode }) => {
@@ -17,16 +18,17 @@ export default defineConfig(({ mode }) => {
       port: 7373,
       strictPort: true,
       cors: true,
-      origin: 'http://127.0.0.1:7373'
     },
     plugins: [
       vue(),
+      runtimeBuildRunner({
+        jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
+        backendApiBaseUrl: env.RUNTIME_BACKEND_API_BASE_URL,
+      }),
       runtimeSaaSPreview({
         jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
         backendApiBaseUrl: env.RUNTIME_BACKEND_API_BASE_URL,
         previewAudience: env.RUNTIME_PREVIEW_TOKEN_AUDIENCE,
-        serviceJwt: env.RUNTIME_SERVICE_JWT,
-        serviceTokenAudience: env.RUNTIME_SERVICE_TOKEN_AUDIENCE
       })
     ],
     resolve: {
@@ -44,6 +46,7 @@ export default defineConfig(({ mode }) => {
         localsConvention: 'camelCase'
       }
     },
+    assetsInclude: ['**/*.drawio'],
     build: {
       outDir: 'dist',
       sourcemap: false,

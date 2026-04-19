@@ -2,7 +2,7 @@
   <DefaultContainer >
     <div class="relative h-full w-full overflow-hidden">
       <!-- 背景图片 -->
-      <div class="background-image absolute inset-0 h-full w-full"></div>
+      <div class="background-image absolute inset-0 h-full w-full" :style="backgroundImageStyle"></div>
       <!-- 反色背景渐变蒙版：从左到右逐渐变浅（透明） -->
       <div class="gradient-overlay absolute inset-0"></div>
       <!-- 主题背景色渐变蒙版 -->
@@ -36,6 +36,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { defaultBackgroundUrl } from '@/assets/runtime-shell'
 import { useTheme } from '@/core/composables/useTheme'
 
 import DefaultContainer from '@/components/layout/pagecontainer/DefaultContainer.vue'
@@ -53,6 +54,9 @@ const { themeInvertLogo } = useTheme()
 const logoSrc = computed(() => {
   return themeInvertLogo.value
 })
+const backgroundImageStyle = computed(() => ({
+  backgroundImage: `url(${defaultBackgroundUrl})`,
+}))
 
 const currentDate = ref('')
 
@@ -74,7 +78,6 @@ onMounted(() => {
  * background-repeat: no-repeat 背景图片不重复
  */
 .background-image {
-  background-image: url('/img/illus/background/background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

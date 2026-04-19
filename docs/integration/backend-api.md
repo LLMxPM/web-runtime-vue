@@ -38,9 +38,8 @@ x-runtime-preview-context: <PreviewContextToken>
 ### 公共请求头
 
 ```http
-Authorization: Bearer <RUNTIME_SERVICE_JWT>
+Authorization: Bearer <RuntimeServiceAccessToken>
 x-runtime-preview-context: <PreviewContextToken>
-x-runtime-service-audience: runtime-backend
 Accept: application/json
 ```
 
@@ -128,7 +127,7 @@ Accept: application/json
 
 ```http
 GET /internal/runtime/preview-artifacts/rel_20260411_001/modules?path=src%2Fviews%2Fproject%2FHomePage.vue
-Authorization: Bearer <RUNTIME_SERVICE_JWT>
+Authorization: Bearer <RuntimeServiceAccessToken>
 x-runtime-preview-context: <PreviewContextToken>
 Accept: text/plain
 ```
@@ -188,7 +187,7 @@ Runtime 至少依赖以下声明：
 
 - `200`：成功
 - `400`：请求参数非法
-- `401`：服务级 JWT 或 PreviewContextToken 无效
+- `401`：RuntimeServiceAccessToken 或 PreviewContextToken 无效
 - `403`：token、artifact、scope 或入口描述不匹配
 - `404`：artifact、模块或资源不存在
 - `409`：artifact 状态不允许访问
@@ -199,6 +198,6 @@ Runtime 至少依赖以下声明：
 - 是否能生成符合契约的 `PreviewContextToken`
 - 是否已暴露 JWKS 地址
 - 是否实现 `preview-artifacts/manifest/config-bundle/modules` 接口
-- 是否校验服务级 JWT 与 PreviewContextToken 一致性
+- 是否校验 RuntimeServiceAccessToken 与 PreviewContextToken 一致性
 - 是否保证组件预览不要求 `project_id`
 - 是否保证 artifact 按 TTL 清理，而不是持久化为可恢复会话
