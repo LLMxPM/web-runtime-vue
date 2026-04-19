@@ -2,6 +2,7 @@
  * 文件用途：定义无状态预览运行时共享契约、远程模块标识与资源路径解析辅助函数。
  */
 
+export type RuntimeArtifactKind = 'preview_artifact' | 'build_snapshot' | 'build_release'
 export type PreviewKind = 'project' | 'page' | 'component'
 export type PreviewScopeType = 'project' | 'workspace_component'
 export type PreviewEntryType = 'route' | 'module' | 'component_host'
@@ -42,16 +43,24 @@ export interface RuntimeReleaseManifestModule {
   hash?: string
 }
 
+export interface RuntimePreviewAssetMetadata {
+  file_hash: string
+  original_name?: string
+}
+
 export interface RuntimePreviewArtifactManifest {
   artifact_id: string
+  artifact_kind?: RuntimeArtifactKind
   tenant_id: string
   preview_kind: PreviewKind
   owner_scope: RuntimePreviewOwnerScope
   entry_descriptor: RuntimePreviewEntryDescriptor
+  asset_base_url?: string
   project_id?: string
   workspace_id?: string
   modules: Record<string, string | RuntimeReleaseManifestModule>
   assets: Record<string, string>
+  asset_metadata?: Record<string, RuntimePreviewAssetMetadata>
   version?: string
   published_at?: string
 }
@@ -333,19 +342,25 @@ export function buildRemoteModuleId(artifactId: string, modulePath: string, prev
  * @returns 解析结果，非远程模块时返回 null
  */
 export function parseRemoteModuleId(id: string): { artifactId: string; modulePath: string; previewToken?: string } | null {
-  if (!id.startsWith(RUNTIME_REMOTE_MODULE_PREFIX)) {
+  const normalizedId = String(id || '').trim().replace(/\\/g, '/')
+  if (!normalizedId) {
     return null
   }
 
-  const [pathPart, queryPart = ''] = id.split('?', 2)
-  const segments = pathPart.split('/').filter(Boolean)
-  if (segments.length < 3) {
+  const [pathPart, queryPart = ''] = normalizedId.split('?', 2)
+  const remotePath = extractRemoteModulePath(pathPart)
+  if (!remotePath) {
     return null
   }
 
-  const artifactId = decodeURIComponent(segments[1] || '')
+  const segments = remotePath.split('/').filter(Boolean)
+  if (segments.length < 2) {
+    return null
+  }
+
+  const artifactId = decodeURIComponent(segments[0] || '')
   const searchParams = new URLSearchParams(queryPart)
-  const encodedModulePathSegments = segments.slice(2)
+  const encodedModulePathSegments = segments.slice(1)
   const modulePath = normalizeRuntimeModulePath(
     encodedModulePathSegments.map(segment => decodeURIComponent(segment)).join('/'),
   )
@@ -355,6 +370,32 @@ export function parseRemoteModuleId(id: string): { artifactId: string; modulePat
   }
 
   return { artifactId, modulePath, previewToken }
+}
+
+/**
+ * 从绝对或相对形式的远程模块 ID 中提取 `/@runtime-preview/<artifactId>/...` 之后的路径片段。
+ * @param pathPart 不含 query 的模块 ID 路径部分
+ * @returns 远程模块相对路径；未命中时返回空
+ */
+function extractRemoteModulePath(pathPart: string): string {
+  const normalizedPath = String(pathPart || '').trim().replace(/\\/g, '/')
+  const prefixWithoutLeadingSlash = RUNTIME_REMOTE_MODULE_PREFIX.replace(/^\//, '')
+
+  if (normalizedPath.startsWith(`${prefixWithoutLeadingSlash}/`)) {
+    return normalizedPath.slice(prefixWithoutLeadingSlash.length + 1)
+  }
+
+  if (normalizedPath.startsWith(RUNTIME_REMOTE_MODULE_PREFIX)) {
+    return normalizedPath.slice(RUNTIME_REMOTE_MODULE_PREFIX.length + 1)
+  }
+
+  const embeddedMarker = `/${prefixWithoutLeadingSlash}/`
+  const embeddedIndex = normalizedPath.lastIndexOf(embeddedMarker)
+  if (embeddedIndex < 0) {
+    return ''
+  }
+
+  return normalizedPath.slice(embeddedIndex + embeddedMarker.length)
 }
 
 /**

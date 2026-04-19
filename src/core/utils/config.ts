@@ -356,18 +356,18 @@ export async function loadIconConfig(force = false): Promise<IconConfigYaml> {
 
 /**
  * 计算默认重定向路径。
- * @returns 默认首页路由
+ * @returns 默认首页路由；无可用路由时返回空串
  */
 function getDefaultRedirectPath(): string {
   if (!configState.routeConfig?.routes) {
-    return 'home'
+    return ''
   }
 
   const sortedRoutes = [...configState.routeConfig.routes]
     .filter(route => !route.meta.hidden)
     .sort((a, b) => a.meta.order - b.meta.order)
 
-  return sortedRoutes[0]?.route || 'home'
+  return String(sortedRoutes[0]?.route || '').trim()
 }
 
 /**
@@ -375,12 +375,18 @@ function getDefaultRedirectPath(): string {
  * @returns 默认路由列表
  */
 function getDefaultRouteRecords(): RouteRecordRaw[] {
-  return [
-    {
+  const defaultRedirectPath = getDefaultRedirectPath()
+  const routeRecords: RouteRecordRaw[] = []
+
+  // 仅在存在可见业务路由时生成首页重定向，避免构建态误跳到本地 demo 路径。
+  if (defaultRedirectPath) {
+    routeRecords.push({
       path: '',
-      redirect: getDefaultRedirectPath()
-    } as RouteRecordRaw,
-    {
+      redirect: defaultRedirectPath,
+    } as RouteRecordRaw)
+  }
+
+  routeRecords.push({
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: createViewModuleLoader('@/views/defaultpage/NotFoundPage.vue'),
@@ -388,8 +394,9 @@ function getDefaultRouteRecords(): RouteRecordRaw[] {
         title: '页面未找到',
         hidden: true
       }
-    } as RouteRecordRaw
-  ]
+    } as RouteRecordRaw)
+
+  return routeRecords
 }
 
 /**
@@ -474,7 +481,6 @@ function convertYamlRoutesToRouteConfig(yamlRoutes: RouteConfigYaml['routes']): 
  */
 function getCurrentRouteConfigs(): RouteConfig[] {
   if (!configState.routeConfig?.routes) {
-    console.warn('路由配置尚未加载，返回空路由列表。')
     return []
   }
 

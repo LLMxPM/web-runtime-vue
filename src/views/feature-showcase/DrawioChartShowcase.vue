@@ -7,7 +7,7 @@
       <div class="p-4">
         <div class="bg-white border border-border rounded-lg p-4 flex flex-col items-center">
           <DrawioChart 
-            src="/img/flow/sample.drawio"
+            :src="sampleDrawioUrl"
             width="700px"
             height="700px"
           />
@@ -20,6 +20,7 @@
 </template>
 
 <script setup lang="ts">
+import { sampleDrawioUrl } from '@/assets/runtime-shell'
 import DefaultContentPage from '@/components/layout/pagecontainer/DefaultContentPage.vue'
 import DrawioChart from '@/components/layout/contentcommon/DrawioChart.vue'
 

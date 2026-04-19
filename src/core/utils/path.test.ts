@@ -57,8 +57,10 @@ describe('runtime path helpers', () => {
     setRuntimePreloadedConfig({
       manifest: {
         artifact_id: 'artifact_1',
+        artifact_kind: 'preview_artifact',
         tenant_id: 'tenant_1',
         preview_kind: 'project',
+        asset_base_url: 'https://assets.example/releases/release_1',
         owner_scope: {
           scope_type: 'project',
           project_id: 'project_1',
@@ -91,8 +93,10 @@ describe('runtime path helpers', () => {
     setRuntimePreloadedConfig({
       manifest: {
         artifact_id: 'artifact_case',
+        artifact_kind: 'preview_artifact',
         tenant_id: 'tenant_case',
         preview_kind: 'project',
+        asset_base_url: 'https://assets.example/releases/release_case',
         owner_scope: {
           scope_type: 'project',
           project_id: 'project_case',
@@ -107,7 +111,7 @@ describe('runtime path helpers', () => {
       }
     })
 
-    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_case/Top.svg')
+    expect(resolveResourcePath('Top.svg')).toBe('./Top.svg')
   })
 
   it('manifest key 带目录前缀时不应支持 basename 兜底匹配', () => {
@@ -125,8 +129,10 @@ describe('runtime path helpers', () => {
     setRuntimePreloadedConfig({
       manifest: {
         artifact_id: 'artifact_basename',
+        artifact_kind: 'preview_artifact',
         tenant_id: 'tenant_basename',
         preview_kind: 'project',
+        asset_base_url: 'https://assets.example/releases/release_basename',
         owner_scope: {
           scope_type: 'project',
           project_id: 'project_basename',
@@ -141,10 +147,10 @@ describe('runtime path helpers', () => {
       }
     })
 
-    expect(resolveResourcePath('Top.svg')).toBe('https://assets.example/releases/release_basename/Top.svg')
+    expect(resolveResourcePath('Top.svg')).toBe('./Top.svg')
   })
 
-  it('manifest 未命中时应拼接 asset base url', () => {
+  it('preview artifact 未命中 manifest 时应回退到本地相对路径', () => {
     setRuntimePreviewContext({
       artifactId: 'artifact_2',
       tenantId: 'tenant_2',
@@ -157,6 +163,49 @@ describe('runtime path helpers', () => {
       traceId: 'trace_2',
     })
 
-    expect(resolveResourcePath('./fonts/demo.woff2')).toBe('https://assets.example/releases/release_2/fonts/demo.woff2')
+    setRuntimePreloadedConfig({
+      manifest: {
+        artifact_id: 'artifact_2',
+        artifact_kind: 'preview_artifact',
+        tenant_id: 'tenant_2',
+        preview_kind: 'project',
+        asset_base_url: 'https://assets.example/releases/release_2/',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_2',
+          workspace_id: 'workspace_2',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/overview' },
+        project_id: 'project_2',
+        modules: {},
+        assets: {},
+      }
+    })
+
+    expect(resolveResourcePath('./fonts/demo.woff2')).toBe('./fonts/demo.woff2')
+  })
+
+  it('build_release 模式应解析为产物内 __build_assets 相对路径', () => {
+    setRuntimePreloadedConfig({
+      manifest: {
+        artifact_id: 'artifact_build_release',
+        artifact_kind: 'build_release',
+        tenant_id: 'tenant_release',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_release',
+          workspace_id: 'workspace_release',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
+        project_id: 'project_release',
+        modules: {},
+        assets: {
+          'img/logo/ppt-e.png': '__build_assets/logo-a1b2c3.png'
+        }
+      }
+    })
+
+    expect(resolveResourcePath('img/logo/ppt-e.png')).toBe('./__build_assets/logo-a1b2c3.png')
   })
 })

@@ -4,7 +4,7 @@
       <!-- 左右分栏布局 -->
       <div class="page-layout">
         <!-- 左侧：背景区域 -->
-        <div class="left-section">
+        <div class="left-section" :style="leftSectionStyle">
           <!-- 标题内容 -->
           <div class="title-content">
             <div class="page-header">
@@ -38,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import { defaultBackgroundUrl } from '@/assets/runtime-shell'
 import DefaultContainer from '@/components/layout/pagecontainer/DefaultContainer.vue'
 import TableOfContents from '@/components/common/TableOfContents.vue'
 
@@ -48,6 +49,10 @@ import TableOfContents from '@/components/common/TableOfContents.vue'
 defineOptions({
   name: 'TableOfContentsPage'
 })
+
+const leftSectionStyle = {
+  backgroundImage: `url(${defaultBackgroundUrl})`,
+}
 
 </script>
 
@@ -64,7 +69,6 @@ defineOptions({
 /* 左侧区域 */
 .left-section {
   @apply relative w-2/5 h-full overflow-hidden;
-  background-image: url('/img/illus/background/background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

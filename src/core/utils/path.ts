@@ -3,6 +3,7 @@
  */
 
 import type {
+  RuntimeArtifactKind,
   RuntimePreloadedConfigBundle,
   RuntimePreviewContext,
 } from '@/core/shared/runtime-preview'
@@ -211,19 +212,64 @@ export function resolveResourcePath(resourcePath: string): string {
   const normalizedAssetKey = normalizeAssetKey(resourcePath)
   const preloadedConfig = getRuntimePreloadedConfig()
   const previewContext = getRuntimePreviewContext()
-  const assetMapping = preloadedConfig?.manifest?.assets || {}
+  const manifest = preloadedConfig?.manifest
+  const assetMapping = manifest?.assets || {}
   const mappedAssetPath = resolveMappedAssetPath(assetMapping, normalizedAssetKey)
+  const artifactKind = getRuntimeArtifactKind(manifest?.artifact_kind)
   if (mappedAssetPath) {
-    return isRemoteUrl(mappedAssetPath)
-      ? mappedAssetPath
-      : joinUrlPath(previewContext?.assetBaseUrl || '', mappedAssetPath)
-  }
-
-  if (previewContext?.assetBaseUrl) {
-    return joinUrlPath(previewContext.assetBaseUrl, normalizedAssetKey)
+    return resolveArtifactMappedPath({
+      artifactKind,
+      mappedAssetPath,
+      previewContext,
+      manifestAssetBaseUrl: manifest?.asset_base_url,
+    })
   }
 
   return normalizeRelativePath(resourcePath)
+}
+
+/**
+ * 规范化 artifact 类型，未声明时视为本地模式。
+ * @param rawArtifactKind manifest 中的 artifact_kind
+ * @returns 当前资源解析策略对应的 artifact 类型
+ */
+function getRuntimeArtifactKind(rawArtifactKind: unknown): RuntimeArtifactKind | 'local' {
+  const normalizedValue = String(rawArtifactKind || '').trim()
+  if (
+    normalizedValue === 'preview_artifact'
+    || normalizedValue === 'build_snapshot'
+    || normalizedValue === 'build_release'
+  ) {
+    return normalizedValue
+  }
+  return 'local'
+}
+
+/**
+ * 按 artifact 类型解析 manifest 命中的资源路径。
+ * @param params 解析参数
+ * @returns 浏览器可直接访问的最终资源地址
+ */
+function resolveArtifactMappedPath(params: {
+  artifactKind: RuntimeArtifactKind | 'local'
+  mappedAssetPath: string
+  previewContext?: RuntimePreviewContext
+  manifestAssetBaseUrl?: string
+}): string {
+  if (isRemoteUrl(params.mappedAssetPath)) {
+    return params.mappedAssetPath
+  }
+
+  if (params.artifactKind === 'build_release') {
+    return normalizeRelativePath(params.mappedAssetPath)
+  }
+
+  const assetBaseUrl = String(
+    params.previewContext?.assetBaseUrl
+    || params.manifestAssetBaseUrl
+    || '',
+  ).trim()
+  return joinUrlPath(assetBaseUrl, params.mappedAssetPath)
 }
 
 /**

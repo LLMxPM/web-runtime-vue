@@ -4,6 +4,7 @@
 
 import { computed, ref, type ComputedRef, type CSSProperties } from 'vue'
 
+import { defaultThemeInvertLogoUrl, defaultThemeLogoUrl } from '@/assets/runtime-shell'
 import { loadYamlFromUrl } from '@/core/utils/config'
 import { resolveThemeFontFamily } from '@/core/utils/font-registry'
 import { buildConfigUrl, hasExternalConfigSource, resolveResourcePath, getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
@@ -126,7 +127,6 @@ function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
         app: {
           icon: 'slider'
         },
-        logo: 'img/logo/ppt-e.png',
         palette: {
           text: {
             primary: '#4f46e5',
@@ -372,13 +372,13 @@ export function useTheme(theme?: string | ComputedRef<string>) {
   })
 
   const themeLogo = computed(() => {
-    const logoPath = themeConfig.value?.logo || 'img/logo/default.svg'
-    return resolveResourcePath(logoPath)
+    const logoPath = String(themeConfig.value?.logo || '').trim()
+    return logoPath ? resolveResourcePath(logoPath) : defaultThemeLogoUrl
   })
 
   const themeInvertLogo = computed(() => {
-    const invertLogo = themeConfig.value?.invertLogo
-    return invertLogo ? resolveResourcePath(invertLogo) : themeLogo.value
+    const invertLogo = String(themeConfig.value?.invertLogo || '').trim()
+    return invertLogo ? resolveResourcePath(invertLogo) : defaultThemeInvertLogoUrl
   })
 
   return {

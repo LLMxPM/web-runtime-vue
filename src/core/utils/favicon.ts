@@ -3,6 +3,7 @@
  *           让标签页图标与运行时配置、预览注入资源保持同一条解析链。
  */
 
+import { defaultFaviconUrl } from '@/assets/runtime-shell'
 import {
   addChangeListener,
   loadAppConfig,
@@ -13,7 +14,7 @@ import {
 } from '@/core/utils/config'
 import { resolveResourcePath } from '@/core/utils/path'
 
-const DEFAULT_FAVICON_HREF = './favicon.svg'
+const DEFAULT_FAVICON_HREF = defaultFaviconUrl
 const FAVICON_REL = 'icon'
 
 let initialFaviconHref = ''

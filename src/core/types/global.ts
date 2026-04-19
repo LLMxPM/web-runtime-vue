@@ -35,8 +35,6 @@ export interface ImportMetaEnv {
   readonly RUNTIME_PREVIEW_JWKS_URL?: string
   readonly RUNTIME_PREVIEW_TOKEN_AUDIENCE?: string
   readonly RUNTIME_BACKEND_API_BASE_URL?: string
-  readonly RUNTIME_SERVICE_TOKEN_AUDIENCE?: string
-  readonly RUNTIME_SERVICE_JWT?: string
 }
 
 export interface ImportMeta {

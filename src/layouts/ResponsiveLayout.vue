@@ -9,7 +9,7 @@
       'sidebar-wrapper--fullscreen': isFullscreen,
       'sidebar-wrapper--fullscreen-hover': isFullscreen && isSidebarHovered
     }" @mouseenter="handleSidebarMouseEnter" @mouseleave="handleSidebarMouseLeave">
-      <ResponsiveSidebar :navigation-items="processedNavigationItems" :app-config="appConfig.app"
+      <ResponsiveSidebar :navigation-items="processedNavigationItems" :app-config="layoutAppConfig"
         @collapse-change="handleCollapseChange" />
     </div>
 
@@ -107,7 +107,7 @@ import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 import { useMenu } from '@/core/composables/useMenu'
 import { usePageNavigation } from '@/core/composables/usePageNavigation'
 import { PDFExportService } from '@/core/services/PDFExportService'
-import { appConfig, appPageConfig } from '@/core/utils/config'
+import { appConfig as runtimeAppConfig, appPageConfig } from '@/core/utils/config'
 import { useTheme } from '@/core/composables/useTheme'
 
 // 应用配置已迁移到 @/config/app.config.ts
@@ -164,8 +164,16 @@ const { themeStyles } = useTheme()
 /**
  * 计算属性：是否显示PDF导出按钮
  */
+const layoutAppConfig = computed(() => runtimeAppConfig.value.app)
+
+/**
+ * 计算属性：是否显示 PDF 导出按钮。
+ * 关键约束：
+ * 1. 模板不要直接读取导入的 ref；
+ * 2. 统一在本地 computed 中解包，避免生产构建后把 ref 本体传给子组件。
+ */
 const shouldShowPdfExportButton = computed(() => {
-  return appConfig.value.app.features?.showPdfExportButton ?? true
+  return layoutAppConfig.value.features?.showPdfExportButton ?? true
 })
 
 /**

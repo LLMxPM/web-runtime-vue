@@ -65,14 +65,13 @@ pnpm build
 - `GET /internal/runtime/preview-artifacts/{artifact_id}/config-bundle`
 - `GET /internal/runtime/preview-artifacts/{artifact_id}/modules?path=...`
 - 资源通过 `asset_base_url + manifest.assets` 解析，不再依赖 preview session 恢复接口
+- Runtime 回源 Backend 的短期服务令牌由 Backend 在 preview/build 请求时动态下发，Runtime 不再依赖常驻 `RUNTIME_SERVICE_JWT`
 
 ### 4. 关键环境变量
 
 - `RUNTIME_PREVIEW_JWKS_URL`
 - `RUNTIME_PREVIEW_TOKEN_AUDIENCE`
 - `RUNTIME_BACKEND_API_BASE_URL`
-- `RUNTIME_SERVICE_TOKEN_AUDIENCE`
-- `RUNTIME_SERVICE_JWT`
 
 ## 文档
 

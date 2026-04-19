@@ -25,11 +25,11 @@ import {
 interface RuntimeSaaSPreviewOptions {
   previewPath?: string
   previewHeaderName?: string
+  previewAssetBaseHeaderName?: string
+  serviceTokenHeaderName?: string
   jwksUrl?: string
   previewAudience?: string
   backendApiBaseUrl?: string
-  serviceJwt?: string
-  serviceTokenAudience?: string
 }
 
 interface PreviewTokenClaims extends JWTPayload {
@@ -51,6 +51,8 @@ interface PreviewTokenClaims extends JWTPayload {
 
 const DEFAULT_PREVIEW_PATH = '/__preview'
 const DEFAULT_PREVIEW_HEADER = 'x-runtime-preview-context'
+const DEFAULT_PREVIEW_ASSET_BASE_HEADER = 'x-runtime-public-base-url'
+const DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER = 'x-runtime-service-token'
 const DEFAULT_PREVIEW_AUDIENCE = 'runtime-preview'
 const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
 
@@ -64,8 +66,14 @@ const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
 export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = {}): Plugin {
   const previewPath = options.previewPath || DEFAULT_PREVIEW_PATH
   const previewHeaderName = (options.previewHeaderName || DEFAULT_PREVIEW_HEADER).toLowerCase()
+  const previewAssetBaseHeaderName = (
+    options.previewAssetBaseHeaderName
+    || DEFAULT_PREVIEW_ASSET_BASE_HEADER
+  ).toLowerCase()
+  const serviceTokenHeaderName = (options.serviceTokenHeaderName || DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER).toLowerCase()
   const manifestCache = new Map<string, RuntimePreviewArtifactManifest>()
   const previewTokenCache = new Map<string, string>()
+  const serviceTokenCache = new Map<string, string>()
   let basePath = ''
   let assetBase = ''
 
@@ -97,11 +105,19 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
             audience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
           })
           previewTokenCache.set(verified.publicContext.artifactId, previewToken)
+          const serviceToken = String(req.headers[serviceTokenHeaderName] || '')
+          if (!serviceToken) {
+            throw new PreviewGatewayError(401, 'RUNTIME_SERVICE_TOKEN_REQUIRED', '缺少 Backend 下发的 Runtime 服务令牌。')
+          }
+          serviceTokenCache.set(verified.publicContext.artifactId, serviceToken)
+          const resolvedAssetBase = resolvePreviewAssetBase(
+            String(req.headers[previewAssetBaseHeaderName] || ''),
+            assetBase,
+          )
 
           const backendClient = createBackendClient({
             backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
-            serviceJwt: options.serviceJwt || process.env.RUNTIME_SERVICE_JWT || '',
-            serviceTokenAudience: options.serviceTokenAudience || process.env.RUNTIME_SERVICE_TOKEN_AUDIENCE || '',
+            serviceToken,
             previewToken,
           })
 
@@ -113,7 +129,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
           assertManifestMatchesContext(manifest, verified.publicContext)
 
           sendHtml(res, buildPreviewHtml({
-            assetBase,
+            assetBase: resolvedAssetBase,
             publicContext: verified.publicContext,
             previewToken,
             configBundle: {
@@ -182,11 +198,14 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
         throw new PreviewGatewayError(403, 'ARTIFACT_MISMATCH', '预览 artifact 与远程模块请求不一致。')
       }
       previewTokenCache.set(parsed.artifactId, effectivePreviewToken)
+      const serviceToken = serviceTokenCache.get(parsed.artifactId) || ''
+      if (!serviceToken) {
+        throw new PreviewGatewayError(401, 'RUNTIME_SERVICE_TOKEN_REQUIRED', '缺少 Runtime 服务令牌缓存。')
+      }
 
       const backendClient = createBackendClient({
         backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
-        serviceJwt: options.serviceJwt || process.env.RUNTIME_SERVICE_JWT || '',
-        serviceTokenAudience: options.serviceTokenAudience || process.env.RUNTIME_SERVICE_TOKEN_AUDIENCE || '',
+        serviceToken,
         previewToken: effectivePreviewToken,
       })
 
@@ -409,26 +428,22 @@ function normalizeEntryDescriptor(value: unknown): RuntimePreviewEntryDescriptor
  */
 function createBackendClient(options: {
   backendApiBaseUrl: string
-  serviceJwt: string
-  serviceTokenAudience: string
+  serviceToken: string
   previewToken?: string
 }) {
   if (!options.backendApiBaseUrl) {
     throw new PreviewGatewayError(503, 'BACKEND_API_BASE_URL_MISSING', 'Runtime 未配置 Backend API 根地址。')
   }
-  if (!options.serviceJwt) {
-    throw new PreviewGatewayError(503, 'SERVICE_JWT_MISSING', 'Runtime 未配置服务级 JWT。')
+  if (!options.serviceToken) {
+    throw new PreviewGatewayError(503, 'RUNTIME_SERVICE_TOKEN_REQUIRED', 'Runtime 未获取到服务级令牌。')
   }
 
   const apiBaseUrl = options.backendApiBaseUrl.replace(/\/+$/, '')
   const defaultHeaders: Record<string, string> = {
-    Authorization: `Bearer ${options.serviceJwt}`,
+    Authorization: `Bearer ${options.serviceToken}`,
   }
   if (options.previewToken) {
     defaultHeaders['x-runtime-preview-context'] = options.previewToken
-  }
-  if (options.serviceTokenAudience) {
-    defaultHeaders['x-runtime-service-audience'] = options.serviceTokenAudience
   }
 
   return {
@@ -577,9 +592,9 @@ function buildPreviewHtml(params: {
 }): string {
   const viteClientPath = `${params.assetBase || ''}/@vite/client`
   const mainEntryPath = `${params.assetBase || ''}/src/main.ts`
-  const serializedContext = JSON.stringify(params.publicContext)
-  const serializedToken = JSON.stringify(params.previewToken)
-  const serializedConfig = JSON.stringify(params.configBundle)
+  const serializedContext = serializeForInlineScript(params.publicContext)
+  const serializedToken = serializeForInlineScript(params.previewToken)
+  const serializedConfig = serializeForInlineScript(params.configBundle)
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -603,6 +618,43 @@ function buildPreviewHtml(params: {
     <div id="app"></div>
   </body>
 </html>`
+}
+
+/**
+ * 解析当前预览 HTML 应使用的前端资源根地址。
+ * @param requestAssetBase Backend 透传的浏览器可访问 Runtime 地址
+ * @param fallbackAssetBase Runtime 当前服务推导出的兜底地址
+ * @returns 最终资源根地址
+ */
+export function resolvePreviewAssetBase(requestAssetBase: string, fallbackAssetBase: string): string {
+  const normalizedRequestAssetBase = normalizePreviewAssetBase(requestAssetBase)
+  if (normalizedRequestAssetBase) {
+    return normalizedRequestAssetBase
+  }
+  return normalizePreviewAssetBase(fallbackAssetBase)
+}
+
+/**
+ * 将 JSON 安全序列化为可直接写入内联 script 的文本。
+ * @param value 任意可 JSON 序列化值
+ * @returns 已转义的 JSON 文本
+ */
+export function serializeForInlineScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
+
+/**
+ * 规范化预览前端资源根地址，移除尾部斜杠。
+ * @param rawValue 原始地址
+ * @returns 规范化后的地址
+ */
+function normalizePreviewAssetBase(rawValue: string): string {
+  return String(rawValue || '').trim().replace(/\/+$/, '')
 }
 
 /**

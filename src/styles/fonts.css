@@ -7,7 +7,7 @@
 
 @font-face {
   font-family: 'Monaco';
-  src: url('/fonts/Monaco.woff2') format('woff2');
+  src: url('../assets/runtime-shell/fonts/Monaco.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -15,7 +15,7 @@
 
 @font-face {
   font-family: 'SourceCodePro';
-  src: url('/fonts/SourceCodePro-Regular.ttf.woff2') format('woff2');
+  src: url('../assets/runtime-shell/fonts/SourceCodePro-Regular.ttf.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -23,7 +23,7 @@
 
 @font-face {
   font-family: '思源黑体';
-  src: url('/fonts/SourceHanSansSC-VF.otf.woff2') format('woff2');
+  src: url('../assets/runtime-shell/fonts/SourceHanSansSC-VF.otf.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -31,7 +31,7 @@
 
 @font-face {
   font-family: '思源宋体';
-  src: url('/fonts/SourceHanSerifSC-VF.otf.woff2') format('woff2');
+  src: url('../assets/runtime-shell/fonts/SourceHanSerifSC-VF.otf.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -41,7 +41,7 @@
 
 @font-face {
   font-family: 'SourceHanSansSC-Heavy';
-  src: url('/fonts/SourceHanSansSC-Heavy.woff2') format('woff2');
+  src: url('../assets/runtime-shell/fonts/SourceHanSansSC-Heavy.woff2') format('woff2');
   font-weight: 800;
   font-style: normal;
   font-display: swap;
