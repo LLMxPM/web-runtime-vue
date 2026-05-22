@@ -15,8 +15,9 @@ import { build as viteBuild } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 import type { RuntimePreloadedConfigBundle, RuntimePreviewArtifactManifest } from '../shared/runtime-preview'
-import { normalizeAssetKey } from '../shared/runtime-preview'
+import { normalizeAssetKey, normalizeRuntimeModulePath } from '../shared/runtime-preview'
 import {
+  buildRuntimeBuildCssConfig,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
   normalizeBuildBaseUrl,
@@ -25,9 +26,11 @@ import { createBuildEntrySource, createBuildIndexHtmlSource } from './runtime-bu
 
 interface RuntimeBuildRunnerOptions {
   endpointPath?: string
+  diagnosticsEndpointPath?: string
   serviceTokenHeaderName?: string
   jwksUrl?: string
   buildAudience?: string
+  diagnosticsAudience?: string
   backendApiBaseUrl?: string
 }
 
@@ -46,8 +49,39 @@ interface RuntimeBuildRequestBody {
   base_url: string
 }
 
+interface RuntimeDiagnosticsCommandClaims extends JWTPayload {
+  sub: string
+  artifact_id: string
+  workspace_id: string
+  project_id?: string
+  jti: string
+}
+
+interface RuntimeDiagnosticsRequestBody {
+  artifact_id: string
+  label?: string
+}
+
+interface RuntimeCodeDiagnostic {
+  severity: 'error' | 'warning'
+  source: string
+  code: string
+  message: string
+  file_path?: string
+  line?: number
+  column?: number
+}
+
+interface RuntimeDiagnosticsSummary {
+  success: boolean
+  status: 'passed' | 'failed'
+  artifactId: string
+  summary: string
+  diagnostics: RuntimeCodeDiagnostic[]
+}
+
 interface UploadedBuildArtifactSummary {
-  artifact_archive_path?: string
+  artifact_storage_key?: string
   artifact_download_url?: string
   artifact_entry_file?: string
   artifact_sha256?: string
@@ -62,6 +96,12 @@ interface BuildArtifactSummary {
   message: string
 }
 
+interface BuildAssetFetchContext {
+  logicalName: string
+  fileHash: string
+  originalName?: string
+}
+
 interface RuntimeBuildLogContext {
   jobId?: string
   artifactId?: string
@@ -73,7 +113,9 @@ interface RuntimeBuildLogContext {
 }
 
 const DEFAULT_BUILD_ENDPOINT = '/__runtime_internal/v1/builds/project'
+const DEFAULT_DIAGNOSTICS_ENDPOINT = '/__runtime_internal/v1/diagnostics/artifact'
 const DEFAULT_BUILD_AUDIENCE = 'runtime-build'
+const DEFAULT_DIAGNOSTICS_AUDIENCE = 'runtime-diagnostics'
 const DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER = 'x-runtime-service-token'
 
 /**
@@ -113,6 +155,7 @@ function logRuntimeBuildError(stage: string, error: unknown, context: RuntimeBui
  */
 export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = {}): Plugin {
   const endpointPath = options.endpointPath || DEFAULT_BUILD_ENDPOINT
+  const diagnosticsEndpointPath = options.diagnosticsEndpointPath || DEFAULT_DIAGNOSTICS_ENDPOINT
   const serviceTokenHeaderName = (options.serviceTokenHeaderName || DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER).toLowerCase()
   let runtimeRoot = ''
 
@@ -126,7 +169,25 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
 
     configureServer(server: ViteDevServer) {
       server.middlewares.use(async (req, res, next) => {
-        if ((req.url || '').split('?')[0] !== endpointPath) {
+        const requestPath = (req.url || '').split('?')[0]
+        if (requestPath === diagnosticsEndpointPath) {
+          if (req.method !== 'POST') {
+            return sendJson(res, 405, {
+              success: false,
+              code: 'METHOD_NOT_ALLOWED',
+              message: '代码检查入口仅支持 POST。',
+            })
+          }
+          return handleRuntimeDiagnosticsRequest(req, res, {
+            runtimeRoot,
+            serviceTokenHeaderName,
+            jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
+            diagnosticsAudience: options.diagnosticsAudience || process.env.RUNTIME_DIAGNOSTICS_TOKEN_AUDIENCE || DEFAULT_DIAGNOSTICS_AUDIENCE,
+            backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
+          })
+        }
+
+        if (requestPath !== endpointPath) {
           return next()
         }
 
@@ -243,6 +304,110 @@ async function verifyBuildToken(
 }
 
 /**
+ * 验证代码诊断命令令牌。
+ * @param token Backend 签发的诊断命令令牌
+ * @param options 验签选项
+ * @returns 已校验的 claims
+ */
+async function verifyDiagnosticsToken(
+  token: string,
+  options: {
+    jwksUrl: string
+    audience: string
+  },
+): Promise<RuntimeDiagnosticsCommandClaims> {
+  if (!options.jwksUrl) {
+    throw new RuntimeBuildError(503, 'JWKS_URL_MISSING', 'Runtime 未配置 JWKS 地址。')
+  }
+  const jwks = createRemoteJWKSet(new URL(options.jwksUrl))
+  const { payload } = await jwtVerify(token, jwks, {
+    audience: options.audience,
+  })
+
+  const claims = payload as RuntimeDiagnosticsCommandClaims
+  if (!claims.artifact_id || !claims.workspace_id) {
+    throw new RuntimeBuildError(401, 'DIAGNOSTICS_TOKEN_INVALID', '诊断命令令牌缺少必需声明。')
+  }
+  return claims
+}
+
+/**
+ * 处理 Runtime 内部代码诊断请求。
+ * @param req Node 请求对象
+ * @param res Node 响应对象
+ * @param options 诊断入口配置
+ */
+async function handleRuntimeDiagnosticsRequest(
+  req: NodeJS.ReadableStream & { headers: Record<string, string | string[] | undefined>; method?: string; url?: string },
+  res: any,
+  options: {
+    runtimeRoot: string
+    serviceTokenHeaderName: string
+    jwksUrl: string
+    diagnosticsAudience: string
+    backendApiBaseUrl: string
+  },
+): Promise<void> {
+  try {
+    const diagnosticsToken = readBearerToken(String(req.headers.authorization || ''))
+    const verifiedClaims = await verifyDiagnosticsToken(diagnosticsToken, {
+      jwksUrl: options.jwksUrl,
+      audience: options.diagnosticsAudience,
+    })
+    const payload = await readJsonBody<RuntimeDiagnosticsRequestBody>(req)
+    if (String(payload.artifact_id || '') !== String(verifiedClaims.artifact_id || '')) {
+      throw new RuntimeBuildError(403, 'DIAGNOSTICS_ARTIFACT_MISMATCH', '诊断 artifact 与令牌声明不一致。')
+    }
+
+    const diagnosticsContext: RuntimeBuildLogContext = {
+      artifactId: payload.artifact_id,
+      runtimeRoot: options.runtimeRoot,
+      requestUrl: req.url,
+      label: payload.label,
+    }
+    logRuntimeBuild('diagnostics.request.received', diagnosticsContext)
+    const serviceToken = String(req.headers[options.serviceTokenHeaderName] || '')
+    if (!serviceToken) {
+      throw new RuntimeBuildError(401, 'RUNTIME_SERVICE_TOKEN_REQUIRED', '缺少 Backend 下发的 Runtime 服务令牌。')
+    }
+
+    const backendClient = createBuildBackendClient({
+      backendApiBaseUrl: options.backendApiBaseUrl,
+      serviceToken,
+    })
+    const manifest = await backendClient.fetchManifest(payload.artifact_id)
+    const configBundle = await backendClient.fetchConfigBundle(payload.artifact_id)
+    const diagnosticsSummary = await runArtifactDiagnostics({
+      runtimeRoot: options.runtimeRoot,
+      artifactId: payload.artifact_id,
+      manifest,
+      configBundle,
+      backendClient,
+    })
+
+    sendJson(res, 200, {
+      success: diagnosticsSummary.success,
+      status: diagnosticsSummary.status,
+      artifact_id: diagnosticsSummary.artifactId,
+      summary: diagnosticsSummary.summary,
+      diagnostics: diagnosticsSummary.diagnostics,
+    })
+    logRuntimeBuild('diagnostics.request.completed', {
+      ...diagnosticsContext,
+      status: diagnosticsSummary.status,
+      diagnosticCount: diagnosticsSummary.diagnostics.length,
+    })
+  } catch (error) {
+    logRuntimeBuildError('diagnostics.request.failed', error, {
+      runtimeRoot: options.runtimeRoot,
+      method: req.method,
+      requestUrl: req.url,
+    })
+    sendBuildError(res, error)
+  }
+}
+
+/**
  * 读取请求头中的 Bearer Token。
  * @param authorization 原始 Authorization 头
  * @returns Bearer Token
@@ -342,16 +507,30 @@ function createBuildBackendClient(options: {
       return response.text()
     },
 
-    async fetchAssetBinary(assetUrl: string): Promise<Buffer> {
-      const response = await fetch(assetUrl, {
-        headers: {
-          Accept: '*/*',
-        },
-      })
-      if (!response.ok) {
-        throw await toBuildError(response, 'ASSET_FETCH_FAILED')
+    async fetchAssetBinary(assetUrl: string, context?: BuildAssetFetchContext): Promise<Buffer> {
+      let response: Response
+      try {
+        response = await fetch(assetUrl, {
+          headers: {
+            Accept: '*/*',
+          },
+        })
+      } catch (error) {
+        throw buildAssetFetchNetworkError(assetUrl, error, context)
       }
-      return Buffer.from(await response.arrayBuffer())
+      if (!response.ok) {
+        const buildError = await toBuildError(response, 'ASSET_FETCH_FAILED')
+        throw new RuntimeBuildError(
+          buildError.statusCode,
+          buildError.code,
+          appendAssetFetchContext(buildError.message, assetUrl, context),
+        )
+      }
+      try {
+        return Buffer.from(await response.arrayBuffer())
+      } catch (error) {
+        throw buildAssetFetchNetworkError(assetUrl, error, context)
+      }
     },
 
     async uploadBuildArtifact(params: {
@@ -369,7 +548,7 @@ function createBuildBackendClient(options: {
       formData.set('size_bytes', String(params.sizeBytes))
 
       const response = await fetch(
-        `${apiBaseUrl}/api/v1/internal/runtime/build-jobs/${encodeURIComponent(params.jobId)}/artifact`,
+        `${apiBaseUrl}/internal/runtime/build-jobs/${encodeURIComponent(params.jobId)}/artifact`,
         {
           method: 'POST',
           headers: {
@@ -422,6 +601,64 @@ async function toBuildError(response: Response, fallbackCode: string): Promise<R
     // 忽略非 JSON 错误体
   }
   return new RuntimeBuildError(response.status, code, message)
+}
+
+/**
+ * 将资源下载网络异常转换为可定位的构建错误。
+ * @param assetUrl 资源下载 URL
+ * @param error 底层 fetch 异常
+ * @param context 资源逻辑上下文
+ * @returns Runtime 构建错误
+ */
+function buildAssetFetchNetworkError(
+  assetUrl: string,
+  error: unknown,
+  context?: BuildAssetFetchContext,
+): RuntimeBuildError {
+  const message = error instanceof Error ? error.message : String(error || '未知网络错误')
+  const cause = (error as { cause?: unknown } | null)?.cause
+  const causeMessage = cause ? `；底层原因：${formatUnknownError(cause)}` : ''
+  return new RuntimeBuildError(
+    502,
+    'BUILD_ASSET_FETCH_FAILED',
+    appendAssetFetchContext(`构建静态资源下载失败：${message}${causeMessage}。`, assetUrl, context),
+  )
+}
+
+/**
+ * 给资源下载错误追加逻辑资源名、hash 与原始 URL。
+ * @param message 原始错误信息
+ * @param assetUrl 资源下载 URL
+ * @param context 资源逻辑上下文
+ * @returns 带定位信息的错误消息
+ */
+function appendAssetFetchContext(message: string, assetUrl: string, context?: BuildAssetFetchContext): string {
+  const details = [
+    context?.logicalName ? `资源名 ${context.logicalName}` : '',
+    context?.fileHash ? `hash ${context.fileHash}` : '',
+    context?.originalName ? `原始文件 ${context.originalName}` : '',
+    assetUrl ? `URL ${assetUrl}` : '',
+  ].filter(Boolean)
+  return details.length > 0 ? `${message}（${details.join('，')}）` : message
+}
+
+/**
+ * 格式化未知异常，避免日志只输出 `[object Object]`。
+ * @param error 未知错误对象
+ * @returns 可读错误文本
+ */
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'object' && error !== null) {
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return String(error)
+    }
+  }
+  return String(error || '未知错误')
 }
 
 /**
@@ -493,6 +730,7 @@ async function runProjectBuild(params: {
       resolve: {
         alias: {
           '@': resolve(tempRoot, 'src'),
+          '@runtime-kit': resolve(tempRoot, 'src/runtime-kit'),
           '@components': resolve(tempRoot, 'src/components'),
           '@views': resolve(tempRoot, 'src/views'),
           '@workspace-components': resolve(tempRoot, 'src/workspace-components'),
@@ -502,11 +740,7 @@ async function runProjectBuild(params: {
         },
         extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
       },
-      css: {
-        modules: {
-          localsConvention: 'camelCase',
-        },
-      },
+      css: buildRuntimeBuildCssConfig(tempRoot),
       build: {
         outDir: distRoot,
         emptyOutDir: false,
@@ -547,7 +781,7 @@ async function runProjectBuild(params: {
     })
     logRuntimeBuild('artifact.upload.done', {
       ...buildContext,
-      artifactArchivePath: uploadSummary.artifact_archive_path,
+      artifactStorageKey: uploadSummary.artifact_storage_key,
       artifactDownloadUrl: uploadSummary.artifact_download_url,
       artifactEntryFile: uploadSummary.artifact_entry_file || 'index.html',
       artifactSha256: uploadSummary.artifact_sha256 || artifactSha256,
@@ -568,6 +802,160 @@ async function runProjectBuild(params: {
     await rm(tempRoot, { recursive: true, force: true })
     logRuntimeBuild('workspace.cleanup.done', buildContext)
   }
+}
+
+/**
+ * 对 preview artifact 执行只读代码诊断，不写出 dist，也不上传产物。
+ * @param params 诊断参数
+ * @returns 结构化诊断摘要
+ */
+async function runArtifactDiagnostics(params: {
+  runtimeRoot: string
+  artifactId: string
+  manifest: RuntimePreviewArtifactManifest
+  configBundle: RuntimePreloadedConfigBundle
+  backendClient: ReturnType<typeof createBuildBackendClient>
+}): Promise<RuntimeDiagnosticsSummary> {
+  const tempRoot = await createBuildWorkspace(params.runtimeRoot)
+  const diagnosticsContext: RuntimeBuildLogContext = {
+    artifactId: params.artifactId,
+    runtimeRoot: params.runtimeRoot,
+    tempRoot,
+  }
+
+  try {
+    logRuntimeBuild('diagnostics.workspace.created', diagnosticsContext)
+    await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient)
+    await injectEntryModuleIfNeeded(tempRoot, params.artifactId, params.manifest, params.backendClient)
+    await validateBuildWorkspaceSources(tempRoot)
+    validateConfigAssetReferences(params.manifest, params.configBundle)
+    await writeBuildEntryFiles(tempRoot, {
+      ...params.configBundle,
+      manifest: {
+        ...params.manifest,
+        artifact_kind: 'build_release',
+      },
+    })
+
+    await viteBuild({
+      configFile: false,
+      root: tempRoot,
+      base: './',
+      plugins: [vue()],
+      assetsInclude: ['**/*.drawio'],
+      resolve: {
+        alias: {
+          '@': resolve(tempRoot, 'src'),
+          '@runtime-kit': resolve(tempRoot, 'src/runtime-kit'),
+          '@components': resolve(tempRoot, 'src/components'),
+          '@views': resolve(tempRoot, 'src/views'),
+          '@workspace-components': resolve(tempRoot, 'src/workspace-components'),
+          '@utils': resolve(tempRoot, 'src/utils'),
+          '@types': resolve(tempRoot, 'src/types'),
+          '@styles': resolve(tempRoot, 'src/styles'),
+        },
+        extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
+      },
+      css: buildRuntimeBuildCssConfig(tempRoot),
+      build: {
+        write: false,
+        emptyOutDir: false,
+        sourcemap: false,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['vue', 'vue-router'],
+            },
+          },
+        },
+      },
+    })
+    return {
+      success: true,
+      status: 'passed',
+      artifactId: params.artifactId,
+      summary: '代码检查通过。',
+      diagnostics: [],
+    }
+  } catch (error) {
+    logRuntimeBuildError('diagnostics.run.failed', error, diagnosticsContext)
+    return buildFailedDiagnostics(params.artifactId, error)
+  } finally {
+    logRuntimeBuild('diagnostics.workspace.cleanup.start', diagnosticsContext)
+    await rm(tempRoot, { recursive: true, force: true })
+    logRuntimeBuild('diagnostics.workspace.cleanup.done', diagnosticsContext)
+  }
+}
+
+/**
+ * 将 Runtime 诊断异常转为结构化失败结果。
+ * @param artifactId artifact ID
+ * @param error 原始异常
+ * @returns 诊断失败摘要
+ */
+function buildFailedDiagnostics(artifactId: string, error: unknown): RuntimeDiagnosticsSummary {
+  const diagnostic = buildDiagnosticFromError(error)
+  return {
+    success: false,
+    status: 'failed',
+    artifactId,
+    summary: `发现 ${diagnostic.severity === 'error' ? 1 : 0} 个错误。`,
+    diagnostics: [diagnostic],
+  }
+}
+
+/**
+ * 从 Vite、Rollup 或 Runtime 校验异常中提取可读诊断。
+ * @param error 原始异常
+ * @returns 单条结构化诊断
+ */
+function buildDiagnosticFromError(error: unknown): RuntimeCodeDiagnostic {
+  if (error instanceof RuntimeBuildError) {
+    return {
+      severity: 'error',
+      source: 'runtime',
+      code: error.code,
+      message: error.message,
+    }
+  }
+
+  const source = error as {
+    message?: string
+    id?: string
+    plugin?: string
+    code?: string
+    loc?: { file?: string; line?: number; column?: number }
+  }
+  const message = String(source?.message || 'Runtime 代码检查失败。')
+  return {
+    severity: 'error',
+    source: source?.plugin ? `vite:${source.plugin}` : 'vite',
+    code: String(source?.code || 'RUNTIME_VITE_COMPILE_FAILED'),
+    message,
+    file_path: normalizeDiagnosticFilePath(source?.loc?.file || source?.id || ''),
+    line: normalizeDiagnosticNumber(source?.loc?.line),
+    column: normalizeDiagnosticNumber(source?.loc?.column),
+  }
+}
+
+/**
+ * 规范化诊断文件路径，避免返回 Vite 查询参数。
+ * @param rawPath 原始路径
+ * @returns 规范化路径或 undefined
+ */
+function normalizeDiagnosticFilePath(rawPath: string): string | undefined {
+  const normalized = String(rawPath || '').trim().replace(/\\/g, '/').split('?', 1)[0]
+  return normalized || undefined
+}
+
+/**
+ * 规范化诊断行列号。
+ * @param value 原始数值
+ * @returns 正整数或 undefined
+ */
+function normalizeDiagnosticNumber(value: unknown): number | undefined {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined
 }
 
 /**
@@ -646,6 +1034,32 @@ async function injectSnapshotModules(
     await mkdir(resolve(targetPath, '..'), { recursive: true })
     await writeFile(targetPath, content, 'utf-8')
   }
+}
+
+/**
+ * 单页预览入口可能不在 manifest 白名单中，诊断仍需把入口源码注入临时工作区。
+ * @param tempRoot 临时工作区
+ * @param artifactId artifact ID
+ * @param manifest 预览清单
+ * @param backendClient 后端客户端
+ */
+async function injectEntryModuleIfNeeded(
+  tempRoot: string,
+  artifactId: string,
+  manifest: RuntimePreviewArtifactManifest,
+  backendClient: ReturnType<typeof createBuildBackendClient>,
+): Promise<void> {
+  if (manifest.entry_descriptor?.entry_type !== 'module') {
+    return
+  }
+  const entryModulePath = normalizeRuntimeModulePath(manifest.entry_descriptor.module_path || '')
+  if (!entryModulePath || manifest.modules?.[entryModulePath]) {
+    return
+  }
+  const content = await backendClient.fetchModuleSource(artifactId, entryModulePath)
+  const targetPath = resolve(tempRoot, entryModulePath.split('/').join(sep))
+  await mkdir(resolve(targetPath, '..'), { recursive: true })
+  await writeFile(targetPath, content, 'utf-8')
 }
 
 /**
@@ -781,7 +1195,11 @@ async function materializeSnapshotAssets(
 
     const staticPath = buildStaticAssetPath(fileHash, metadata?.original_name, logicalName)
     const assetUrl = `${assetBaseUrl}/${encodeURIComponent(fileHash)}`
-    const content = await backendClient.fetchAssetBinary(assetUrl)
+    const content = await backendClient.fetchAssetBinary(assetUrl, {
+      logicalName,
+      fileHash,
+      originalName: metadata?.original_name,
+    })
 
     await writePublicBinary(tempRoot, staticPath, content)
     staticAssetMapping[logicalName] = staticPath

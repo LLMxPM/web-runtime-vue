@@ -6,7 +6,7 @@
 
 - **只读、无状态优先**：Runtime 不再提供浏览器直连本地文件系统、本地页面编辑器、资源管理器或配置面板。
 - **统一预览入口**：整项目预览、单页面预览和组件预览共享同一套 `PreviewContextToken + PreviewArtifact` 启动链路。
-- **远程虚拟模块**：项目页面源码通过发布产物按需拉取；公共壳层、布局与通用组件保留在 Runtime 本地。
+- **远程虚拟模块**：项目页面源码通过发布产物按需拉取；页面可引用基础能力通过 `@runtime-kit` manifest 显式公开，Runtime shell 私有能力保留在 Runtime 本地。
 - **多租户隔离**：预览上下文以 `tenant_id + artifact_id + scope_type` 为主键，跨租户/跨作用域/跨 artifact 请求会被拒绝。
 
 ## 当前能力
@@ -15,6 +15,7 @@
 - `app.config.yaml` 驱动的页面画布尺寸（`app.page.width` / `app.page.height`）
 - 目录导航、翻页、全屏放映
 - 主题与图标配置加载
+- Runtime Kit 基础组件清单（`src/runtime-kit/manifest/runtime-kit.manifest.json`）
 - PDF 导出
 - 通过 `x-runtime-preview-context` + JWKS 验签启动整项目预览
 - 通过 preview artifact 清单白名单解析远程页面模块与静态资源
@@ -34,10 +35,17 @@ pnpm dev
 ```
 
 - 默认读取仓库内 `public/config/*.config.yaml`
-- 适合调试 Runtime 壳层、布局、默认页面和基础交互
+- 默认路由指向 `src/examples/local/views` 下的本地示例页面
+- 适合调试 Runtime 壳层、布局、示例页面和基础交互
 - 不提供浏览器内编辑、资源上传或本地文件写入
 
-### 3. 类型检查、测试与构建
+### 3. 示例目录分层
+
+- `src/examples/public`：对外示例，面向平台工作空间组件、文档和接入方参考。
+- `src/examples/local`：本地示例，仅服务 `pnpm dev` 默认 fixture 与 Runtime 壳层调试。
+- `src/views`：运行时入口视图目录，目前保留整页预览入口和组件预览入口。
+
+### 4. 类型检查、测试与构建
 
 ```bash
 pnpm check

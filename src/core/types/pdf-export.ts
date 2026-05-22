@@ -5,6 +5,9 @@
 // 导出模式枚举
 export type ExportMode = 'current' | 'all'
 
+// PDF 生成方式
+export type ExportMethod = 'canvas-pdf' | 'browser-print'
+
 // 导出状态枚举
 export enum ExportStatus {
   PENDING = 'pending',
@@ -23,6 +26,7 @@ export type PDFOrientation = 'portrait' | 'landscape'
 // 导出选项接口
 export interface ExportOptions {
   mode: ExportMode                // 导出模式：当前页面或所有页面
+  method?: ExportMethod           // 生成方式：截图生成PDF或浏览器打印
   filename?: string               // 自定义文件名
   quality?: number                // 图片质量 (0-1)
   format?: PDFFormat              // PDF页面格式
@@ -141,10 +145,12 @@ export interface ExportEvent {
 export interface ExportResult {
   success: boolean                // 是否成功
   taskId: string                  // 任务ID
+  method?: ExportMethod           // 生成方式
   filename?: string               // 生成的文件名
   fileSize?: number               // 文件大小(字节)
   pageCount?: number              // 页面数量
   duration?: number               // 导出耗时(毫秒)
+  message?: string                // 结果提示文案
   error?: string                  // 错误信息
 }
 

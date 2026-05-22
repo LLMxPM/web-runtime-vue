@@ -6,5 +6,8 @@
 // PDF导出服务
 export * from './PDFExportService'
 
+// 浏览器打印服务
+export * from './BrowserPrintService'
+
 // 页面捕获服务
 export * from './PageCaptureService'

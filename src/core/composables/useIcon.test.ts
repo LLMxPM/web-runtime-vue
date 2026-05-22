@@ -55,7 +55,7 @@ describe('runtime useIcon', () => {
       previewKind: 'component',
       scopeType: 'workspace_component',
       workspaceId: '1',
-      assetBaseUrl: 'http://127.0.0.1:8000/api/v1/public/assets/1',
+      assetBaseUrl: 'http://127.0.0.1:8000/public/assets/1',
       traceId: 'trace-1',
       entryDescriptor: { entry_type: 'component_host' },
       componentPreviewMode: 'draft',
@@ -68,7 +68,7 @@ describe('runtime useIcon', () => {
         artifact_kind: 'preview_artifact',
         tenant_id: 'tenant-1',
         preview_kind: 'component',
-        asset_base_url: 'http://127.0.0.1:8000/api/v1/public/assets/1',
+        asset_base_url: 'http://127.0.0.1:8000/public/assets/1',
         owner_scope: {
           scope_type: 'workspace_component',
           workspace_id: '1',
@@ -91,6 +91,6 @@ describe('runtime useIcon', () => {
 
     expect(icon.isStaticSvg.value).toBe(true)
     expect(icon.staticSvgContent.value).toContain('<svg>')
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/v1/public/assets/1/github')
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/public/assets/1/github')
   })
 })

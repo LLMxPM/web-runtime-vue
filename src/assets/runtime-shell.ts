@@ -6,7 +6,6 @@ import defaultBackgroundUrl from './runtime-shell/background.png'
 import defaultFaviconUrl from './runtime-shell/favicon.svg'
 import defaultThemeInvertLogoUrl from './runtime-shell/logo-invert.png'
 import defaultThemeLogoUrl from './runtime-shell/logo.png'
-import projectArchitectureDrawioUrl from './runtime-shell/drawio/project-architecture.drawio'
 import sampleDrawioUrl from './runtime-shell/drawio/sample.drawio'
 
 export {
@@ -14,6 +13,5 @@ export {
   defaultFaviconUrl,
   defaultThemeInvertLogoUrl,
   defaultThemeLogoUrl,
-  projectArchitectureDrawioUrl,
   sampleDrawioUrl,
 }

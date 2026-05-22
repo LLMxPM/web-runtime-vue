@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
+        '@runtime-kit': resolve(__dirname, 'src/runtime-kit'),
         '@components': resolve(__dirname, 'src/components'),
         '@views': resolve(__dirname, 'src/views'),
         '@utils': resolve(__dirname, 'src/utils'),
@@ -47,6 +48,11 @@ export default defineConfig(({ mode }) => {
       }
     },
     assetsInclude: ['**/*.drawio'],
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test/setup.ts'],
+    },
     build: {
       outDir: 'dist',
       sourcemap: false,

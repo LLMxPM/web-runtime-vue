@@ -51,8 +51,16 @@ Runtime 通过 `RUNTIME_PREVIEW_JWKS_URL` 获取 JWKS 并离线验签。
   - `project_id`
 - 组件预览可选：
   - `component_preview_mode`
+  - `component_source`
   - `component_code`
   - `component_version_no`
+  - `runtime_kit_component_name`
+  - `runtime_kit_manifest_version`
+
+组件预览约束：
+
+- `scope_type=workspace_component` 时必须携带 `component_code` 与 `component_version_no`。
+- `scope_type=runtime_kit_component` 时必须携带 `component_source=runtime_kit`、`runtime_kit_component_name` 与 `runtime_kit_manifest_version`。
 
 ### 验签失败处理
 
@@ -85,11 +93,16 @@ Runtime 对远程模块和资源采用双层约束：
 - 当前请求必须属于同一个 `tenant_id + artifact_id`
 - 项目/页面预览还必须匹配 `project_id`
 - 组件预览不得额外要求 `project_id`
+- Runtime Kit 内建组件预览必须匹配 manifest 中的 `runtime_kit_component_name` 与 `runtime_kit_manifest_version`
 
 ### 第二层：manifest 白名单
 
 - 普通远程模块必须存在于 `manifest.modules`
 - 单页面预览的入口模块允许不进入 `manifest.modules`，但豁免范围仅限 token 中声明的 `entry_descriptor.module_path`
+- Runtime Kit 内建组件预览不写入远程模块，`manifest.modules` 必须为空对象
+- Runtime Kit 内建组件预览只能面向 `kind=component && previewable=true` 的 capability
+- Runtime Kit doc-only 能力不生成 preview artifact，也不应获得 `scope_type=runtime_kit_component` 的预览 token
+- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开路径；禁止引用 `@runtime-kit/internal/...`
 - 静态资源应优先命中 `manifest.assets`
 
 ## 6. 错误码建议
@@ -103,6 +116,8 @@ Runtime 对远程模块和资源采用双层约束：
 | 403 | `SCOPE_CONTEXT_MISMATCH` | 项目/工作空间归属与 token 不一致 |
 | 404 | `ARTIFACT_NOT_FOUND` | preview artifact 不存在 |
 | 404 | `MODULE_NOT_FOUND` | 模块不存在 |
+| 404 | `RUNTIME_KIT_CAPABILITY_NOT_FOUND` | Runtime Kit capability 不存在或未启用 |
+| 400 | `RUNTIME_KIT_CAPABILITY_PREVIEW_NOT_ALLOWED` | Runtime Kit capability 是 doc-only 或不允许预览 |
 | 5xx | `BACKEND_REQUEST_FAILED` | Runtime 调用 Backend 内部 API 失败 |
 
 ## 7. 安全建议

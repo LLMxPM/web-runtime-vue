@@ -8,22 +8,61 @@
  * @param nameTemplate 文件名模板，默认'export-{timestamp}'
  * @param includeTimestamp 是否包含时间戳
  * @param extension 文件扩展名，默认'.pdf'
+ * @param now 生成时间，默认使用当前用户本地时间
  * @returns 生成的文件名
  */
 export function generateFilename(
   customName?: string,
   nameTemplate: string = 'export-{timestamp}',
   includeTimestamp: boolean = true,
-  extension: string = '.pdf'
+  extension: string = '.pdf',
+  now: Date = new Date()
 ): string {
   if (customName) {
     return customName.endsWith(extension) ? customName : `${customName}${extension}`
   }
-  
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
-  let filename = nameTemplate.replace('{timestamp}', timestamp)
-  
+
+  const timestamp = includeTimestamp ? formatLocalFilenameTimestamp(now) : ''
+  let filename = nameTemplate
+    .replace('{timestamp}', timestamp)
+    .replace(/\s+-\s*$/g, '')
+    .replace(/[-_\s]+$/g, '')
+
+  filename = sanitizeFilenameBase(filename || 'export') || 'export'
+
   return filename.endsWith(extension) ? filename : `${filename}${extension}`
+}
+
+/**
+ * 按用户本地时区格式化适合文件名使用的时间。
+ * @param date 时间对象
+ * @returns YYYY-MM-DD_HH-mm-ss 格式字符串
+ */
+export function formatLocalFilenameTimestamp(date: Date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join('-') + '_' + [
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join('-')
+}
+
+/**
+ * 清理默认文件名中的非法字符，保留中文与常规可读字符。
+ * @param filenameBase 不含扩展名的文件名
+ * @returns 安全文件名主体
+ */
+export function sanitizeFilenameBase(filenameBase: string): string {
+  return filenameBase
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/-+/g, '-')
+    .replace(/^[\s.-]+|[\s.-]+$/g, '')
 }
 
 /**

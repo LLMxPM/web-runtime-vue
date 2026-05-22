@@ -5,7 +5,7 @@
 
 - `props` 面板
 - `slots` 面板
-- `mock` 数据注入
+- `mock` 静态状态配置
 - `presets` 预设切换
 
 当前组件预览运行在 Runtime 的纯沙箱宿主页中，正式组件源码仍通过发布产物远程模块方式加载。
@@ -136,7 +136,7 @@ slots: {
     default: [
       {
         type: 'component',
-        component: '@/components/common/AppIcon.vue',
+        component: '@runtime-kit/public/components/primitives/Icon.vue',
         props: {
           name: 'star',
           size: 18,
@@ -149,32 +149,21 @@ slots: {
 
 `component` 节点当前只允许引用：
 
+- Runtime Kit 公开清单中的基础能力：`@runtime-kit/...`
 - 工作空间组件：`@workspace-components/<component_code>/v/<version_no>`
-- Runtime 公共本地模块：
-  - `@/components`
-  - `@/layouts`
-  - `@/core`
-  - `@/styles`
 
 不允许引用：
 
 - `@/views/...`
-- 白名单之外的 Runtime 私有模块
+- `@/components`、`@/layouts`、`@/core`、`@/styles` 等 Runtime 私有路径
+- Runtime Kit manifest 未声明的模块
 - 任意动态 `import()`
 
-## 4. `mock` 数据注入
+## 4. `mock` 静态状态
 
-如果组件希望在预览中读取 mock 数据，请使用 Runtime 提供的 composable：
+`mocks` 是 component-preview 宿主页内部的静态状态，不通过 `@runtime-kit` 向页面源码、工作空间组件源码或智能体公开。普通组件应优先通过 `props` 和 `slots` 接收可调数据。
 
-```ts
-import { useComponentPreviewMock } from '@/core/composables/useComponentPreviewMock'
-
-const stats = useComponentPreviewMock('stats', [
-  { label: '新增客户', value: 12 },
-])
-```
-
-面板中的 `mocks` 会按 key 注入，当前仅支持 JSON/文本级静态值，不支持：
+面板中的 `mocks` 当前仅支持 JSON/文本级静态值，不支持：
 
 - 函数
 - 表达式
@@ -239,13 +228,13 @@ const stats = useComponentPreviewMock('stats', [
 
 仓库内提供了一个完整示例组件实现，可直接参考：
 
-- [PreviewSchemaDemoCard.vue](/C:/code/web-presentation/runtime/src/examples/component-preview/PreviewSchemaDemoCard.vue)
+- [PreviewSchemaDemoCard.vue](/C:/code/web-presentation/runtime/src/examples/public/component-preview/PreviewSchemaDemoCard.vue)
 
 它演示了组件在预览场景中的这些能力：
 
 - `props` 的多种字段类型
 - `slots` 的 `text / html / component`
-- `mocks` 注入
+- `mocks` 静态状态
 - `presets` 预设
 
 ## 7. 推荐实践
@@ -254,7 +243,7 @@ const stats = useComponentPreviewMock('stats', [
 - `mocks` 更适合承载列表、统计卡片、图表数据等大块结构化数据。
 - 对插槽优先提供可读的默认值，方便第一次打开时立即看到效果。
 - 如果一个组件非常复杂，优先先给出 2 到 3 个高质量 `presets`，再补细粒度字段。
-- 如果组件在预览态依赖 mock 数据，请为每个 `useComponentPreviewMock` key 提供稳定 fallback。
+- 不要在组件源码中导入 component-preview 专用的 Runtime 内部能力；需要可调数据时优先建模为 `props` 或 `slots`。
 
 ## 8. 当前限制
 

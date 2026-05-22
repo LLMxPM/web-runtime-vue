@@ -1,11 +1,11 @@
 routes:
   - route: home
-    component: '@/views/defaultpage/HomePage.vue'
+    component: '@/examples/local/views/defaultpage/HomePage.vue'
     meta:
       title: 首页
       order: 0
   - route: contents
-    component: '@/views/defaultpage/TableOfContentsPage.vue'
+    component: '@/examples/local/views/defaultpage/TableOfContentsPage.vue'
     meta:
       title: 目录
       order: 1
@@ -15,117 +15,67 @@ routes:
       order: 2
     children:
       - route: index
-        component: '@/views/feature-showcase/Index.vue'
+        component: '@/examples/local/views/feature-showcase/Index.vue'
         meta:
           title: 功能展示首页
           order: 0
       - route: theme-showcase
-        component: '@/views/feature-showcase/ThemeShowcase.vue'
+        component: '@/examples/local/views/feature-showcase/ThemeShowcase.vue'
         meta:
           title: 主题展示
           order: 1
       - route: mermaid-showcase
-        component: '@/views/feature-showcase/MermaidShowcase.vue'
+        component: '@/examples/local/views/feature-showcase/MermaidShowcase.vue'
         meta:
           title: Mermaid图表
           order: 2
       - route: drawio-chart-showcase
-        component: '@/views/feature-showcase/DrawioChartShowcase.vue'
+        component: '@/examples/local/views/feature-showcase/DrawioChartShowcase.vue'
         meta:
           title: Draw.io图表
           order: 3
+      - route: echarts-showcase
+        component: '@/examples/local/views/feature-showcase/EchartsShowcase.vue'
+        meta:
+          title: ECharts图表
+          order: 4
+      - route: latex-showcase
+        component: '@/examples/local/views/feature-showcase/LatexShowcase.vue'
+        meta:
+          title: LaTeX公式
+          order: 5
+      - route: video-showcase
+        component: '@/examples/local/views/feature-showcase/VideoShowcase.vue'
+        meta:
+          title: Video视频
+          order: 6
       - route: connector-demo
-        component: '@/views/feature-showcase/ConnectorDemo.vue'
+        component: '@/examples/local/views/feature-showcase/ConnectorDemo.vue'
         meta:
           title: 连接线演示
-          order: 4
-      - route: config-ui
-        component: '@/views/feature-showcase/ConfigUI.vue'
-        meta:
-          title: 配置UI
-          order: 5
-  - route: generate-effect
+          order: 7
+  - route: runtime-kit-capabilities
     meta:
-      title: 自动生成效果章节
+      title: Runtime Kit能力说明
       order: 3
     children:
-      - route: cover
-        component: '@/views/ppt-presentation/index.vue'
+      - route: overview
+        component: '@/examples/local/views/feature-showcase/RuntimeKitOverview.vue'
         meta:
-          title: 章节封面
+          title: Runtime Kit能力边界
           order: 0
-      - route: project-overview
-        component: '@/views/ppt-presentation/ProjectOverview.vue'
+      - route: page-runtime-shell
+        component: '@/examples/local/views/feature-showcase/PageRuntimeShell.vue'
         meta:
-          title: 项目概述
+          title: 页面画布与缩放
           order: 1
-      - route: design-philosophy
-        component: '@/views/ppt-presentation/DesignPhilosophy.vue'
+      - route: route-system
+        component: '@/examples/local/views/feature-showcase/RouteSystemShowcase.vue'
         meta:
-          title: 设计理念
+          title: 路由系统与导航
           order: 2
-      - route: technical-architecture
-        component: '@/views/ppt-presentation/TechnicalArchitecture.vue'
-        meta:
-          title: 技术架构
-          order: 3
-      - route: core-features
-        component: '@/views/ppt-presentation/CoreFeatures.vue'
-        meta:
-          title: 核心功能
-          order: 4
-      - route: configuration-system
-        component: '@/views/ppt-presentation/ConfigurationSystem.vue'
-        meta:
-          title: 配置系统说明
-          order: 5
-      - route: page-creation-process
-        component: '@/views/ppt-presentation/PageCreationProcess.vue'
-        meta:
-          title: 页面创建流程
-          order: 6
-      - route: theme-system
-        component: '@/views/ppt-presentation/ThemeSystem.vue'
-        meta:
-          title: 主题系统
-          order: 7
-      - route: future-plans
-        component: '@/views/ppt-presentation/FuturePlans.vue'
-        meta:
-          title: 未来规划
-          order: 9
-      - route: summary
-        component: '@/views/ppt-presentation/Summary.vue'
-        meta:
-          title: 总结
-          order: 10
-  - route: multi-round-dialog
-    meta:
-      title: 多轮对话调整
-      order: 4
-    children:
-      - route: cover
-        component: '@/views/multi-round-dialog/CoverPage.vue'
-        meta:
-          title: 章节封面
-          order: 0
-      - route: design-philosophy
-        component: '@/views/multi-round-dialog/DesignPhilosophy.vue'
-        meta:
-          title: 设计理念
-          order: 1
-      - route: project-architecture
-        component: '@/views/multi-round-dialog/ProjectArchitecture.vue'
-        meta:
-          title: 项目架构
-          order: 2
-      - route: dialog-screenshots
-        component: '@/views/multi-round-dialog/DialogScreenshots.vue'
-        meta:
-          title: 对话截图展示
-          order: 3
   - route: endpage
-    component: '@/views/defaultpage/EndPage.vue'
+    component: '@/examples/local/views/defaultpage/EndPage.vue'
     meta:
       title: 末页
       order: 100

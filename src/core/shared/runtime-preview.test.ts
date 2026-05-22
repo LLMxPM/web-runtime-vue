@@ -30,14 +30,23 @@ describe('runtime preview shared helpers', () => {
     expect(toAliasModulePath('src/workspace-components/CMP_DEMO/v/3.vue')).toBe('@workspace-components/CMP_DEMO/v/3')
   })
 
-  it('应识别本地内建默认页面路径', () => {
-    expect(isBuiltinLocalViewPath('src/views/defaultpage/NotFoundPage.vue')).toBe(true)
+  it('应识别本地内建兜底页面路径', () => {
+    expect(isBuiltinLocalViewPath('src/runtime-shell/fallback/NotFoundPage.vue')).toBe(true)
+    expect(isBuiltinLocalViewPath('src/examples/local/views/defaultpage/NotFoundPage.vue')).toBe(false)
     expect(isBuiltinLocalViewPath('src/views/demo/Page.vue')).toBe(false)
   })
 
   it('应识别 Runtime 对远程模块开放的本地公共模块路径', () => {
-    expect(isRuntimeLocalPublicModulePath('src/components/common/AppIcon.vue')).toBe(true)
-    expect(isRuntimeLocalPublicModulePath('src/core/utils/path.ts')).toBe(true)
+    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/components/primitives/Icon.vue')).toBe(true)
+    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/utils/assets.ts')).toBe(true)
+    expect(normalizeRuntimeModulePath('@runtime-kit/public/components/assets/AssetImage.vue')).toBe(
+      'src/runtime-kit/public/components/assets/AssetImage.vue',
+    )
+    expect(toAliasModulePath('src/runtime-kit/public/components/primitives/Icon.vue')).toBe(
+      '@runtime-kit/public/components/primitives/Icon.vue',
+    )
+    expect(isRuntimeLocalPublicModulePath('src/components/common/AppIcon.vue')).toBe(false)
+    expect(isRuntimeLocalPublicModulePath('src/core/utils/path.ts')).toBe(false)
     expect(isRuntimeLocalPublicModulePath('src/views/demo/Page.vue')).toBe(false)
   })
 

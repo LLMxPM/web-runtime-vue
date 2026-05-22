@@ -5,7 +5,7 @@
 import { computed, ref, type ComputedRef, type CSSProperties } from 'vue'
 
 import { defaultThemeInvertLogoUrl, defaultThemeLogoUrl } from '@/assets/runtime-shell'
-import { loadYamlFromUrl } from '@/core/utils/config'
+import { DEFAULT_PAGE_CONFIG, appConfig, loadYamlFromUrl } from '@/core/utils/config'
 import { resolveThemeFontFamily } from '@/core/utils/font-registry'
 import { buildConfigUrl, hasExternalConfigSource, resolveResourcePath, getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
 
@@ -45,14 +45,13 @@ export interface TypographyConfig {
   headingfont: string
   bodyfont: string
   codefont: string
-  baseFontSize: string
+  baseFontSize?: string
 }
 
 /**
  * 图标默认样式配置。
  */
 export interface ThemeIconConfig {
-  default_size: number
   default_stroke_width: number
 }
 
@@ -69,7 +68,7 @@ export interface ThemeConfig {
   invertLogo?: string
   palette: PaletteConfig
   typography: TypographyConfig
-  icon: ThemeIconConfig
+  icon?: ThemeIconConfig
 }
 
 /**
@@ -90,7 +89,6 @@ export interface ThemeStyles extends CSSProperties {
   '--theme-font-body': string
   '--theme-font-code': string
   '--theme-font-size-base': string
-  '--theme-icon-default-size': string
   '--theme-icon-default-stroke-width': string
   [key: `--theme-accent-${number}`]: string
 }
@@ -152,11 +150,10 @@ function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
           headingfont: 'Noto Sans SC',
           bodyfont: 'Noto Sans SC',
           codefont: 'Fira Code',
-          baseFontSize: '16px'
+          baseFontSize: DEFAULT_PAGE_CONFIG.baseFontSize
         },
         icon: {
-          default_size: 20,
-          default_stroke_width: 2
+          default_stroke_width: DEFAULT_PAGE_CONFIG.iconDefaultStrokeWidth
         }
       }
     },
@@ -209,10 +206,11 @@ function normalizeThemeConfig(rawConfig: ThemeConfigFile): ResolvedThemeConfigFi
       key,
       {
         ...theme,
-        icon: {
-          default_size: theme?.icon?.default_size ?? fallbackTheme.icon.default_size,
-          default_stroke_width: theme?.icon?.default_stroke_width ?? fallbackTheme.icon.default_stroke_width
-        }
+        icon: theme?.icon
+          ? {
+              default_stroke_width: theme.icon.default_stroke_width ?? fallbackTheme.icon?.default_stroke_width ?? DEFAULT_PAGE_CONFIG.iconDefaultStrokeWidth
+            }
+          : undefined
       }
     ])
   )
@@ -344,6 +342,7 @@ export function useTheme(theme?: string | ComputedRef<string>) {
     if (!config) {
       return {} as ThemeStyles
     }
+    const pageVisualSpecs = resolvePageVisualSpecs(config)
 
     const styles: ThemeStyles = {
       '--theme-text-primary': config.palette.text.primary,
@@ -359,9 +358,8 @@ export function useTheme(theme?: string | ComputedRef<string>) {
       '--theme-font-heading': resolveThemeFontFamily(config.typography.headingfont),
       '--theme-font-body': resolveThemeFontFamily(config.typography.bodyfont),
       '--theme-font-code': resolveThemeFontFamily(config.typography.codefont),
-      '--theme-font-size-base': config.typography.baseFontSize,
-      '--theme-icon-default-size': `${config.icon.default_size}px`,
-      '--theme-icon-default-stroke-width': String(config.icon.default_stroke_width)
+      '--theme-font-size-base': pageVisualSpecs.baseFontSize,
+      '--theme-icon-default-stroke-width': String(pageVisualSpecs.iconDefaultStrokeWidth)
     } as ThemeStyles
 
     config.palette.accent.forEach((color, index) => {
@@ -394,4 +392,56 @@ export function useTheme(theme?: string | ComputedRef<string>) {
     getDefaultTheme,
     isValidTheme
   }
+}
+
+/**
+ * 解析项目页面默认视觉规格，兼容旧 themes.config.yaml 中的主题字段。
+ * @param config 当前主题配置
+ * @returns 可用于 CSS 变量和图标默认值的规格
+ */
+function resolvePageVisualSpecs(config: ThemeConfig): {
+  baseFontSize: string
+  iconDefaultStrokeWidth: number
+} {
+  const rawPageConfig = appConfig.value.app.page
+  return {
+    baseFontSize: normalizeBaseFontSize(
+      rawPageConfig?.baseFontSize,
+      normalizeBaseFontSize(config.typography.baseFontSize, DEFAULT_PAGE_CONFIG.baseFontSize),
+    ),
+    iconDefaultStrokeWidth: normalizePositiveNumber(
+      rawPageConfig?.iconDefaultStrokeWidth,
+      normalizePositiveNumber(config.icon?.default_stroke_width, DEFAULT_PAGE_CONFIG.iconDefaultStrokeWidth),
+    ),
+  }
+}
+
+/**
+ * 将字号归一为 px 字符串。
+ * @param value 原始字号
+ * @param fallback 默认字号
+ * @returns 可写入 CSS 变量的字号
+ */
+function normalizeBaseFontSize(value: unknown, fallback: string): string {
+  const normalized = String(value || '').trim().toLowerCase()
+  const match = normalized.match(/^(\d+)(px)?$/)
+  if (!match) {
+    return fallback
+  }
+  const numericValue = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(numericValue) || numericValue < 1 || numericValue > 200) {
+    return fallback
+  }
+  return `${numericValue}px`
+}
+
+/**
+ * 将规格数字归一为正数。
+ * @param value 原始数值
+ * @param fallback 默认值
+ * @returns 合法正数
+ */
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : fallback
 }

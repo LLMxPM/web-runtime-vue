@@ -17,9 +17,10 @@ describe('view module load strategy', () => {
     setRuntimePreloadedConfig(undefined)
   })
 
-  it('runtime 本地模式应允许加载 src/views 下的本地页面', () => {
+  it('runtime 本地模式应允许加载视图目录与本地示例页面', () => {
     expect(shouldUseLocalRuntimeViewModule('src/views/PG20260412001.vue')).toBe(true)
-    expect(shouldUseLocalRuntimeViewModule('src/views/defaultpage/NotFoundPage.vue')).toBe(true)
+    expect(shouldUseLocalRuntimeViewModule('src/examples/local/views/defaultpage/HomePage.vue')).toBe(true)
+    expect(shouldUseLocalRuntimeViewModule('src/runtime-shell/fallback/NotFoundPage.vue')).toBe(false)
     expect(shouldUseLocalRuntimeViewModule('src/components/demo.vue')).toBe(false)
   })
 
@@ -53,7 +54,7 @@ describe('view module load strategy', () => {
       shouldUseBuildReleaseLocalViewModule('src/views/PG20260412001.vue', preloadedConfig),
     ).toBe(true)
     expect(
-      shouldUseBuildReleaseLocalViewModule('src/views/defaultpage/NotFoundPage.vue', preloadedConfig),
+      shouldUseBuildReleaseLocalViewModule('src/runtime-shell/fallback/NotFoundPage.vue', preloadedConfig),
     ).toBe(false)
     expect(
       shouldUseBuildReleaseLocalViewModule('src/views/PG20260411001.vue', preloadedConfig),

@@ -4,8 +4,8 @@ themes:
     description: 黑底白字，专业风格
     app:
       icon: slider
-    logo: img/logo/ppt-e-white.png
-    invertLogo: img/logo/ppt-e.png
+    logo: img/logo/runtime_icon_white.svg
+    invertLogo: img/logo/runtime_icon.svg
     palette:
       text:
         primary: "#F4F4F4"
@@ -32,17 +32,13 @@ themes:
       headingfont: 思源黑体
       bodyfont: 思源黑体
       codefont: SourceCodePro
-      baseFontSize: 16px
-    icon:
-      default_size: 20
-      default_stroke_width: 2
   lightblue:
     name: 白底蓝色
     description: 白底蓝色主题，简约经典
     app:
       icon: slider
-    logo: img/logo/ppt-e.png
-    invertLogo: img/logo/ppt-e-white.png
+    logo: img/logo/runtime_icon_white.svg
+    invertLogo: img/logo/runtime_icon.svg
     palette:
       text:
         primary: "#0D286A"
@@ -69,9 +65,5 @@ themes:
       headingfont: 思源黑体
       bodyfont: 思源黑体
       codefont: SourceCodePro
-      baseFontSize: 16px
-    icon:
-      default_size: 20
-      default_stroke_width: 2
 default:
   theme: lightblue

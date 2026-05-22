@@ -11,10 +11,8 @@ import {
 import { getRuntimePreviewContext, getRuntimePreviewToken } from '@/core/utils/path'
 
 const LOCAL_PREVIEW_MODULES = {
-  ...import.meta.glob('@/components/**/*.vue'),
-  ...import.meta.glob('/src/components/**/*.vue'),
-  ...import.meta.glob('@/layouts/**/*.vue'),
-  ...import.meta.glob('/src/layouts/**/*.vue'),
+  ...import.meta.glob('@runtime-kit/public/components/**/*.vue'),
+  ...import.meta.glob('/src/runtime-kit/public/components/**/*.vue'),
 }
 
 /**
@@ -50,7 +48,7 @@ export async function importPreviewModule(modulePath: string): Promise<any> {
   }
 
   const aliasPath = toAliasModulePath(normalizedPath)
-  const loader = LOCAL_PREVIEW_MODULES[aliasPath] || LOCAL_PREVIEW_MODULES[aliasPath.replace('@/', '/src/')]
+  const loader = LOCAL_PREVIEW_MODULES[aliasPath] || LOCAL_PREVIEW_MODULES[aliasPath.replace('@runtime-kit/', '/src/runtime-kit/')]
   if (!loader) {
     throw new Error(`未找到组件预览本地模块：${modulePath}`)
   }

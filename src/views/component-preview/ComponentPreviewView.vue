@@ -1,60 +1,57 @@
 <!--
-  文件用途：提供工作空间组件的纯沙箱预览宿主页，负责读取后端下发的 previewSchema、接收父窗口状态更新并渲染目标组件。
+  文件用途：提供工作空间组件的纯沙箱预览宿主页，负责读取后端下发的 previewSchema、接收父窗口状态更新并按单层页面舞台渲染目标组件。
 -->
 <template>
-  <main class="component-preview-view" :style="{ background: canvasBackground }">
-    <div ref="viewportRef" class="component-preview-viewport">
-      <FixedRatioContainer
-        :is-fullscreen="false"
-        :scale="scale"
-        :design-width="canvasWidth"
-        :design-height="canvasHeight"
-      >
-        <section class="component-preview-canvas" :style="canvasStyle">
-          <div v-if="loading" class="component-preview-state component-preview-state--loading">
-            正在加载组件预览...
-          </div>
-          <div v-else-if="errorMessage" class="component-preview-state component-preview-state--error">
-            <h1>组件预览启动失败</h1>
-            <p>{{ errorMessage }}</p>
-          </div>
+  <main class="component-preview-view">
+    <section class="component-preview-page" :style="previewContentStyles">
+      <div v-if="loading" class="component-preview-state component-preview-state--loading">
+        正在加载组件预览...
+      </div>
+      <div v-else-if="errorMessage" class="component-preview-state component-preview-state--error">
+        <h1>组件预览启动失败</h1>
+        <p>{{ errorMessage }}</p>
+      </div>
+      <div v-else class="component-preview-placement" :style="placementContainerStyle">
+        <div class="component-preview-placement__frame" :style="placementFrameStyle">
           <PreviewContentRenderer
-            v-else-if="componentDefinition"
+            v-if="componentDefinition"
             :component-definition="componentDefinition"
             :state="previewState"
           />
-        </section>
-      </FixedRatioContainer>
-    </div>
+        </div>
+      </div>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, readonly, ref, shallowRef, type CSSProperties } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, readonly, ref, shallowRef } from 'vue'
 
-import FixedRatioContainer from '@/layouts/FixedRatioContainer.vue'
+import { COMPONENT_PREVIEW_MOCKS_KEY } from '@/core/composables/useComponentPreviewMock'
 import {
+  COMPONENT_PREVIEW_ERROR_EVENT,
   COMPONENT_PREVIEW_READY_EVENT,
-  COMPONENT_PREVIEW_UPDATE_CANVAS_EVENT,
+  COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT,
   COMPONENT_PREVIEW_UPDATE_STATE_EVENT,
   buildInitialComponentPreviewState,
   clonePreviewValue,
   normalizeComponentPreviewSchema,
   normalizeComponentPreviewState,
-  type ComponentPreviewUpdateCanvasMessage,
+  type ComponentPreviewErrorMessage,
   type ComponentPreviewReadyMessage,
   type ComponentPreviewState,
+  type ComponentPreviewUpdatePlacementMessage,
   type ComponentPreviewUpdateStateMessage,
 } from '@/core/shared/component-preview'
-import type { ComponentPreviewSchema, RuntimeComponentPreviewCanvasConfig } from '@/core/shared/runtime-preview'
-import { COMPONENT_PREVIEW_MOCKS_KEY } from '@/core/composables/useComponentPreviewMock'
+import type { ComponentPreviewSchema, RuntimeComponentPreviewPlacementOptions } from '@/core/shared/runtime-preview'
+import { buildPageSpacingScaleStyles } from '@/core/utils/page-scale'
 import { getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
 import { importPreviewModule } from '@/core/utils/preview-module'
 import {
-  computeComponentPreviewScale,
-  normalizeComponentPreviewCanvasConfig,
-  resolveComponentPreviewCanvasOverrides,
-} from './canvas'
+  buildPlacementContainerStyle,
+  buildPlacementFrameStyle,
+  normalizeComponentPreviewPlacement,
+} from './placement'
 import PreviewContentRenderer from './PreviewContentRenderer'
 
 const componentDefinition = shallowRef<any>(null)
@@ -69,55 +66,12 @@ provide(COMPONENT_PREVIEW_MOCKS_KEY, readonly(mockStateRef))
 const previewContext = computed(() => getRuntimePreviewContext())
 const componentPreviewConfig = computed(() => getRuntimePreloadedConfig()?.component_preview)
 const parentOrigin = resolveParentOrigin()
-const viewportRef = ref<HTMLElement | null>(null)
-const canvasConfig = ref<Required<RuntimeComponentPreviewCanvasConfig>>(
-  normalizeComponentPreviewCanvasConfig(componentPreviewConfig.value?.canvas),
+const placementOptions = ref<Required<RuntimeComponentPreviewPlacementOptions>>(
+  normalizeComponentPreviewPlacement(componentPreviewConfig.value?.placement),
 )
-const canvasWidth = computed(() => canvasConfig.value.width)
-const canvasHeight = computed(() => canvasConfig.value.height)
-const canvasPadding = computed(() => canvasConfig.value.padding)
-const canvasBackground = computed(() => canvasConfig.value.background)
-const canvasStyle = computed<CSSProperties>(() => ({
-  padding: `${canvasPadding.value}px`,
-  width: '100%',
-  height: '100%',
-  boxSizing: 'border-box',
-  background: '#ffffff',
-}))
-const scale = ref(1)
-let resizeObserver: ResizeObserver | null = null
-
-/**
- * 根据宿主页容器大小计算画布缩放比例，避免大尺寸组件把页面整体撑开。
- */
-function computeScale(): void {
-  if (!viewportRef.value) {
-    return
-  }
-
-  const availableWidth = Math.max(viewportRef.value.clientWidth, 320)
-  const availableHeight = Math.max(viewportRef.value.clientHeight, 220)
-  scale.value = computeComponentPreviewScale(
-    availableWidth,
-    availableHeight,
-    canvasWidth.value,
-    canvasHeight.value,
-  )
-}
-
-/**
- * 绑定预览容器尺寸监听，确保宿主页在 iframe 尺寸变化时仍能稳定缩放。
- */
-function bindResizeObserver(): void {
-  resizeObserver?.disconnect()
-  computeScale()
-  if (!viewportRef.value) {
-    return
-  }
-
-  resizeObserver = new ResizeObserver(() => computeScale())
-  resizeObserver.observe(viewportRef.value)
-}
+const previewContentStyles = computed(() => buildPageSpacingScaleStyles())
+const placementContainerStyle = computed(() => buildPlacementContainerStyle(placementOptions.value))
+const placementFrameStyle = computed(() => buildPlacementFrameStyle(placementOptions.value))
 
 /**
  * 加载组件模块、读取后端下发 schema 并向父窗口回传 ready 事件。
@@ -126,26 +80,26 @@ async function bootstrapComponentPreview(): Promise<void> {
   const previewConfig = componentPreviewConfig.value
   const artifactId = previewContext.value?.artifactId
   if (!previewConfig || !previewConfig.component_import_path || !artifactId) {
-    errorMessage.value = '缺少组件预览上下文或目标组件路径。'
+    const message = '缺少组件预览上下文或目标组件路径。'
+    errorMessage.value = message
+    notifyParentError(message)
     loading.value = false
     return
   }
 
   try {
     loading.value = true
-    canvasConfig.value = normalizeComponentPreviewCanvasConfig(
-      previewConfig.canvas,
-      resolveComponentPreviewCanvasOverrides(typeof window === 'undefined' ? '' : window.location.search),
-    )
+    placementOptions.value = normalizeComponentPreviewPlacement(previewConfig.placement)
     const importedModule = await importPreviewModule(previewConfig.component_import_path)
     componentDefinition.value = importedModule?.default || importedModule
     previewSchema.value = normalizeComponentPreviewSchema(previewConfig.schema)
     previewState.value = buildInitialComponentPreviewState(previewSchema.value)
     await nextTick()
-    computeScale()
     notifyParentReady()
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '未知组件预览错误。'
+    const message = resolvePreviewErrorMessage(error)
+    errorMessage.value = message
+    notifyParentError(message)
   } finally {
     loading.value = false
   }
@@ -169,9 +123,15 @@ function notifyParentReady(): void {
       schema: clonePreviewValue(previewSchema.value),
       defaultState: clonePreviewValue(previewState.value),
       componentMeta: {
-        code: previewConfig.component_code,
+        code: previewConfig.runtime_kit_component_name || previewConfig.component_code || previewConfig.component_import_path,
         versionNo: previewConfig.component_version_no,
-        displayName: previewConfig.display_name || previewConfig.component_code,
+        displayName: previewConfig.display_name
+          || previewConfig.runtime_kit_component_name
+          || previewConfig.component_code
+          || previewConfig.component_import_path,
+        source: previewConfig.component_source,
+        runtimeKitComponentName: previewConfig.runtime_kit_component_name,
+        runtimeKitManifestVersion: previewConfig.runtime_kit_manifest_version,
       },
     },
   }
@@ -182,7 +142,37 @@ function notifyParentReady(): void {
 }
 
 /**
- * 监听父窗口发来的预览状态更新消息。
+ * 向父窗口发送组件预览失败事件，避免 Editor 参数栏长期停留在读取 schema 状态。
+ * @param message 预览启动失败原因
+ */
+function notifyParentError(message: string): void {
+  const artifactId = previewContext.value?.artifactId
+  if (!artifactId || typeof window === 'undefined' || !window.parent) {
+    return
+  }
+
+  const errorPayload: ComponentPreviewErrorMessage = {
+    type: COMPONENT_PREVIEW_ERROR_EVENT,
+    payload: {
+      version: 1,
+      artifactId,
+      message,
+    },
+  }
+  window.parent.postMessage(errorPayload, parentOrigin || '*')
+}
+
+/**
+ * 归一化动态导入或渲染启动阶段抛出的错误信息。
+ * @param error 原始错误
+ * @returns 用户可读的错误摘要
+ */
+function resolvePreviewErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : '未知组件预览错误。'
+}
+
+/**
+ * 监听父窗口发来的预览状态或占位更新消息。
  * @param event postMessage 事件
  */
 function handleWindowMessage(event: MessageEvent<unknown>): void {
@@ -194,26 +184,25 @@ function handleWindowMessage(event: MessageEvent<unknown>): void {
     return
   }
 
-  const payload = event.data as Partial<ComponentPreviewUpdateStateMessage>
-  if (payload.type === COMPONENT_PREVIEW_UPDATE_STATE_EVENT) {
-    if (payload.payload?.version !== 1 || payload.payload?.artifactId !== artifactId) {
+  const statePayload = event.data as Partial<ComponentPreviewUpdateStateMessage>
+  if (statePayload.type === COMPONENT_PREVIEW_UPDATE_STATE_EVENT) {
+    if (statePayload.payload?.version !== 1 || statePayload.payload?.artifactId !== artifactId) {
       return
     }
 
-    previewState.value = normalizeComponentPreviewState(payload.payload.state)
+    previewState.value = normalizeComponentPreviewState(statePayload.payload.state)
     return
   }
 
-  const canvasPayload = event.data as Partial<ComponentPreviewUpdateCanvasMessage>
-  if (canvasPayload.type !== COMPONENT_PREVIEW_UPDATE_CANVAS_EVENT) {
+  const placementPayload = event.data as Partial<ComponentPreviewUpdatePlacementMessage>
+  if (placementPayload.type !== COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT) {
     return
   }
-  if (canvasPayload.payload?.version !== 1 || canvasPayload.payload?.artifactId !== artifactId) {
+  if (placementPayload.payload?.version !== 1 || placementPayload.payload?.artifactId !== artifactId) {
     return
   }
 
-  canvasConfig.value = normalizeComponentPreviewCanvasConfig(canvasPayload.payload.canvas)
-  computeScale()
+  placementOptions.value = normalizeComponentPreviewPlacement(placementPayload.payload.placement)
 }
 
 /**
@@ -233,14 +222,11 @@ function resolveParentOrigin(): string {
 
 onMounted(() => {
   window.addEventListener('message', handleWindowMessage)
-  bindResizeObserver()
   void bootstrapComponentPreview()
 })
 
 onUnmounted(() => {
   window.removeEventListener('message', handleWindowMessage)
-  resizeObserver?.disconnect()
-  resizeObserver = null
 })
 </script>
 
@@ -249,26 +235,31 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  box-sizing: border-box;
+  background: #ffffff;
 }
 
-.component-preview-viewport {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.component-preview-canvas {
+.component-preview-page {
   width: 100%;
   height: 100%;
   overflow: auto;
+  background: #ffffff;
+}
+
+.component-preview-placement {
+  min-width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+}
+
+.component-preview-placement__frame {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .component-preview-state {

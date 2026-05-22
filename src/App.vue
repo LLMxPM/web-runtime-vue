@@ -15,8 +15,8 @@
  * 本版本移除全局主题依赖，直接根据配置文件默认主题应用样式。
  */
 import { watch, onMounted } from 'vue'
-import { useTheme } from '@/core/composables/useTheme'
-import ToastContainer from '@/components/common/ToastContainer.vue'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+import ToastContainer from '@/runtime-shell/feedback/ToastContainer.vue'
 
 /**
  * 主应用组件

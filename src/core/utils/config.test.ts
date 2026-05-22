@@ -23,10 +23,12 @@ function buildPreloadedConfig(routes: Array<{
         icon: 'slider',
         title: '测试项目',
         description: '测试描述',
-        page: {
-          width: 1920,
-          height: 1080,
-        },
+          page: {
+            width: 1920,
+            height: 1080,
+            baseFontSize: '16px',
+            iconDefaultStrokeWidth: 2,
+          },
         features: {
           showPdfExportButton: true,
           menuMode: 'text' as const,
@@ -96,6 +98,30 @@ describe('runtime config default routes', () => {
     expect(defaultRoutes[0]).toMatchObject({
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
+    })
+  })
+
+  it('应从 app.page 解析页面字号与默认图标规格', async () => {
+    const { resolveAppPageConfig } = await import('./config')
+
+    expect(resolveAppPageConfig(null).baseFontSize).toBe('20px')
+    expect(resolveAppPageConfig({
+      app: {
+        icon: 'slider',
+        title: '页面规格项目',
+        description: '',
+          page: {
+            width: 1366,
+            height: 768,
+            baseFontSize: '18',
+            iconDefaultStrokeWidth: 3,
+          },
+      },
+    })).toEqual({
+      width: 1366,
+      height: 768,
+      baseFontSize: '18px',
+      iconDefaultStrokeWidth: 3,
     })
   })
 })

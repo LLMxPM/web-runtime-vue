@@ -33,10 +33,10 @@ export function usePageNavigation() {
   /**
    * 计算属性：上一页路由信息
    */
-  const previousPage = computed(() => {
+  const previousPage = computed<RouteInfo | null>(() => {
     const currentPageNumber = getCurrentPageNumber()
-    if (currentPageNumber) {
-      return getPreviousPageRouteInfo(currentPageNumber)
+    if (currentPageNumber !== undefined) {
+      return getPreviousPageRouteInfo(currentPageNumber) ?? null
     }
     return null
   })
@@ -44,10 +44,10 @@ export function usePageNavigation() {
   /**
    * 计算属性：下一页路由信息
    */
-  const nextPage = computed(() => {
+  const nextPage = computed<RouteInfo | null>(() => {
     const currentPageNumber = getCurrentPageNumber()
-    if (currentPageNumber) {
-      return getNextPageRouteInfo(currentPageNumber)
+    if (currentPageNumber !== undefined) {
+      return getNextPageRouteInfo(currentPageNumber) ?? null
     }
     return null
   })
@@ -103,7 +103,7 @@ export function usePageNavigation() {
   /**
    * 获取页面标题
    */
-  const getPageTitle = (routeInfo: RouteInfo | null): string => {
+  const getPageTitle = (routeInfo: RouteInfo | null | undefined): string => {
     return routeInfo?.name || '未知页面'
   }
 

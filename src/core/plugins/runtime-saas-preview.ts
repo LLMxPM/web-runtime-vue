@@ -7,6 +7,14 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import type { Plugin, ViteDevServer } from 'vite'
 
 import {
+  DEFAULT_PREVIEW_TAILWIND_PATH,
+  buildPreviewTailwindCacheSignature,
+  buildPreviewTailwindStylesheetHref,
+  collectPreviewTailwindSources,
+  compilePreviewTailwindUtilities,
+  normalizePreviewTailwindEndpointPath,
+} from '../tailwind/preview-tailwind'
+import {
   buildRemoteModuleId,
   isPreviewEntryModuleRequest,
   isBuiltinLocalViewPath,
@@ -24,12 +32,15 @@ import {
 
 interface RuntimeSaaSPreviewOptions {
   previewPath?: string
+  previewTailwindPath?: string
   previewHeaderName?: string
   previewAssetBaseHeaderName?: string
   serviceTokenHeaderName?: string
   jwksUrl?: string
   previewAudience?: string
   backendApiBaseUrl?: string
+  jwksTimeoutMs?: number
+  backendRequestTimeoutMs?: number
 }
 
 interface PreviewTokenClaims extends JWTPayload {
@@ -44,8 +55,12 @@ interface PreviewTokenClaims extends JWTPayload {
   asset_base_url: string
   trace_id: string
   component_preview_mode?: ComponentPreviewMode
+  component_source?: 'workspace_component' | 'runtime_kit'
   component_code?: string
   component_version_no?: number
+  runtime_kit_component_name?: string
+  runtime_kit_manifest_version?: string
+  asset_id?: string
   jti: string
 }
 
@@ -54,6 +69,8 @@ const DEFAULT_PREVIEW_HEADER = 'x-runtime-preview-context'
 const DEFAULT_PREVIEW_ASSET_BASE_HEADER = 'x-runtime-public-base-url'
 const DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER = 'x-runtime-service-token'
 const DEFAULT_PREVIEW_AUDIENCE = 'runtime-preview'
+const DEFAULT_JWKS_TIMEOUT_MS = 5000
+const DEFAULT_BACKEND_REQUEST_TIMEOUT_MS = 10000
 const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
 
 /**
@@ -65,6 +82,7 @@ const DISALLOWED_REMOTE_IMPORT_PREFIX = '\0runtime-preview-disallowed:'
  */
 export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = {}): Plugin {
   const previewPath = options.previewPath || DEFAULT_PREVIEW_PATH
+  const previewTailwindPath = normalizePreviewTailwindEndpointPath(options.previewTailwindPath || DEFAULT_PREVIEW_TAILWIND_PATH)
   const previewHeaderName = (options.previewHeaderName || DEFAULT_PREVIEW_HEADER).toLowerCase()
   const previewAssetBaseHeaderName = (
     options.previewAssetBaseHeaderName
@@ -74,6 +92,9 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
   const manifestCache = new Map<string, RuntimePreviewArtifactManifest>()
   const previewTokenCache = new Map<string, string>()
   const serviceTokenCache = new Map<string, string>()
+  const tailwindCssCache = new Map<string, string>()
+  const jwksTimeoutMs = normalizePositiveInteger(options.jwksTimeoutMs, DEFAULT_JWKS_TIMEOUT_MS)
+  const backendRequestTimeoutMs = normalizePositiveInteger(options.backendRequestTimeoutMs, DEFAULT_BACKEND_REQUEST_TIMEOUT_MS)
   let basePath = ''
   let assetBase = ''
 
@@ -90,6 +111,21 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url || ''
         const strippedUrl = stripBasePath(rawUrl, basePath)
+        if (getPathname(strippedUrl) === previewTailwindPath) {
+          return handlePreviewTailwindCssRequest(req, res, {
+            strippedUrl,
+            jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
+            previewAudience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
+            backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
+            jwksTimeoutMs,
+            backendRequestTimeoutMs,
+            manifestCache,
+            previewTokenCache,
+            serviceTokenCache,
+            tailwindCssCache,
+          })
+        }
+
         if (getPathname(strippedUrl) !== previewPath) {
           return next()
         }
@@ -103,6 +139,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
           const verified = await verifyPreviewToken(previewToken, {
             jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
             audience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
+            timeoutMs: jwksTimeoutMs,
           })
           previewTokenCache.set(verified.publicContext.artifactId, previewToken)
           const serviceToken = String(req.headers[serviceTokenHeaderName] || '')
@@ -119,6 +156,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
             backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
             serviceToken,
             previewToken,
+            requestTimeoutMs: backendRequestTimeoutMs,
           })
 
           const [manifest, configBundle] = await Promise.all([
@@ -132,6 +170,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
             assetBase: resolvedAssetBase,
             publicContext: verified.publicContext,
             previewToken,
+            previewTailwindPath,
             configBundle: {
               ...configBundle,
               manifest,
@@ -193,6 +232,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
       const verified = await verifyPreviewToken(effectivePreviewToken, {
         jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
         audience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
+        timeoutMs: jwksTimeoutMs,
       })
       if (verified.publicContext.artifactId !== parsed.artifactId) {
         throw new PreviewGatewayError(403, 'ARTIFACT_MISMATCH', '预览 artifact 与远程模块请求不一致。')
@@ -207,6 +247,7 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
         backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
         serviceToken,
         previewToken: effectivePreviewToken,
+        requestTimeoutMs: backendRequestTimeoutMs,
       })
 
       const manifest = await fetchArtifactManifest(parsed.artifactId, backendClient, manifestCache)
@@ -237,6 +278,27 @@ class PreviewGatewayError extends Error {
 }
 
 /**
+ * 将 token 验签和 JWKS 拉取异常转换为预览网关错误。
+ * @param error 原始异常
+ * @returns 结构化预览错误
+ */
+function toPreviewTokenError(error: unknown): PreviewGatewayError {
+  const name = error instanceof Error ? error.name : ''
+  const message = error instanceof Error ? error.message : String(error || '')
+  const lowerMessage = message.toLowerCase()
+  if (name === 'JWKSTimeout' || lowerMessage.includes('timed out') || lowerMessage.includes('timeout')) {
+    return new PreviewGatewayError(504, 'PREVIEW_JWKS_TIMEOUT', '预览 JWKS 获取超时。')
+  }
+  if (error instanceof TypeError && lowerMessage.includes('invalid url')) {
+    return new PreviewGatewayError(503, 'JWKS_URL_INVALID', 'Runtime 预览 JWKS 地址无效。')
+  }
+  if (error instanceof TypeError || lowerMessage.includes('fetch failed')) {
+    return new PreviewGatewayError(502, 'PREVIEW_JWKS_UNAVAILABLE', '预览 JWKS 获取失败。')
+  }
+  return new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '预览上下文令牌非法或已过期。')
+}
+
+/**
  * 根据 `@/views`、`/src/views` 或相对路径计算远程视图导入目标。
  * @param source import 源
  * @param importerPath 导入方逻辑路径
@@ -255,6 +317,10 @@ function resolveRemoteModuleImport(
     return { type: 'remote', modulePath: normalizeRuntimeModulePath(normalizedSource) }
   }
 
+  if (normalizedSource.startsWith('@runtime-kit/')) {
+    return { type: 'ignore' }
+  }
+
   if (
     normalizedSource.startsWith('@/views/')
     || normalizedSource.startsWith('/src/views/')
@@ -266,7 +332,7 @@ function resolveRemoteModuleImport(
 
   if (normalizedSource.startsWith('@/')) {
     const normalizedModulePath = normalizeRuntimeModulePath(normalizedSource)
-    if (isRuntimeLocalPublicModulePath(normalizedModulePath) || isBuiltinLocalViewPath(normalizedModulePath)) {
+    if (isBuiltinLocalViewPath(normalizedModulePath)) {
       return { type: 'ignore' }
     }
     return { type: 'disallowed', source: normalizedSource }
@@ -278,7 +344,10 @@ function resolveRemoteModuleImport(
     if (!normalizedModulePath) {
       return { type: 'ignore' }
     }
-    if (isRuntimeLocalPublicModulePath(normalizedModulePath) || isBuiltinLocalViewPath(normalizedModulePath)) {
+    if (normalizedModulePath.startsWith('src/runtime-kit/')) {
+      return { type: 'disallowed', source: normalizedSource }
+    }
+    if (isBuiltinLocalViewPath(normalizedModulePath)) {
       return { type: 'ignore' }
     }
     if (normalizedModulePath.startsWith('src/views/') || normalizedModulePath.startsWith('src/workspace-components/')) {
@@ -334,22 +403,44 @@ function getPathname(rawUrl: string): string {
 }
 
 /**
+ * 规范化正整数超时配置。
+ * @param value 原始配置值
+ * @param fallback 默认值
+ * @returns 可用于请求的毫秒数
+ */
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return fallback
+  }
+  return Math.round(normalized)
+}
+
+/**
  * 校验 PreviewContextToken，并构造可公开注入浏览器的上下文。
  * @param token JWS 令牌
  * @param options 校验选项
  * @returns 校验后的结果
  */
-async function verifyPreviewToken(token: string, options: { jwksUrl: string; audience: string }): Promise<{
+async function verifyPreviewToken(token: string, options: { jwksUrl: string; audience: string; timeoutMs?: number }): Promise<{
   publicContext: RuntimePreviewContext
 }> {
   if (!options.jwksUrl) {
     throw new PreviewGatewayError(503, 'JWKS_URL_MISSING', 'Runtime 未配置预览 JWKS 地址。')
   }
 
-  const jwks = createRemoteJWKSet(new URL(options.jwksUrl))
-  const { payload } = await jwtVerify(token, jwks, {
-    audience: options.audience,
-  })
+  let payload: JWTPayload
+  try {
+    const jwks = createRemoteJWKSet(new URL(options.jwksUrl), {
+      timeoutDuration: normalizePositiveInteger(options.timeoutMs, DEFAULT_JWKS_TIMEOUT_MS),
+    })
+    const verified = await jwtVerify(token, jwks, {
+      audience: options.audience,
+    })
+    payload = verified.payload
+  } catch (error) {
+    throw toPreviewTokenError(error)
+  }
 
   const claims = payload as PreviewTokenClaims
   if (
@@ -370,6 +461,25 @@ async function verifyPreviewToken(token: string, options: { jwksUrl: string; aud
   if (claims.scope_type === 'project' && !claims.project_id) {
     throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '项目级预览缺少 project_id。')
   }
+  if (
+    claims.scope_type === 'workspace_component'
+    && (!claims.component_code || claims.component_version_no === undefined || claims.component_source === 'runtime_kit')
+  ) {
+    throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '工作空间组件预览上下文缺少组件版本声明。')
+  }
+  if (
+    claims.scope_type === 'runtime_kit_component'
+    && (
+      claims.component_source !== 'runtime_kit'
+      || !claims.runtime_kit_component_name
+      || !claims.runtime_kit_manifest_version
+    )
+  ) {
+    throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', 'Runtime Kit 组件预览上下文缺少内建能力声明。')
+  }
+  if (claims.scope_type === 'workspace_asset' && !claims.asset_id) {
+    throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '资源预览上下文缺少 asset_id。')
+  }
 
   return {
     publicContext: {
@@ -383,8 +493,12 @@ async function verifyPreviewToken(token: string, options: { jwksUrl: string; aud
       assetBaseUrl: String(claims.asset_base_url),
       traceId: String(claims.trace_id),
       componentPreviewMode: claims.component_preview_mode,
+      componentSource: claims.component_source,
       componentCode: claims.component_code ? String(claims.component_code) : undefined,
       componentVersionNo: claims.component_version_no !== undefined ? Number(claims.component_version_no) : undefined,
+      runtimeKitComponentName: claims.runtime_kit_component_name ? String(claims.runtime_kit_component_name) : undefined,
+      runtimeKitManifestVersion: claims.runtime_kit_manifest_version ? String(claims.runtime_kit_manifest_version) : undefined,
+      assetId: claims.asset_id ? String(claims.asset_id) : undefined,
     },
   }
 }
@@ -418,6 +532,9 @@ function normalizeEntryDescriptor(value: unknown): RuntimePreviewEntryDescriptor
   if (entryType === 'component_host') {
     return { entry_type: 'component_host' }
   }
+  if (entryType === 'asset_host') {
+    return { entry_type: 'asset_host' }
+  }
   throw new PreviewGatewayError(401, 'PREVIEW_CONTEXT_INVALID', '未知的预览入口类型。')
 }
 
@@ -430,6 +547,7 @@ function createBackendClient(options: {
   backendApiBaseUrl: string
   serviceToken: string
   previewToken?: string
+  requestTimeoutMs?: number
 }) {
   if (!options.backendApiBaseUrl) {
     throw new PreviewGatewayError(503, 'BACKEND_API_BASE_URL_MISSING', 'Runtime 未配置 Backend API 根地址。')
@@ -439,6 +557,7 @@ function createBackendClient(options: {
   }
 
   const apiBaseUrl = options.backendApiBaseUrl.replace(/\/+$/, '')
+  const requestTimeoutMs = normalizePositiveInteger(options.requestTimeoutMs, DEFAULT_BACKEND_REQUEST_TIMEOUT_MS)
   const defaultHeaders: Record<string, string> = {
     Authorization: `Bearer ${options.serviceToken}`,
   }
@@ -451,6 +570,7 @@ function createBackendClient(options: {
       return requestJson<RuntimePreviewArtifactManifest>(
         `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/manifest`,
         defaultHeaders,
+        requestTimeoutMs,
       )
     },
 
@@ -458,17 +578,23 @@ function createBackendClient(options: {
       return requestJson<RuntimePreloadedConfigBundle>(
         `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/config-bundle`,
         defaultHeaders,
+        requestTimeoutMs,
       )
     },
 
     async fetchModuleSource(artifactId: string, modulePath: string): Promise<string> {
       const url = `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/modules?path=${encodeURIComponent(modulePath)}`
-      const response = await fetch(url, {
-        headers: {
-          ...defaultHeaders,
-          Accept: 'text/plain, application/json;q=0.9',
+      const response = await fetchWithTimeout(
+        url,
+        {
+          headers: {
+            ...defaultHeaders,
+            Accept: 'text/plain, application/json;q=0.9',
+          },
         },
-      })
+        requestTimeoutMs,
+        'BACKEND_MODULE_REQUEST_TIMEOUT',
+      )
       if (!response.ok) {
         throw await toPreviewError(response, 'MODULE_FETCH_FAILED')
       }
@@ -483,17 +609,66 @@ function createBackendClient(options: {
  * @param headers 请求头
  * @returns 解析后的 JSON
  */
-async function requestJson<T>(url: string, headers: Record<string, string>): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      ...headers,
-      Accept: 'application/json',
+async function requestJson<T>(url: string, headers: Record<string, string>, timeoutMs: number): Promise<T> {
+  const response = await fetchWithTimeout(
+    url,
+    {
+      headers: {
+        ...headers,
+        Accept: 'application/json',
+      },
     },
-  })
+    timeoutMs,
+    'BACKEND_REQUEST_TIMEOUT',
+  )
   if (!response.ok) {
     throw await toPreviewError(response, 'BACKEND_REQUEST_FAILED')
   }
   return response.json() as Promise<T>
+}
+
+/**
+ * 带超时地请求 Backend 内部接口。
+ * @param url 请求 URL
+ * @param init fetch 参数
+ * @param timeoutMs 超时时间
+ * @param timeoutCode 超时错误码
+ * @returns 原始响应
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutCode: string,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new PreviewGatewayError(504, timeoutCode, 'Backend 内部接口请求超时。')
+    }
+    throw new PreviewGatewayError(
+      502,
+      'BACKEND_REQUEST_FAILED',
+      error instanceof Error ? error.message : 'Backend 内部接口请求失败。',
+    )
+  } finally {
+    clearTimeout(timeoutHandle)
+  }
+}
+
+/**
+ * 判断 fetch 异常是否由 AbortController 触发。
+ * @param error 原始异常
+ * @returns 是否为取消请求
+ */
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 /**
@@ -508,7 +683,7 @@ async function toPreviewError(response: Response, fallbackCode: string): Promise
   try {
     const payload = await response.json()
     code = String(payload?.code || code)
-    message = String(payload?.message || message)
+    message = String(payload?.message || payload?.detail || message)
   } catch {
     // 忽略 JSON 解析异常，保留默认错误信息
   }
@@ -520,7 +695,7 @@ async function toPreviewError(response: Response, fallbackCode: string): Promise
  * @param manifest preview artifact manifest
  * @param previewContext 已校验的公开上下文
  */
-function assertManifestMatchesContext(
+export function assertManifestMatchesContext(
   manifest: RuntimePreviewArtifactManifest,
   previewContext: RuntimePreviewContext,
 ): void {
@@ -536,6 +711,33 @@ function assertManifestMatchesContext(
 
   if (previewContext.scopeType === 'project' && String(manifest.owner_scope?.project_id || '') !== String(previewContext.projectId || '')) {
     throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '项目级预览 project_id 不一致。')
+  }
+
+  if (
+    previewContext.scopeType === 'workspace_component'
+    && (
+      String(manifest.owner_scope?.component_code || '') !== String(previewContext.componentCode || '')
+      || String(manifest.owner_scope?.component_version_no ?? '') !== String(previewContext.componentVersionNo ?? '')
+    )
+  ) {
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '工作空间组件预览版本声明不一致。')
+  }
+
+  if (
+    previewContext.scopeType === 'runtime_kit_component'
+    && (
+      String(manifest.owner_scope?.runtime_kit_component_name || '') !== String(previewContext.runtimeKitComponentName || '')
+      || String(manifest.owner_scope?.runtime_kit_manifest_version || '') !== String(previewContext.runtimeKitManifestVersion || '')
+    )
+  ) {
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', 'Runtime Kit 组件能力声明不一致。')
+  }
+
+  if (
+    previewContext.scopeType === 'workspace_asset'
+    && String(manifest.owner_scope?.asset_id || '') !== String(previewContext.assetId || '')
+  ) {
+    throw new PreviewGatewayError(403, 'MANIFEST_CONTEXT_MISMATCH', '资源预览 asset_id 不一致。')
   }
 
   if (!isEntryDescriptorEqual(manifest.entry_descriptor, previewContext.entryDescriptor)) {
@@ -579,19 +781,119 @@ async function fetchArtifactManifest(
   return manifest
 }
 
+interface PreviewTailwindCssRequestOptions {
+  strippedUrl: string
+  jwksUrl: string
+  previewAudience: string
+  backendApiBaseUrl: string
+  jwksTimeoutMs: number
+  backendRequestTimeoutMs: number
+  manifestCache: Map<string, RuntimePreviewArtifactManifest>
+  previewTokenCache: Map<string, string>
+  serviceTokenCache: Map<string, string>
+  tailwindCssCache: Map<string, string>
+}
+
+/**
+ * 处理预览 artifact 的 Tailwind utilities CSS 请求。
+ * @param req Node 请求对象
+ * @param res Node 响应对象
+ * @param options 请求上下文
+ */
+async function handlePreviewTailwindCssRequest(
+  req: any,
+  res: any,
+  options: PreviewTailwindCssRequestOptions,
+): Promise<void> {
+  try {
+    if (req.method && req.method !== 'GET' && req.method !== 'HEAD') {
+      throw new PreviewGatewayError(405, 'METHOD_NOT_ALLOWED', '预览 Tailwind CSS 入口仅支持 GET。')
+    }
+
+    const requestUrl = new URL(options.strippedUrl || '/', 'http://runtime.local')
+    const artifactId = String(requestUrl.searchParams.get('artifactId') || '')
+    const previewToken = String(requestUrl.searchParams.get('token') || '')
+    if (!artifactId || !previewToken) {
+      throw new PreviewGatewayError(400, 'PREVIEW_TAILWIND_QUERY_INVALID', '缺少 artifactId 或 token。')
+    }
+
+    const verified = await verifyPreviewToken(previewToken, {
+      jwksUrl: options.jwksUrl,
+      audience: options.previewAudience,
+      timeoutMs: options.jwksTimeoutMs,
+    })
+    if (verified.publicContext.artifactId !== artifactId) {
+      throw new PreviewGatewayError(403, 'ARTIFACT_MISMATCH', '预览 artifact 与 Tailwind CSS 请求不一致。')
+    }
+    options.previewTokenCache.set(artifactId, previewToken)
+
+    const serviceToken = options.serviceTokenCache.get(artifactId) || ''
+    if (!serviceToken) {
+      throw new PreviewGatewayError(401, 'RUNTIME_SERVICE_TOKEN_REQUIRED', '缺少 Runtime 服务令牌缓存。')
+    }
+
+    const backendClient = createBackendClient({
+      backendApiBaseUrl: options.backendApiBaseUrl,
+      serviceToken,
+      previewToken,
+      requestTimeoutMs: options.backendRequestTimeoutMs,
+    })
+    const manifest = await fetchArtifactManifest(artifactId, backendClient, options.manifestCache)
+    assertManifestMatchesContext(manifest, verified.publicContext)
+
+    const sources = await collectPreviewTailwindSources({
+      artifactId,
+      manifest,
+      entryDescriptor: verified.publicContext.entryDescriptor,
+      backendClient,
+    })
+    const cacheKey = `${artifactId}:${buildPreviewTailwindCacheSignature(sources)}`
+    const cachedCss = options.tailwindCssCache.get(cacheKey)
+    if (cachedCss) {
+      return sendCss(res, cachedCss)
+    }
+
+    let css: string
+    try {
+      css = await compilePreviewTailwindUtilities(sources)
+    } catch (error) {
+      console.error('[runtime-preview-tailwind] compile failed', {
+        artifactId,
+        moduleCount: sources.length,
+        error: error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : error,
+      })
+      css = `/* preview tailwind compile failed: ${escapeCssComment(error instanceof Error ? error.message : String(error))} */\n`
+    }
+
+    options.tailwindCssCache.set(cacheKey, css)
+    sendCss(res, css)
+  } catch (error) {
+    sendPreviewTailwindErrorCss(res, error)
+  }
+}
+
 /**
  * 生成预览页 HTML，并注入公开上下文、预加载配置与 PreviewContextToken。
  * @param params HTML 参数
  * @returns HTML 文本
  */
-function buildPreviewHtml(params: {
+export function buildPreviewHtml(params: {
   assetBase: string
   publicContext: RuntimePreviewContext
   previewToken: string
+  previewTailwindPath?: string
   configBundle: RuntimePreloadedConfigBundle
 }): string {
   const viteClientPath = `${params.assetBase || ''}/@vite/client`
   const mainEntryPath = `${params.assetBase || ''}/src/main.ts`
+  const previewTailwindHref = buildPreviewTailwindStylesheetHref({
+    assetBase: params.assetBase,
+    artifactId: params.publicContext.artifactId,
+    previewToken: params.previewToken,
+    previewTailwindPath: params.previewTailwindPath,
+  })
   const serializedContext = serializeForInlineScript(params.publicContext)
   const serializedToken = serializeForInlineScript(params.previewToken)
   const serializedConfig = serializeForInlineScript(params.configBundle)
@@ -612,6 +914,7 @@ function buildPreviewHtml(params: {
       window.__RUNTIME_PRELOADED_CONFIG__ = ${serializedConfig};
     </script>
     <script type="module" src="${viteClientPath}"></script>
+    <link rel="stylesheet" href="${previewTailwindHref}" />
     <script type="module" src="${mainEntryPath}"></script>
   </head>
   <body>
@@ -669,6 +972,34 @@ function sendHtml(res: any, html: string): void {
 }
 
 /**
+ * 输出 CSS 响应。
+ * @param res Node 响应对象
+ * @param css CSS 内容
+ */
+function sendCss(res: any, css: string): void {
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'text/css; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  res.end(css)
+}
+
+/**
+ * 输出预览 Tailwind CSS 错误响应，避免样式编译问题阻断页面脚本执行。
+ * @param res Node 响应对象
+ * @param error 错误对象
+ */
+function sendPreviewTailwindErrorCss(res: any, error: unknown): void {
+  const previewError = error instanceof PreviewGatewayError
+    ? error
+    : new PreviewGatewayError(500, 'PREVIEW_TAILWIND_ERROR', error instanceof Error ? error.message : '预览 Tailwind CSS 生成失败。')
+
+  res.statusCode = previewError.statusCode
+  res.setHeader('Content-Type', 'text/css; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  res.end(`/* ${escapeCssComment(previewError.code)}: ${escapeCssComment(previewError.message)} */\n`)
+}
+
+/**
  * 输出统一预览错误响应。
  * @param res Node 响应对象
  * @param error 错误对象
@@ -722,4 +1053,15 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * 转义 CSS 注释内容，避免错误信息破坏 stylesheet。
+ * @param value 原始文本
+ * @returns 可安全写入 CSS 注释的文本
+ */
+function escapeCssComment(value: string): string {
+  return String(value)
+    .replace(/\*\//g, '* /')
+    .replace(/[\r\n]+/g, ' ')
 }
