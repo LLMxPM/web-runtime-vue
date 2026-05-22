@@ -17,7 +17,7 @@
  * 文件用途：承接 runtime 单页预览路由，避免直接渲染页面组件导致 iframe 中只显示局部区域。
  */
 
-import ViewPreview from '@/components/editor/ViewPreview.vue'
+import ViewPreview from '@/runtime-shell/preview/ViewPreview.vue'
 
 defineProps<{
   /** 页面逻辑路径，例如 src/views/foo/bar.vue */

@@ -2,7 +2,7 @@
  * 文件用途：根据 Backend 下发的预加载字体配置动态注册 @font-face，并提供主题字体引用解析。
  */
 
-import type { RuntimeFontBundleItem } from '@/core/shared/runtime-preview'
+import { normalizeAssetKey, type RuntimeFontBundleItem } from '@/core/shared/runtime-preview'
 
 import { getRuntimePreloadedConfig, resolveResourcePath } from './path'
 
@@ -14,6 +14,26 @@ const RUNTIME_FONT_STYLE_ID = 'runtime-dynamic-fonts'
  */
 function getRuntimeFontItems(): Record<string, RuntimeFontBundleItem> {
   return getRuntimePreloadedConfig()?.fonts?.items ?? {}
+}
+
+/**
+ * 按字体资源逻辑名解析运行时已注册字体族。
+ * @param assetName 字体资源逻辑名，也就是 workspace asset.name
+ * @param fallback 未命中字体注册时返回的兜底 font-family
+ * @returns 可直接写入 CSS font-family 的字体族
+ */
+export function resolveAssetFontFamily(
+  assetName: string | null | undefined,
+  fallback: string = '',
+): string {
+  const normalizedAssetName = normalizeAssetKey(String(assetName || ''))
+  if (!normalizedAssetName) {
+    return fallback
+  }
+
+  const fontItems = getRuntimeFontItems()
+  const matched = fontItems[normalizedAssetName]
+  return matched?.font_family || fallback
 }
 
 /**

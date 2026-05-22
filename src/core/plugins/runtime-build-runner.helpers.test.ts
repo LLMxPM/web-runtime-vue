@@ -2,9 +2,15 @@
  * 文件用途：验证 Runtime 整项目构建 helper 的 baseUrl 规范化与静态资源路径推导逻辑。
  */
 
+import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
+import os from 'os'
+import { join, resolve } from 'path'
+
+import postcss, { type AcceptedPlugin } from 'postcss'
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildRuntimeBuildCssConfig,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
   normalizeBuildBaseUrl,
@@ -12,6 +18,43 @@ import {
 } from './runtime-build-runner.helpers'
 
 describe('runtime build runner helpers', () => {
+  it('Tailwind content 应覆盖构建工作区注入的页面和工作空间组件模块', async () => {
+    const tailwindConfigModulePath = '../../../tailwind.config.js'
+    const tailwindConfig = await import(tailwindConfigModulePath) as {
+      default: {
+        content?: {
+          relative?: boolean
+          files?: string[]
+        }
+      }
+    }
+
+    expect(tailwindConfig.default.content?.relative).toBe(true)
+    expect(tailwindConfig.default.content?.files).toEqual(expect.arrayContaining([
+      './src/**/*.{js,ts,vue}',
+    ]))
+  })
+
+  it('临时构建工作区应按自身 Tailwind 配置扫描注入页面源码', async () => {
+    const tempRoot = await createTailwindBuildFixture()
+    try {
+      const cssConfig = buildRuntimeBuildCssConfig(tempRoot)
+      const postcssConfig = cssConfig.postcss as { plugins?: AcceptedPlugin[] }
+      const result = await postcss(postcssConfig.plugins || []).process('@tailwind utilities;', {
+        from: resolve(tempRoot, 'src/styles.css'),
+      })
+      const css = result.css
+
+      expect(css).toContain('.w-1\\/3')
+      expect(css).toMatch(/width:\s*33\.333333%/)
+      expect(css).toContain('.w-2\\/3')
+      expect(css).toMatch(/width:\s*66\.666667%/)
+      expect(css).toMatch(/background-color:\s*rgb\(18 52 86/)
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   it('应规范化构建 baseUrl', () => {
     expect(normalizeBuildBaseUrl(undefined)).toBe('./')
     expect(normalizeBuildBaseUrl('./')).toBe('./')
@@ -57,3 +100,51 @@ describe('runtime build runner helpers', () => {
     expect(hasForbiddenRootAbsoluteAssetPath(sourceCode)).toBe(false)
   })
 })
+
+/**
+ * 创建最小 Vue/Tailwind 临时构建工作区。
+ * @returns 临时工作区路径
+ */
+async function createTailwindBuildFixture(): Promise<string> {
+  const tempRoot = await mkdtemp(join(os.tmpdir(), 'runtime-tailwind-build-'))
+  await mkdir(resolve(tempRoot, 'src/views'), { recursive: true })
+
+  await writeFile(
+    resolve(tempRoot, 'index.html'),
+    '<div id="app"></div><script type="module" src="/src/main.ts"></script>',
+    'utf-8',
+  )
+  await writeFile(
+    resolve(tempRoot, 'src/main.ts'),
+    [
+      "import { createApp } from 'vue'",
+      "import Page from './views/Page.vue'",
+      "import './styles.css'",
+      "createApp(Page).mount('#app')",
+    ].join('\n'),
+    'utf-8',
+  )
+  await writeFile(resolve(tempRoot, 'src/styles.css'), '@tailwind utilities;', 'utf-8')
+  await writeFile(
+    resolve(tempRoot, 'src/views/Page.vue'),
+    '<template><div class="w-1/3 w-2/3 bg-probe-500"><span>ok</span></div></template>',
+    'utf-8',
+  )
+  await writeFile(
+    resolve(tempRoot, 'tailwind.config.js'),
+    [
+      'export default {',
+      '  content: {',
+      '    relative: true,',
+      "    files: ['./index.html', './src/**/*.{js,ts,vue}'],",
+      '  },',
+      "  safelist: ['bg-probe-500'],",
+      "  theme: { extend: { colors: { probe: { 500: '#123456' } } } },",
+      '  plugins: [],',
+      '}',
+    ].join('\n'),
+    'utf-8',
+  )
+
+  return tempRoot
+}

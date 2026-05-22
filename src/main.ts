@@ -11,6 +11,7 @@ import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFaviconSync } from './core/utils/favicon'
 import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
 import { getPreviewEntryNavigationPath } from './core/utils/path'
+import { registerEditorVisualAssetProbe } from './core/utils/visual-assets'
 
 import './styles/global.css'
 
@@ -49,6 +50,7 @@ async function waitForPreviewStabilized(): Promise<void> {
  */
 async function initializeApp(): Promise<void> {
   setEditorRuntimePreviewReady(false)
+  registerEditorVisualAssetProbe()
 
   try {
     await initializeConfig()

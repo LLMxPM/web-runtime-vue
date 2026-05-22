@@ -18,6 +18,7 @@
   
   /* 背景色映射 */
   --tw-color-bg-default: var(--theme-bg-default, #ffffff);
+  --tw-color-bg-subtle: var(--theme-bg-subtle, #f9fafb);
   --tw-color-bg-invert: var(--theme-bg-invert, #014f9c);
   
   /* 边框色映射 */
@@ -41,7 +42,8 @@
   --tw-font-heading: var(--theme-font-heading, 'system-ui');
   --tw-font-body: var(--theme-font-body, 'system-ui');
   --tw-font-code: var(--theme-font-code, 'monospace');
-  --tw-font-size-base: var(--theme-font-size-base, 16px);
+  --tw-font-size-base: var(--theme-font-size-base, 20px);
+  --tw-spacing-unit: 0.25rem;
   
   /* 布局 */
   --sidebar-width: 280px;

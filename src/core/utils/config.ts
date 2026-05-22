@@ -17,7 +17,11 @@ import { createViewModuleLoader } from './view-module'
 export interface RuntimePageConfig {
   width: number
   height: number
+  baseFontSize: string
+  iconDefaultStrokeWidth: number
 }
+
+export type RuntimeMenuMode = 'text' | 'preview' | 'bottom-preview'
 
 export interface AppConfig {
   app: {
@@ -27,7 +31,7 @@ export interface AppConfig {
     page?: Partial<RuntimePageConfig>
     features?: {
       showPdfExportButton?: boolean
-      menuMode?: 'text' | 'preview'
+      menuMode?: RuntimeMenuMode
     }
   }
 }
@@ -35,6 +39,8 @@ export interface AppConfig {
 export const DEFAULT_PAGE_CONFIG: RuntimePageConfig = {
   width: 1920,
   height: 1080,
+  baseFontSize: '20px',
+  iconDefaultStrokeWidth: 2,
 }
 
 /**
@@ -259,11 +265,38 @@ export function resolveAppPageConfig(config?: AppConfig | null): RuntimePageConf
   const pageConfig = config?.app?.page
   const width = Number(pageConfig?.width)
   const height = Number(pageConfig?.height)
+  const iconDefaultStrokeWidth = Number(pageConfig?.iconDefaultStrokeWidth)
 
   return {
     width: Number.isFinite(width) && width > 0 ? width : DEFAULT_PAGE_CONFIG.width,
     height: Number.isFinite(height) && height > 0 ? height : DEFAULT_PAGE_CONFIG.height,
+    baseFontSize: normalizeBaseFontSize(pageConfig?.baseFontSize, DEFAULT_PAGE_CONFIG.baseFontSize),
+    iconDefaultStrokeWidth: Number.isFinite(iconDefaultStrokeWidth) && iconDefaultStrokeWidth > 0
+      ? iconDefaultStrokeWidth
+      : DEFAULT_PAGE_CONFIG.iconDefaultStrokeWidth,
   }
+}
+
+/**
+ * 将页面基础字号归一为 px 字符串。
+ * @param value 原始字号
+ * @param fallback 默认字号
+ * @returns 可写入 CSS 变量的字号
+ */
+function normalizeBaseFontSize(value: unknown, fallback: string): string {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) {
+    return fallback
+  }
+  const match = normalized.match(/^(\d+)(px)?$/)
+  if (!match) {
+    return fallback
+  }
+  const numericValue = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(numericValue) || numericValue < 1 || numericValue > 200) {
+    return fallback
+  }
+  return `${numericValue}px`
 }
 
 /**
@@ -389,7 +422,7 @@ function getDefaultRouteRecords(): RouteRecordRaw[] {
   routeRecords.push({
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      component: createViewModuleLoader('@/views/defaultpage/NotFoundPage.vue'),
+      component: createViewModuleLoader('@/runtime-shell/fallback/NotFoundPage.vue'),
       meta: {
         title: '页面未找到',
         hidden: true
@@ -448,7 +481,7 @@ function convertYamlRoutesToRouteConfig(yamlRoutes: RouteConfigYaml['routes']): 
       name: route.route,
       order: route.meta.order,
       pageNumber: route.meta.pageNumber,
-      component: createViewModuleLoader(route.component || '@/views/defaultpage/NotFoundPage.vue'),
+      component: createViewModuleLoader(route.component || '@/runtime-shell/fallback/NotFoundPage.vue'),
       meta: {
         ...route.meta,
         componentPath: route.component
@@ -462,7 +495,7 @@ function convertYamlRoutesToRouteConfig(yamlRoutes: RouteConfigYaml['routes']): 
         name: `${route.route}-${child.route}`,
         order: child.meta.order,
         pageNumber: child.meta.pageNumber,
-        component: createViewModuleLoader(child.component || '@/views/defaultpage/NotFoundPage.vue'),
+        component: createViewModuleLoader(child.component || '@/runtime-shell/fallback/NotFoundPage.vue'),
         meta: {
           ...child.meta,
           parent: route.route,

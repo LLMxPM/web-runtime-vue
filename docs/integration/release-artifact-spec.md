@@ -52,12 +52,16 @@
 - 字段结构应与 Runtime 当前的配置读取逻辑兼容。
 - 不再要求浏览器直接读取 YAML。
 - 由 Backend 在创建 artifact 时完成 YAML -> JSON 的标准化。
+- `module_resolver` 必须包含 `remote_component_prefix`、`runtime_kit_alias`、`runtime_kit_manifest_version` 与 `runtime_kit_exports`，其中 `runtime_kit_exports` 来自 Runtime Kit manifest。
+- `runtime_kit_exports` 是 Runtime Kit 公开导入边界的完整快照，可包含 `component/composable/util/type`，能力分组仅使用 `asset`、`page`、`runtime`。高级能力通过 `capability.recommendation_level=advanced` 标识。只有 `kind=component && capability.previewable=true` 的能力可创建组件预览 artifact。
+- Runtime Kit 只承载 Backend/Agent 无法直接稳定实现的运行时能力，不应混入通用内容块、布局辅助、默认页面模板或样式组件。
 
 ### 2.3 模块源码
 
 - 页面模块与组件模块均以源码文本形式存储。
 - 逻辑路径统一为 `src/...` 形式。
 - 路由配置中的 `component` 字段可继续使用 `@/...` 形式，Runtime 会在加载前规范化。
+- 页面/组件源码引用 Runtime 基础能力时只允许使用 `@runtime-kit/...` manifest 公开路径；`@/components`、`@/layouts`、`@/core`、`@/styles` 属于 Runtime 私有路径。
 
 ### 2.4 资源索引
 
@@ -83,6 +87,8 @@
 
 ### 组件预览
 
+工作空间组件预览：
+
 ```json
 {
   "scope_type": "workspace_component",
@@ -93,10 +99,23 @@
 }
 ```
 
+Runtime Kit 内建组件预览：
+
+```json
+{
+  "scope_type": "runtime_kit_component",
+  "workspace_id": "11",
+  "runtime_kit_component_name": "Icon",
+  "runtime_kit_manifest_version": "1.0.0"
+}
+```
+
 关键约束：
 
 - 项目/页面预览必须带 `project_id`。
 - 组件预览不得要求 `project_id`。
+- `scope_type=workspace_component` 必须携带工作空间组件编码与版本号。
+- `scope_type=runtime_kit_component` 不携带工作空间组件版本号，但必须携带 Runtime Kit 组件名与 manifest 版本。
 
 ## 4. entry_descriptor 规则
 
@@ -146,6 +165,10 @@ manifest 中的 `modules` 使用逻辑路径为 key，例如：
 - key 必须唯一。
 - `path` 建议与 key 保持一致。
 - `hash` 用于审计、缓存与预览追踪。
+- Runtime Kit 内建组件预览的 `modules` 必须为空对象。
+- Runtime Kit 内建组件预览的根组件通过 `config-bundle.component_preview.component_import_path` 指向 `@runtime-kit/public/...` 本地公开组件模块。
+- Runtime Kit doc-only 能力，例如 `composable/util/type` 或 `previewable=false` 组件，不生成 preview artifact，也不应出现在 `component_preview` 中。
+- 页码、目录和导航能力应通过 `useCurrentPage`、`useRouteCatalog`、`usePageNavigation` 暴露为数据或控制能力，Backend/Agent 在页面源码中生成对应 UI，不应通过组件预览伪造业务路由。
 
 ## 6. 资源映射规则
 
@@ -165,8 +188,9 @@ manifest 中的 `modules` 使用逻辑路径为 key，例如：
 ## 7. 兼容与豁免规则
 
 - Runtime 会将 `@/views/...`、`/src/views/...`、`views/...` 统一规范化为 `src/views/...`。
-- 本地内建默认页面，如 `src/views/defaultpage/NotFoundPage.vue`，仍由 Runtime 本地代码提供。
+- 本地内建兜底页面，如 `src/runtime-shell/fallback/NotFoundPage.vue`，仍由 Runtime 本地代码提供。
 - 单页面预览的入口模块允许不进入 `manifest.modules` 白名单，但仅限 `entry_descriptor.module_path` 指向的那一个入口模块。
+- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开路径；`@runtime-kit/internal/...` 和旧 `@runtime-kit/components/...` 不属于公开契约。
 
 ## 8. 生命周期建议
 

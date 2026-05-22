@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { reloadThemeConfigs, useTheme } from '@/core/composables/useTheme'
 
-import { initializeRuntimeFontRegistry, resolveThemeFontFamily } from './font-registry'
+import { initializeRuntimeFontRegistry, resolveAssetFontFamily, resolveThemeFontFamily } from './font-registry'
+import { loadAppConfig } from './config'
 import { setRuntimePreloadedConfig, setRuntimePreviewContext } from './path'
 
 beforeEach(() => {
@@ -20,6 +21,19 @@ beforeEach(() => {
 afterEach(async () => {
   setRuntimePreviewContext(undefined)
   setRuntimePreloadedConfig({
+    app: {
+      app: {
+        icon: 'slider',
+        title: '测试项目',
+        description: '测试重置项目',
+          page: {
+            width: 1920,
+            height: 1080,
+            baseFontSize: '16px',
+            iconDefaultStrokeWidth: 2,
+          },
+      },
+    },
     themes: {
       themes: {
         white: {
@@ -45,6 +59,7 @@ afterEach(async () => {
       },
     },
   })
+  await loadAppConfig(true)
   await reloadThemeConfigs()
   setRuntimePreloadedConfig(undefined)
   vi.unstubAllGlobals()
@@ -126,6 +141,27 @@ describe('runtime font registry', () => {
     expect(resolveThemeFontFamily('system-ui')).toBe('system-ui')
   })
 
+  it('应按字体资源逻辑名解析页面显式声明字体', () => {
+    setRuntimePreloadedConfig({
+      fonts: {
+        items: {
+          'BrandSerif': {
+            asset_name: 'BrandSerif',
+            font_family: 'Brand Serif',
+            font_format: 'woff2',
+            font_weight: '400',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+        },
+      },
+    })
+
+    expect(resolveAssetFontFamily('BrandSerif', 'sans-serif')).toBe('Brand Serif')
+    expect(resolveAssetFontFamily('./BrandSerif', 'sans-serif')).toBe('Brand Serif')
+    expect(resolveAssetFontFamily('MissingFont', 'sans-serif')).toBe('sans-serif')
+  })
+
   it('useTheme 应把主题中的字体资源名解析为实际 font-family', async () => {
     setRuntimePreloadedConfig({
       themes: {
@@ -180,5 +216,57 @@ describe('runtime font registry', () => {
     expect(themeStyles.value['--theme-font-heading']).toBe('思源黑体')
     expect(themeStyles.value['--theme-font-body']).toBe('思源黑体')
     expect(themeStyles.value['--theme-font-code']).toBe('SourceCodePro')
+  })
+
+  it('useTheme 应优先使用 app.page 提供的字号与默认图标规格', async () => {
+    setRuntimePreloadedConfig({
+      app: {
+        app: {
+          icon: 'slider',
+          title: '页面规格项目',
+          description: '测试项目页面规格',
+          page: {
+            width: 1440,
+            height: 900,
+            baseFontSize: '18px',
+            iconDefaultStrokeWidth: 3,
+          },
+        },
+      },
+      themes: {
+        themes: {
+          lightblue: {
+            name: '白底蓝色',
+            description: '测试主题',
+            palette: {
+              text: { primary: '#111111', secondary: '#222222', invert: '#ffffff' },
+              background: { default: '#ffffff', invert: '#111111' },
+              border: { default: '#dddddd', subtle: '#cccccc' },
+              link: { default: '#3b82f6', hover: '#2563eb', visited: '#7c3aed' },
+              accent: ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666'],
+            },
+            typography: {
+              headingfont: 'system-ui',
+              bodyfont: 'system-ui',
+              codefont: 'monospace',
+              baseFontSize: '12px',
+            },
+            icon: {
+              default_stroke_width: 1,
+            },
+          },
+        },
+        default: {
+          theme: 'lightblue',
+        },
+      },
+    })
+
+    await loadAppConfig(true)
+    await reloadThemeConfigs()
+    const { themeStyles } = useTheme('lightblue')
+
+    expect(themeStyles.value['--theme-font-size-base']).toBe('18px')
+    expect(themeStyles.value['--theme-icon-default-stroke-width']).toBe('3')
   })
 })

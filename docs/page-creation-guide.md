@@ -1,242 +1,198 @@
 # 页面添加指南
-本指南将详细介绍如何在项目中添加新的页面，包括组件使用、路由配置、主题应用和图标管理等各个方面。
-## 快速开始
-### 添加页面的标准流程
 
-1. **添加页面文件**  
-   在 `src/views` 下对应模块文件夹内新增页面文件。
+本文档说明在 Runtime 中新增页面时，页面源码应如何使用 Runtime Kit。当前原则是：Runtime Kit 只提供 Backend/Agent 无法稳定直接实现的运行时能力，不提供通用内容块、布局辅助组件或默认页面模板。
 
-2. **选择页面容器**  
-   在 `components/layout/pagecontainer` 中选择**一个**合适的容器组件并在页面文件中使用。
-   - `DefaultContainer.vue`：自由页面，可自定义布局。
-   - `DefaultCoverPage.vue`：默认章节封面页面，通常只有标题和副标题，可以在内容区域增加一些要点总结。
-   - `DefaultContentPage.vue`：默认内容页面，用于显示主要内容包含页头、页脚、内容区域，可以对内容区域进行自定义。
+## 1. 标准流程
 
-3. **编写页面content部分（内容区域）**  
-   - **3.1 颜色、字体**  
-     项目采用 YAML 驱动的动态主题系统，通过 Tailwind CSS 扩展实现颜色、字体、排版全自定义。  
-       - 扩展颜色：`primary` / `secondary` / `invert` / `background` / `background-invert` / `border` / `border-subtle` / `link` / `link-hover` / `link-visited` / `accent1`~`accent6`  
-       - 扩展字体：`font-body` / `font-heading` / `font-code`  
-       - 字号：`text-xs` ~ `text-9xl`  
-     按 Tailwind 规范使用即可。
-   - **3.2 内容组件**  
-     可以使用 `components/layout/contentcommon` 目录中的内容组件，在页面容器内快速实现内容，目前内容组件包括：
-       - `MermaidChart.vue`：用于渲染mermaid图表
-       - `DrawioChart.vue`：用于渲染drawio图表
-       - `Icon.vue`：用于渲染图标
-    - **3.3 静态资源**  
-     工作空间资源（如图片、图标等）统一使用逻辑名 `asset.name` 引用；Runtime `public/` 目录下的内建静态文件仍可通过 `resolveResourcePath` 访问。
+1. 在工作空间源码的 `src/views` 下新增页面文件。Runtime 仓库自带演示页面放在 `src/examples/local/views`。
+2. 页面根部使用页面画布能力，建议导入 `DefaultContainer`。
+3. 页面内容结构、卡片、网格、页头页脚、目录样式、分页样式由 Backend/Agent 直接生成。
+4. 根据资源元数据显式选择资源组件，或使用资源 composable 解析 URL。
+5. 在 `routes.config.yaml` 中添加路由。
+6. 通过页面预览或项目预览验证样式、资源和导航。
 
-4. **配置路由**  
-   在 `routes.config.yaml` 中添加对应路由。
+## 2. 页面根容器
 
-5. **测试页面**  
-   验证功能与样式。
-
-
-### 快速添加示例
-
-以下是添加一个新页面的最简单方法：
-
-```bash
-# 1. 创建页面组件文件
-mkdir src/views/my-new-module
-touch src/views/my-new-module/MyNewPage.vue
-```
+`DefaultContainer` 是页面画布能力，不是默认内容模板。它只负责读取 Runtime 页面尺寸、建立真实画布宽高、提供定位上下文并裁剪溢出内容。
 
 ```vue
-<!-- 2. 编写页面组件内容 -->
-<template>
-  <DefaultContentPage 
-    title="我的新页面"
-    subtitle="页面副标题"
-  >
-    <template #content>
-      <div class="space-y-6 p-6">
-        <!-- 使用图标系统和Tailwind类 -->
-        <div class="flex items-center mb-4">
-          <Icon name="file-text" :size="24" color="text-primary" />
-          <h2 class="font-heading text-2xl font-semibold text-primary">页面内容</h2>
-        </div>
-        
-        <p class="font-body text-secondary leading-relaxed">
-          这里是页面的主要内容区域，使用语义化的Tailwind类。
-        </p>
-        
-        <!-- 使用Tailwind主题类 -->
-        <div class="bg-default border border-border-default rounded-lg p-4 shadow-theme-sm hover:shadow-theme-md transition-shadow">
-          <p class="text-primary">使用主题卡片样式</p>
-        </div>
-        
-        <!-- 动态内容使用theme-content类 -->
-        <div class="theme-content" v-html="dynamicContent"></div>
-      </div>
-    </template>
-  </DefaultContentPage>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import DefaultContentPage from '@/components/layout/pagecontainer/defaultContentPage.vue'
-import Icon from '@/components/layout/Icon.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+</script>
 
-defineOptions({
-  name: 'MyNewPage'
-})
+<template>
+  <DefaultContainer>
+    <main class="relative h-full">
+      <section class="absolute inset-0 p-16">
+        <!-- 页面结构和样式由 Backend/Agent 生成 -->
+      </section>
+    </main>
+  </DefaultContainer>
+</template>
+```
 
-const dynamicContent = ref('<h3>动态内容标题</h3><p>这些内容会自动应用主题样式</p>')
+不要把 `DefaultContainer` 当作页头、页脚、封面或内容页模板；这些结构应直接写在页面源码里。
+
+## 3. 页面尺寸
+
+需要在自定义组件中读取页面尺寸时，使用 `usePageSize`。
+
+```vue
+<script setup lang="ts">
+import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'
+
+const { width, height, aspectRatio, pageStyle } = usePageSize()
 </script>
 ```
 
-```yaml
-# 3. 在 public/config/routes.config.yaml 中添加路由
-routes:
-  # ... 现有路由 ...
-  
-  # 新增模块
-  - route: "my-new-module"
-    component: "@/views/my-new-module/MyNewModuleIndex.vue"  # 父路由组件
-    meta:
-      title: "我的新模块"
-      icon: "file-text"  # 图标名称必须等于工作空间图标资源的 asset.name
-      order: 10
-    children:
-      - route: "page1"
-        component: "@/views/my-new-module/MyNewPage.vue"
-        meta:
-          title: "页面1"
-          order: 1
-      - route: "page2"
-        component: "@/views/my-new-module/AnotherPage.vue"
-        meta:
-          title: "页面2"
-          order: 2
+`usePageSize` 只提供 Runtime 当前页面宽高和标准画布样式，不处理预览缩放、背景、网格或内容块。
+
+非响应式场景可以使用 `buildPageCanvasStyle`：
+
+```ts
+import { buildPageCanvasStyle } from '@runtime-kit/public/composables/page/usePageSize'
+
+const style = buildPageCanvasStyle({ width: 1600, height: 900 })
 ```
 
-**💡 快速提示**：
-- **主题系统**：使用Tailwind类 + CSS变量映射，支持配置驱动的主题切换，详见 [`theme-usage-guide.md`](./theme-usage-guide.md)
-- **图标系统**：使用 `Icon` 组件，图标名称统一填写图标资源的逻辑名，详见 [`icon-system-guide.md`](./icon-system-guide.md)
-- **路由配置**：YAML配置驱动的路由系统，详见 [`routes-config-guide.md`](./routes-config-guide.md)
-- **样式规范**：优先使用语义化Tailwind类，动态内容使用 `theme-content` 工具类
+## 4. 页码、目录和导航
 
-## 页面类型选择
+Runtime Kit 不再推荐公开 `Pagination`、`TableOfContents` 这类 UI 组件。需要页码、目录或跳转能力时，使用 composable 获取数据，由页面源码自行渲染 UI。
 
-项目提供了多种页面布局组件，根据不同场景选择合适的组件：
+### 当前页上下文
 
-### 1. 标准内容页面 - DefaultContentPage（推荐）
-
-**适用场景**：
-- 大多数内容展示页面
-- 需要标题、内容、页脚三段式布局
-- 需要统一的页面风格
-
-**特点**：
-- 固定1920x1080px尺寸
-- 集成HeaderSection、FooterSection
-- 支持主题系统
-- 内置分页功能
-
-**使用方法**：
 ```vue
-<template>
-  <DefaultContentPage 
-    title="页面标题"
-    subtitle="页面副标题"
-  >
-    <template #content>
-      <!-- 使用Tailwind类的内容区域 -->
-      <div class="space-y-6 p-6">
-        <h2 class="font-heading text-2xl font-semibold text-primary">内容标题</h2>
-        <p class="font-body text-secondary leading-relaxed">页面内容...</p>
-        
-        <!-- 动态内容使用theme-content类 -->
-        <div class="theme-content" v-html="dynamicHtml"></div>
-      </div>
-    </template>
-  </DefaultContentPage>
-</template>
-
 <script setup lang="ts">
-import DefaultContentPage from '@/components/layout/pagecontainer/defaultContentPage.vue'
+import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage'
+
+const { currentPage, totalPages, title } = useCurrentPage()
+</script>
+
+<template>
+  <footer class="absolute bottom-8 right-12 text-sm text-secondary">
+    {{ currentPage }} / {{ totalPages }}
+  </footer>
+</template>
+```
+
+### 路由目录
+
+```vue
+<script setup lang="ts">
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+
+const { catalogItems } = useRouteCatalog()
+</script>
+
+<template>
+  <ol class="space-y-4">
+    <li v-for="item in catalogItems" :key="item.id" class="flex justify-between">
+      <span>{{ item.title }}</span>
+      <span>{{ item.pageNumber }}</span>
+    </li>
+  </ol>
+</template>
+```
+
+目录的列数、字号、连接线、章节编号样式都由 Backend/Agent 在页面源码中决定。
+
+### 页间导航
+
+```vue
+<script setup lang="ts">
+import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation'
+
+const { canGoNext, canGoPrevious, goToNextPage, goToPreviousPage } = usePageNavigation()
 </script>
 ```
 
-### 2. 章节封面页面 - DefaultCoverContainer
+导航按钮、快捷键和手势不是 Runtime Kit 公开能力的一部分。
 
-**适用场景**：
-- 章节开始页面
-- 标题展示页面
-- 简洁的封面设计
+## 5. 资源使用
 
-**特点**：
-- 居中对齐的大标题布局
-- 支持主标题和副标题
-- 适合作为章节分隔页
+资源使用应按 `asset_metadata.render_type` 显式选择组件。
 
-**使用方法**：
 ```vue
-<template>
-  <DefaultCoverContainer
-    title="章节标题"
-    subtitle="章节副标题"
-    :padding="120"
-  />
-</template>
-
 <script setup lang="ts">
-import DefaultCoverContainer from '@/components/layout/pagecontainer/defaultCoverContainer.vue'
+import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'
+import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
 </script>
+
+<template>
+  <AssetImage name="product-hero" alt="产品主图" class="w-full rounded-lg" />
+  <AssetChart name="sales-chart" height="360px" />
+</template>
 ```
 
-### 3. 自定义页面 - FixedSizeContainer
+支持的资源能力：
 
-**适用场景**：
-- 需要完全自定义布局
-- 特殊的页面设计需求
-- 不需要标准三段式布局
+- `AssetImage`：`render_type=image`
+- `AssetVideo`：`render_type=video`
+- `AssetDrawio`：`render_type=drawio`
+- `AssetMermaid`：`render_type=mermaid`
+- `AssetChart`：`render_type=chart`
+- `AssetFormula`：`render_type=formula`
+- `useAssetSrc` / `useAssetBackground`
+- `resolveResourcePath`
 
-**特点**：
-- 只提供固定尺寸容器
-- 完全自由的内容布局
-- 需要手动添加所有元素
+不要使用 `AssetRenderer`，也不要引用 `@runtime-kit/internal/renderers/*`。
 
-**使用方法**：
+## 6. 图标和颜色
+
+图标依赖 Runtime 图标配置、资源解析和 SVG inline 能力，因此保留为 Runtime Kit 能力。
+
 ```vue
-<template>
-  <FixedSizeContainer theme="darkBusiness">
-    <!-- 完全自定义的页面内容 -->
-    <div class="flex flex-col h-full bg-default">
-      <HeaderSection title="自定义标题" />
-      
-      <div class="flex-1 p-6 space-y-4">
-        <h1 class="font-heading text-3xl font-bold text-primary">自定义内容</h1>
-        <p class="font-body text-secondary">使用Tailwind类构建自定义布局</p>
-        
-        <!-- 卡片示例 -->
-        <div class="bg-bg-subtle border border-border-default rounded-lg p-4">
-          <h3 class="font-heading text-lg font-semibold text-primary mb-2">卡片标题</h3>
-          <p class="text-secondary">卡片内容</p>
-        </div>
-      </div>
-      
-      <FooterSection text="自定义页脚" />
-    </div>
-  </FixedSizeContainer>
-</template>
-
 <script setup lang="ts">
-import FixedSizeContainer from '@/components/layout/container/FixedSizeContainer.vue'
-import HeaderSection from '@/components/common/HeaderSection.vue'
-import FooterSection from '@/components/common/FooterSection.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
 </script>
+
+<template>
+  <Icon name="home" class="size-8" color="primary" />
+</template>
 ```
 
-## 相关指南
+自定义 SVG、连线或图表颜色需要解析 Runtime 主题色时，使用 `resolveColor`。
 
-为了更好地使用项目功能，请参考以下指南：
+```ts
+import { resolveColor } from '@runtime-kit/public/utils/colors'
 
-- 🎨 [**主题系统使用指南**](./theme-usage-guide.md) - 学习如何使用和配置主题系统
-- 🖼️ [**图标系统使用指南**](./icon-system-guide.md) - 掌握图标系统的使用方法
-- 🗺️ [**路由配置指南**](./routes-config-guide.md) - 了解路由配置的详细说明
+const color = resolveColor('accent1-300')
+```
 
-如有任何问题，请参考相关指南或联系开发团队。
+`resolveColor` 只负责颜色表达式解析，不代表 Runtime Kit 提供通用样式系统。
+
+## 7. 高级 DOM 能力
+
+`Connector` 用于在真实 DOM 元素之间绘制连线，适合流程图、架构图和关系图。
+
+```vue
+<script setup lang="ts">
+import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
+</script>
+
+<template>
+  <div class="relative h-full">
+    <div id="node-a">A</div>
+    <div id="node-b">B</div>
+    <Connector from="#node-a" to="#node-b" arrow="end" />
+  </div>
+</template>
+```
+
+该能力依赖元素挂载、尺寸和定位上下文，不进入 Agent 默认推荐流，应在页面预览或项目预览中验证。
+
+## 8. 禁止事项
+
+- 不要使用旧路径 `@runtime-kit/components/...`。
+- 不要引用 `@runtime-kit/internal/...`。
+- 不要把 Runtime Kit 当作通用 UI 组件库。
+- 不要要求 Runtime Kit 提供通用内容块、卡片、布局辅助、封面模板或内容页模板。
+- 不要使用 `AssetRenderer`。
+- 不要在 CSS 中硬编码资源 `url('/...')`，资源路径必须经过 Runtime 解析。
+
+## 9. 相关文档
+
+- [Runtime Kit 能力说明](./runtime-kit-capabilities.md)
+- [资源引用规范](./integration/asset-usage-guide.md)
+- [路由配置指南](./routes-config-guide.md)
+- [图标系统指南](./icon-system-guide.md)

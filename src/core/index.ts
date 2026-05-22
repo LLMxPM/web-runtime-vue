@@ -46,6 +46,7 @@ export {
 
 // 服务实例
 export { pdfExportService } from './services/PDFExportService'
+export { browserPrintService } from './services/BrowserPrintService'
 export { pageCaptureService } from './services/PageCaptureService'
 
 // 图标系统

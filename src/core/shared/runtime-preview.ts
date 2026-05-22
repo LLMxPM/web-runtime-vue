@@ -3,10 +3,11 @@
  */
 
 export type RuntimeArtifactKind = 'preview_artifact' | 'build_snapshot' | 'build_release'
-export type PreviewKind = 'project' | 'page' | 'component'
-export type PreviewScopeType = 'project' | 'workspace_component'
-export type PreviewEntryType = 'route' | 'module' | 'component_host'
+export type PreviewKind = 'project' | 'page' | 'component' | 'asset'
+export type PreviewScopeType = 'project' | 'workspace_component' | 'runtime_kit_component' | 'workspace_asset'
+export type PreviewEntryType = 'route' | 'module' | 'component_host' | 'asset_host'
 export type ComponentPreviewMode = 'saved' | 'draft'
+export type RuntimeComponentPreviewSource = 'workspace_component' | 'runtime_kit'
 
 export interface RuntimePreviewEntryDescriptor {
   entry_type: PreviewEntryType
@@ -21,6 +22,9 @@ export interface RuntimePreviewOwnerScope {
   component_code?: string
   component_version_no?: number
   preview_mode?: ComponentPreviewMode
+  runtime_kit_component_name?: string
+  runtime_kit_manifest_version?: string
+  asset_id?: string
 }
 
 export interface RuntimePreviewContext {
@@ -34,8 +38,12 @@ export interface RuntimePreviewContext {
   assetBaseUrl: string
   traceId: string
   componentPreviewMode?: ComponentPreviewMode
+  componentSource?: RuntimeComponentPreviewSource
   componentCode?: string
   componentVersionNo?: number
+  runtimeKitComponentName?: string
+  runtimeKitManifestVersion?: string
+  assetId?: string
 }
 
 export interface RuntimeReleaseManifestModule {
@@ -46,6 +54,9 @@ export interface RuntimeReleaseManifestModule {
 export interface RuntimePreviewAssetMetadata {
   file_hash: string
   original_name?: string
+  asset_role?: 'foundation' | 'content'
+  render_type?: 'icon' | 'font' | 'image' | 'drawio' | 'mermaid' | 'chart' | 'formula' | 'video'
+  content_type?: string
 }
 
 export interface RuntimePreviewArtifactManifest {
@@ -80,7 +91,15 @@ export interface RuntimeFontBundle {
 
 export interface RuntimeModuleResolverConfig {
   remote_component_prefix?: string
-  public_local_prefixes?: string[]
+  runtime_kit_alias?: string
+  runtime_kit_manifest_version?: string
+  runtime_kit_exports?: Array<{
+    kind: string
+    name: string
+    import_path: string
+    category: string
+    description?: string
+  }>
 }
 
 export type ComponentPreviewFieldType = 'string' | 'textarea' | 'number' | 'boolean' | 'select' | 'json'
@@ -150,20 +169,41 @@ export interface ComponentPreviewSchema {
   presets?: ComponentPreviewPreset[]
 }
 
-export interface RuntimeComponentPreviewCanvasConfig {
-  width?: number
-  height?: number
+export type RuntimeComponentPreviewSizeMode = 'auto' | 'percent' | 'fixed'
+export type RuntimeComponentPreviewAlignment = 'start' | 'center' | 'end'
+
+export interface RuntimeComponentPreviewPlacementOptions {
+  width_mode?: RuntimeComponentPreviewSizeMode
+  width_value?: number | null
+  height_mode?: RuntimeComponentPreviewSizeMode
+  height_value?: number | null
+  horizontal_align?: RuntimeComponentPreviewAlignment
+  vertical_align?: RuntimeComponentPreviewAlignment
   padding?: number
-  background?: string
 }
 
 export interface RuntimeComponentPreviewConfig {
   component_import_path: string
-  component_code: string
-  component_version_no: number
+  component_source?: RuntimeComponentPreviewSource
+  component_code?: string
+  component_version_no?: number
+  runtime_kit_component_name?: string
+  runtime_kit_manifest_version?: string
   display_name?: string
   schema?: ComponentPreviewSchema | null
-  canvas?: RuntimeComponentPreviewCanvasConfig
+  placement?: RuntimeComponentPreviewPlacementOptions
+}
+
+export interface RuntimeAssetPreviewConfig {
+  asset_id: number | string
+  name: string
+  original_name: string
+  asset_type: RuntimePreviewAssetMetadata['render_type'] | string
+  render_type: RuntimePreviewAssetMetadata['render_type'] | string
+  content_type?: string | null
+  url?: string | null
+  content_editable?: boolean
+  file_hash: string
 }
 
 export interface RuntimePreloadedConfigBundle {
@@ -175,19 +215,17 @@ export interface RuntimePreloadedConfigBundle {
   manifest?: RuntimePreviewArtifactManifest
   module_resolver?: RuntimeModuleResolverConfig
   component_preview?: RuntimeComponentPreviewConfig
+  asset_preview?: RuntimeAssetPreviewConfig
 }
 
 export const RUNTIME_REMOTE_MODULE_PREFIX = '/@runtime-preview'
 
 const BUILTIN_LOCAL_VIEW_PREFIXES = [
-  'src/views/defaultpage/',
+  'src/runtime-shell/fallback/',
 ]
 
 const DEFAULT_RUNTIME_PUBLIC_LOCAL_PREFIXES = [
-  'src/components/',
-  'src/layouts/',
-  'src/core/',
-  'src/styles/',
+  'src/runtime-kit/public/',
 ]
 
 /**
@@ -212,6 +250,9 @@ export function normalizeRuntimeModulePath(rawPath: string): string {
   const remoteComponentPath = parseWorkspaceComponentImportPath(normalized)
   if (remoteComponentPath) {
     return remoteComponentPath
+  }
+  if (normalized.startsWith('@runtime-kit/')) {
+    return normalized.replace('@runtime-kit/', 'src/runtime-kit/')
   }
   if (normalized.startsWith('@/')) {
     return normalized.replace('@/', 'src/')
@@ -303,6 +344,9 @@ export function toAliasModulePath(normalizedPath: string): string {
   }
   if (normalizedPath.startsWith('src/workspace-components/')) {
     return toWorkspaceComponentAliasPath(normalizedPath)
+  }
+  if (normalizedPath.startsWith('src/runtime-kit/')) {
+    return normalizedPath.replace(/^src\/runtime-kit\//, '@runtime-kit/')
   }
   if (normalizedPath.startsWith('@/')) {
     return normalizedPath

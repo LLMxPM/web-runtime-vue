@@ -12,31 +12,33 @@ import {
 import { getRuntimePreviewContext, getRuntimePreviewToken, getRuntimePreloadedConfig } from '@/core/utils/path'
 
 /**
- * Runtime 壳层内建默认页面模块。
+ * Runtime 壳层内建兜底页面模块。
  * 关键约束：
- * 1. 仅保留远程预览/发布仍必须依赖的默认页面；
- * 2. 主要用于 NotFound 等兜底页，以及 preview / build_release 下仍需本地加载的默认页。
+ * 1. 仅保留远程预览/发布仍必须依赖的壳层页面；
+ * 2. 主要用于 NotFound 等兜底页，避免依赖本地示例目录。
  */
 const BUILTIN_VIEW_MODULES = {
-  ...import.meta.glob('@/views/defaultpage/*.vue'),
-  ...import.meta.glob('/src/views/defaultpage/*.vue')
+  ...import.meta.glob('@/runtime-shell/fallback/*.vue'),
+  ...import.meta.glob('/src/runtime-shell/fallback/*.vue')
 }
 
 /**
  * Runtime 本地开发 / 本地构建模式可加载的页面模块。
  * 关键约束：
  * 1. 仅在非 preview、非 backend build_release 模式下启用；
- * 2. 允许加载 `src/views/**` 下的本地页面，支撑 runtime 独立项目形态；
+ * 2. 允许加载 `src/views/**` 与 `src/examples/local/views/**` 下的本地页面；
  * 3. 是否真正启用由运行模式判断，而不是由 glob 白名单决定。
  */
 const LOCAL_RUNTIME_VIEW_MODULES = {
   ...import.meta.glob('@/views/**/*.vue'),
   ...import.meta.glob('/src/views/**/*.vue'),
+  ...import.meta.glob('@/examples/local/views/**/*.vue'),
+  ...import.meta.glob('/src/examples/local/views/**/*.vue'),
 }
 
 const NOT_FOUND_FALLBACK_KEYS = [
-  '@/views/defaultpage/NotFoundPage.vue',
-  '/src/views/defaultpage/NotFoundPage.vue'
+  '@/runtime-shell/fallback/NotFoundPage.vue',
+  '/src/runtime-shell/fallback/NotFoundPage.vue'
 ]
 
 /**
@@ -99,7 +101,10 @@ export function shouldUseLocalRuntimeViewModule(
   normalizedPath: string,
   preloadedConfig?: RuntimePreloadedConfigBundle,
 ): boolean {
-  if (!normalizedPath || !normalizedPath.startsWith('src/views/') || !normalizedPath.endsWith('.vue')) {
+  const isLocalViewPath = normalizedPath.startsWith('src/views/')
+    || normalizedPath.startsWith('src/examples/local/views/')
+
+  if (!normalizedPath || !isLocalViewPath || !normalizedPath.endsWith('.vue')) {
     return false
   }
 

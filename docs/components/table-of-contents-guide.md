@@ -1,237 +1,116 @@
-# TableOfContents 目录组件使用说明
+# 目录能力使用说明
 
-## 组件概述
+Runtime Kit 不再把 `TableOfContents` 作为推荐公开 UI 组件。目录的视觉结构、列数、序号格式、点线、字号和交互样式应由 Backend/Agent 在页面源码中生成；Runtime Kit 只通过 `useRouteCatalog` 提供当前项目的路由目录数据。
 
-`TableOfContents` 是一个功能丰富的目录组件，可以自动从路由配置中获取模块信息生成目录，也支持自定义目录项。该组件完全集成了项目的主题系统，支持多种序号格式和布局选项。
+## 1. 使用场景
 
-## 主要特性
+适合使用 `useRouteCatalog` 的场景：
 
-- ✅ **自动路由获取**：从 `routes.config.yaml` 自动获取模块信息
-- ✅ **多种序号格式**：支持数字、章节、小节和自定义格式
-- ✅ **主题集成**：完全集成项目主题系统
-- ✅ **响应式布局**：支持单列和双列布局
-- ✅ **可点击导航**：支持点击跳转到对应页面
-- ✅ **高度可定制**：支持自定义目录项、排除特定路由等
+- 根据当前 Runtime 路由配置生成目录页。
+- 在自定义导航中按页码排序展示页面。
+- 根据路径、名称或页码查询页面信息。
 
-## 使用方式
+不适合交给 Runtime Kit 的内容：
 
-### 基础用法
+- 目录 UI 组件。
+- 双列/三列布局。
+- 序号圆点、虚线、章节样式。
+- 目录页整体模板。
 
-```vue
-<template>
-  <TableOfContents
-    title="目录"
-    subtitle="点击章节可快速跳转"
-    number-format="chapter"
-    :clickable="true"
-  />
-</template>
-```
-
-### 高级用法
+## 2. 基础用法
 
 ```vue
-<template>
-  <TableOfContents
-    title="内容导览"
-    subtitle="点击章节可快速跳转到对应页面"
-    :number-format="numberFormat"
-    :custom-format="customFormat"
-    :show-dots="true"
-    :clickable="true"
-    :two-column="true"
-    :column-breakpoint="6"
-    :exclude-routes="['home', 'endpage']"
-    theme="white"
-  />
-</template>
+<script setup lang="ts">
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
 
-<script setup>
-import { ref } from 'vue'
-
-const numberFormat = ref('chapter')
-const customFormat = ref('第{n}部分')
+const { catalogItems } = useRouteCatalog()
 </script>
-```
 
-## 属性说明
-
-| 属性名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `theme` | `CustomTheme` | - | 自定义配色主题 |
-| `title` | `string` | `'目录'` | 目录标题 |
-| `subtitle` | `string` | - | 目录副标题 |
-| `numberFormat` | `NumberFormat` | `'numeric'` | 序号格式：`numeric` \| `chapter` \| `section` \| `custom` |
-| `customFormat` | `string` | `'第{n}项'` | 自定义序号格式模板，`{n}` 为序号占位符 |
-| `showPageNumbers` | `boolean` | `false` | 是否显示页码 |
-| `showDots` | `boolean` | `true` | 是否显示装饰点线 |
-| `clickable` | `boolean` | `true` | 是否可点击跳转 |
-| `twoColumn` | `boolean` | `false` | 是否启用两列布局 |
-| `columnBreakpoint` | `number` | `8` | 两列布局的分割点 |
-| `customItems` | `TOCItem[]` | - | 自定义目录项 |
-| `excludeRoutes` | `string[]` | `['home', 'endpage']` | 排除的路由名称数组 |
-
-## 序号格式
-
-### 内置格式
-
-- `numeric`: 1, 2, 3, 4...
-- `chapter`: 第1章, 第2章, 第3章...
-- `section`: 第1节, 第2节, 第3节...
-
-### 自定义格式
-
-使用 `custom` 格式时，可以通过 `customFormat` 属性自定义格式：
-
-```vue
-<TableOfContents
-  number-format="custom"
-  custom-format="Part {n}"
-/>
-<!-- 输出：Part 1, Part 2, Part 3... -->
-
-<TableOfContents
-  number-format="custom"
-  custom-format="模块{n}"
-/>
-<!-- 输出：模块1, 模块2, 模块3... -->
-```
-
-## 自定义目录项
-
-如果不想从路由配置自动获取，可以提供自定义目录项：
-
-```vue
 <template>
-  <TableOfContents
-    :custom-items="customItems"
-    number-format="chapter"
-  />
-</template>
-
-<script setup>
-const customItems = [
-  {
-    id: 'intro',
-    title: '项目介绍',
-    path: '/intro',
-    icon: 'Info'
-  },
-  {
-    id: 'guide',
-    title: '使用指南',
-    path: '/guide',
-    icon: 'Book'
-  }
-]
-</script>
-```
-
-## 主题集成
-
-组件完全集成了项目的主题系统，支持所有已配置的主题：
-
-```vue
-<!-- 使用特定主题 -->
-<TableOfContents theme="darkBusiness" />
-
-<!-- 使用全局主题 -->
-<TableOfContents />
-```
-
-## 布局选项
-
-### 单列布局（默认）
-
-```vue
-<TableOfContents :two-column="false" />
-```
-
-### 双列布局
-
-```vue
-<TableOfContents 
-  :two-column="true" 
-  :column-breakpoint="6" 
-/>
-```
-
-当目录项数量超过 `columnBreakpoint` 时，自动启用双列布局。
-
-## 事件和方法
-
-### 暴露的方法
-
-通过模板引用可以调用组件的方法：
-
-```vue
-<template>
-  <TableOfContents ref="tocRef" />
-</template>
-
-<script setup>
-import { ref } from 'vue'
-
-const tocRef = ref()
-
-// 刷新目录项
-const refresh = () => {
-  tocRef.value.refresh()
-}
-
-// 获取当前目录项
-const getItems = () => {
-  return tocRef.value.getItems()
-}
-</script>
-```
-
-## 样式定制
-
-组件使用CSS变量进行样式管理，可以通过主题系统或直接覆盖CSS变量来定制样式：
-
-```css
-.table-of-contents {
-  --theme-primary: #your-color;
-  --theme-text-primary: #your-text-color;
-}
-```
-
-## 响应式支持
-
-组件内置响应式支持：
-
-- 移动端自动切换为单列布局
-- 字体大小和间距自动调整
-- 序号圆圈大小适配屏幕尺寸
-
-## 配合 DefaultContainer 使用
-
-推荐配合项目的 `DefaultContainer` 组件使用，确保布局一致性：
-
-```vue
-<template>
-  <DefaultContainer theme="white">
-    <div class="page-container">
-      <TableOfContents
-        title="演示文档目录"
-        theme="white"
-        number-format="chapter"
-        :two-column="true"
-      />
-    </div>
+  <DefaultContainer>
+    <main class="relative h-full p-20">
+      <h1 class="mb-12 text-5xl font-bold">目录</h1>
+      <ol class="space-y-5">
+        <li
+          v-for="(item, index) in catalogItems"
+          :key="item.id"
+          class="flex items-baseline gap-6"
+        >
+          <span class="w-12 text-right font-bold">{{ index + 1 }}</span>
+          <span class="flex-1">{{ item.title }}</span>
+          <span>{{ item.pageNumber }}</span>
+        </li>
+      </ol>
+    </main>
   </DefaultContainer>
 </template>
 ```
 
-## 示例页面
+## 3. 可用数据和函数
 
-项目中已包含完整的示例页面 `TableOfContentsPage.vue`，展示了：
+`useRouteCatalog()` 返回：
 
-- 基础目录展示
-- 序号格式切换
-- 主题集成效果
-- 响应式布局
-- 交互控制面板
+| 字段 | 说明 |
+| --- | --- |
+| `visibleRoutes` | 未隐藏路由信息 |
+| `routesByOrder` | 按 order 排序的路由 |
+| `routesByPageNumber` | 按 pageNumber 排序的路由 |
+| `catalogItems` | 适合目录消费的简化条目 |
+| `minPageNumber` | 最小页码 |
+| `maxPageNumber` | 最大页码 |
+| `getPageNumberByName` | 按名称查询页码 |
+| `getPageNumberByPath` | 按路径查询页码 |
+| `getRouteInfoByName` | 按名称查询路由信息 |
+| `getRouteInfoByPageNumber` | 按页码查询路由信息 |
+| `getRouteInfoByPath` | 按路径查询路由信息 |
 
-可以通过访问 `/table-of-contents` 路由查看完整效果。
+`catalogItems` 的条目结构：
+
+```ts
+interface RuntimeKitRouteCatalogItem {
+  id: string
+  title: string
+  path: string
+  order: number
+  pageNumber?: number
+  parentPath?: string
+}
+```
+
+## 4. 可点击目录
+
+如果目录需要点击跳转，可以配合 `vue-router` 使用。跳转按钮和样式仍由页面源码生成。
+
+```vue
+<script setup lang="ts">
+import { useRouter } from 'vue-router'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+
+const router = useRouter()
+const { catalogItems } = useRouteCatalog()
+
+function go(path: string) {
+  router.push(path)
+}
+</script>
+
+<template>
+  <button
+    v-for="item in catalogItems"
+    :key="item.id"
+    type="button"
+    @click="go(item.path)"
+  >
+    {{ item.title }}
+  </button>
+</template>
+```
+
+## 5. 约束
+
+- 目录数据依赖 Runtime 路由配置。
+- `useRouteCatalog` 只提供数据，不负责目录 UI。
+- Backend/Agent 不应为了隔离组件预览伪造业务路由。
+- 新页面不应再引用旧路径 `@runtime-kit/components/...`。
+- 页面源码不应引用 `@runtime-kit/internal/...`。

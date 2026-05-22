@@ -319,6 +319,9 @@ export function getPreviewEntryNavigationPath(): string {
   if (entryDescriptor.entry_type === 'component_host') {
     return '/__component-preview'
   }
+  if (entryDescriptor.entry_type === 'asset_host') {
+    return '/__asset-preview'
+  }
   return ''
 }
 

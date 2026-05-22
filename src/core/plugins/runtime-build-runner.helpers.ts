@@ -2,7 +2,11 @@
  * 文件用途：提供 Runtime 整包构建插件复用的 baseUrl 与静态资源路径辅助函数。
  */
 
-import { extname } from 'path'
+import { extname, resolve } from 'path'
+
+import autoprefixer from 'autoprefixer'
+import tailwindcss from 'tailwindcss'
+import type { UserConfig } from 'vite'
 
 const ROOT_ABSOLUTE_ASSET_PATTERNS = [
   /url\((['"]?)\/(?:img|fonts|favicon)/i,
@@ -48,6 +52,25 @@ export function buildStaticAssetPath(fileHash: string, originalName?: string, lo
 
   const extension = extname(String(originalName || '').trim() || String(logicalName || '').trim())
   return `__build_assets/${normalizedHash}${extension || ''}`
+}
+
+/**
+ * 构建 Runtime 临时工作区专用 CSS 配置。
+ * @param tempRoot Runtime 构建临时工作区根目录
+ * @returns Vite CSS 配置
+ */
+export function buildRuntimeBuildCssConfig(tempRoot: string): NonNullable<UserConfig['css']> {
+  return {
+    modules: {
+      localsConvention: 'camelCase',
+    },
+    postcss: {
+      plugins: [
+        tailwindcss(resolve(tempRoot, 'tailwind.config.js')),
+        autoprefixer(),
+      ],
+    },
+  }
 }
 
 /**

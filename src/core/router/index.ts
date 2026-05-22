@@ -6,6 +6,7 @@ import { getRuntimePreviewContext } from '@/core/utils/path'
 import { normalizeViewModulePath, resolvePreviewEntryModulePath } from '@/core/shared/runtime-preview'
 import StandalonePreviewView from '@/views/StandalonePreviewView.vue'
 import ComponentPreviewView from '@/views/component-preview/ComponentPreviewView.vue'
+import AssetPreviewView from '@/views/asset-preview/AssetPreviewView.vue'
 
 /**
  * 异步创建路由器
@@ -39,7 +40,7 @@ async function createAppRouter() {
   const routes: RouteRecordRaw[] = [
     {
       path: '/',
-      component: () => import('@/layouts/ResponsiveLayout.vue'),
+      component: () => import('@/runtime-shell/layouts/ResponsiveLayout.vue'),
       children: [
         ...defaultRouteConfig,
         ...generatedRoutes
@@ -66,6 +67,13 @@ async function createAppRouter() {
     name: '__component_preview',
     component: ComponentPreviewView,
     meta: { title: '组件预览' }
+  })
+
+  routes.push({
+    path: '/__asset-preview',
+    name: '__asset_preview',
+    component: AssetPreviewView,
+    meta: { title: '资源预览' }
   })
 
   // console.log('最终路由配置:', routes)

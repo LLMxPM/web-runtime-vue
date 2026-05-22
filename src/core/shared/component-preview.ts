@@ -3,15 +3,17 @@
  */
 
 import type {
-  RuntimeComponentPreviewCanvasConfig,
+  RuntimeComponentPreviewPlacementOptions,
+  ComponentPreviewPreset,
   ComponentPreviewSchema,
   ComponentPreviewSlotField,
   ComponentPreviewSlotNode,
 } from './runtime-preview'
 
 export const COMPONENT_PREVIEW_READY_EVENT = 'component-preview:ready'
+export const COMPONENT_PREVIEW_ERROR_EVENT = 'component-preview:error'
 export const COMPONENT_PREVIEW_UPDATE_STATE_EVENT = 'component-preview:update-state'
-export const COMPONENT_PREVIEW_UPDATE_CANVAS_EVENT = 'component-preview:update-canvas-config'
+export const COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT = 'component-preview:update-placement'
 
 export interface ComponentPreviewState {
   props: Record<string, unknown>
@@ -29,9 +31,21 @@ export interface ComponentPreviewReadyMessage {
     defaultState: ComponentPreviewState
     componentMeta: {
       code: string
-      versionNo: number
+      versionNo?: number
       displayName: string
+      source?: 'workspace_component' | 'runtime_kit'
+      runtimeKitComponentName?: string
+      runtimeKitManifestVersion?: string
     }
+  }
+}
+
+export interface ComponentPreviewErrorMessage {
+  type: typeof COMPONENT_PREVIEW_ERROR_EVENT
+  payload: {
+    version: 1
+    artifactId: string
+    message: string
   }
 }
 
@@ -44,12 +58,12 @@ export interface ComponentPreviewUpdateStateMessage {
   }
 }
 
-export interface ComponentPreviewUpdateCanvasMessage {
-  type: typeof COMPONENT_PREVIEW_UPDATE_CANVAS_EVENT
+export interface ComponentPreviewUpdatePlacementMessage {
+  type: typeof COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT
   payload: {
     version: 1
     artifactId: string
-    canvas: RuntimeComponentPreviewCanvasConfig
+    placement: RuntimeComponentPreviewPlacementOptions
   }
 }
 
@@ -68,14 +82,7 @@ export function normalizeComponentPreviewSchema(value: unknown): ComponentPrevie
     props: normalizeRecord(source.props),
     slots: normalizeRecord(source.slots),
     mocks: normalizeRecord(source.mocks),
-    presets: Array.isArray(source.presets)
-      ? source.presets
-        .filter(isPlainObject)
-        .filter((item): item is { key: string; label: string } & Record<string, unknown> =>
-          typeof item.key === 'string' && typeof item.label === 'string'
-        )
-        .map(item => ({ ...item }))
-      : [],
+    presets: normalizePresetList(source.presets),
   }
 }
 
@@ -150,6 +157,34 @@ function cloneSlotNodes(fieldValue: ComponentPreviewSlotField | undefined): Comp
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * 归一化预设列表，兼容早期或 AI 生成配置中的 name 字段。
+ * @param value 原始 presets 配置
+ * @returns 可供 Editor 消费的预设列表
+ */
+function normalizePresetList(value: unknown): ComponentPreviewSchema['presets'] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const normalizedPresets: ComponentPreviewPreset[] = []
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      continue
+    }
+    const presetKey = typeof item.key === 'string' ? item.key : item.name
+    if (typeof presetKey !== 'string' || typeof item.label !== 'string') {
+      continue
+    }
+    normalizedPresets.push({
+      ...item,
+      key: presetKey,
+      label: item.label,
+    } as ComponentPreviewPreset)
+  }
+  return normalizedPresets
 }
 
 /**

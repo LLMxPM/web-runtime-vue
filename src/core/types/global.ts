@@ -7,6 +7,10 @@ import type {
   RuntimePreviewContext,
 } from '@/core/shared/runtime-preview'
 import type { RuntimeConfigContext } from '@/core/utils/path'
+import type {
+  EditorVisualAssetWaitOptions,
+  EditorVisualAssetWaitResult,
+} from '@/core/utils/visual-assets'
 
 export interface AppConfig {
   title: string
@@ -48,5 +52,8 @@ declare global {
     __RUNTIME_PREVIEW_TOKEN__?: string
     __RUNTIME_PRELOADED_CONFIG__?: RuntimePreloadedConfigBundle
     __EDITOR_RUNTIME_PREVIEW_READY__?: boolean
+    __EDITOR_RUNTIME_WAIT_FOR_VISUAL_ASSETS__?: (
+      options?: EditorVisualAssetWaitOptions
+    ) => Promise<EditorVisualAssetWaitResult>
   }
 }

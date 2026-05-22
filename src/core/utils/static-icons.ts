@@ -1,3 +1,7 @@
+/**
+ * 文件用途：注册 Runtime 本地演示环境使用的静态图标配置。
+ */
+
 import { defineAsyncComponent } from 'vue'
 import type { IconConfig } from './icon-registry'
 import { registerIcons } from './icon-registry'
@@ -9,7 +13,6 @@ import { registerIcons } from './icon-registry'
 const staticIconConfigs: Record<string, IconConfig> = {
   // 示例：自定义Logo图标
   // 'custom-logo': {
-  //   component: defineAsyncComponent(() => import('@/components/icons/CustomLogo.vue')),
   //   type: 'static',
   //   src: '/img/logo/custom-logo.svg',
   //   description: '自定义Logo图标'
@@ -17,7 +20,6 @@ const staticIconConfigs: Record<string, IconConfig> = {
   
   // 示例：品牌图标
   // 'brand-icon': {
-  //   component: defineAsyncComponent(() => import('@/components/icons/BrandIcon.vue')),
   //   type: 'static',
   //   src: '/img/icons/brand.png',
   //   description: '品牌图标'
@@ -25,7 +27,6 @@ const staticIconConfigs: Record<string, IconConfig> = {
   
   // 示例：特殊功能图标
   // 'special-feature': {
-  //   component: defineAsyncComponent(() => import('@/components/icons/SpecialFeature.vue')),
   //   type: 'static',
   //   src: '/img/icons/special-feature.svg',
   //   description: '特殊功能图标'

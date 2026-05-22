@@ -2,12 +2,14 @@
 
 ## 概述
 
-本项目采用基于 YAML 配置的动态主题系统，通过 Tailwind CSS 扩展实现完全自定义的颜色、字体和排版配置。系统支持完整的色阶、透明度变化，按tailwindcss的规范使用即可。
+本项目采用基于 YAML 配置的动态主题系统，通过 Tailwind CSS 扩展实现完全自定义的颜色和字体绑定。系统支持完整的色阶、透明度变化，按tailwindcss的规范使用即可。
 扩展的颜色变量包括：`primary`, `secondary`, `invert`, `background`, `background-invert`,`border`, `border-subtle`, `link`, `link-hover`, `link-visited`,`accent1`, `accent2`, `accent3`, `accent4`, `accent5`, `accent6`
 扩展的字体包括：`font-body`, `font-heading`, `font-code`
 字体大小包括：`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`, `text-4xl`, `text-5xl`, `text-6xl`, `text-7xl`, `text-8xl`, `text-9xl`
 
-主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。
+主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。页面需要读取主题 Logo 时使用 Runtime Kit 公开的 `useTheme`。
+
+基础字号与默认图标描边宽度属于项目页面展示配置，不属于主题。新配置从 `app.config.yaml` 的 `app.page.baseFontSize` 和 `app.page.iconDefaultStrokeWidth` 下发；图标尺寸默认跟随基础字号，局部尺寸使用 `size-*` 或 `h-* w-*` Tailwind 类控制。
 
 ### 背景色类名
 ```html
@@ -101,6 +103,40 @@
 <pre class="font-code text-xs">代码块</pre>
 ```
 
+### 非主题字体资源
+
+主题字体优先使用 `font-heading`、`font-body` 和 `font-code`。如果某个页面或组件需要额外字体，应先在工作空间中注册字体资源，再按资源逻辑名静态声明：
+
+```vue
+<script setup lang="ts">
+import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAsset'
+
+const brandFont = useAssetFontFamily('BrandSerif', 'sans-serif')
+</script>
+
+<template>
+  <h1 :style="{ fontFamily: brandFont }">品牌标题</h1>
+</template>
+```
+
+Backend 会扫描静态字体资源名并在预览/构建 artifact 中下发对应字体。不要在页面 CSS 中直接手写 `@font-face` 或硬编码字体文件 URL。
+
+## 主题 Logo
+
+```vue
+<script setup lang="ts">
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+
+const { themeLogo, themeInvertLogo } = useTheme()
+</script>
+
+<template>
+  <img :src="themeLogo" alt="Logo" />
+</template>
+```
+
+`themeLogo` 和 `themeInvertLogo` 会按当前主题配置解析 `logo` 与 `invertLogo`，并自动适配预览、构建和发布形态下的资源路径。
+
 ## 实际使用示例
 
 ### 完整组件示例
@@ -155,17 +191,11 @@
     <!-- 代码示例 -->
     <footer class="mt-4 p-3 bg-tertiary-50 rounded border border-tertiary-200">
       <code class="font-code text-sm text-invert-800">
-        const theme = useTheme()
+        class="text-primary bg-background"
       </code>
     </footer>
   </div>
 </template>
-
-<script setup>
-import { useTheme } from '@/core/composables/useTheme'
-
-const { themeConfig, themeClass } = useTheme()
-</script>
 ```
 
 ### 数据可视化示例

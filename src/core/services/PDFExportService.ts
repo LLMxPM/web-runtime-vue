@@ -8,6 +8,7 @@ import { nextTick } from 'vue'
 import type { Router } from 'vue-router'
 import { pageCaptureService } from './PageCaptureService'
 import { ExportStatus } from '@/core/types/pdf-export'
+import { appConfig as runtimeAppConfig } from '@/core/utils/config'
 import { generateFilename } from '../utils/file'
 import type {
   ExportOptions,
@@ -105,7 +106,7 @@ export class PDFExportService {
       this.addCanvasToPDF(pdf, canvas, 0)
 
       // 下载文件
-      const filename = generateFilename(options?.filename)
+      const filename = task.filename
       pdf.save(filename)
 
       // 更新任务状态
@@ -114,6 +115,7 @@ export class PDFExportService {
       const result: ExportResult = {
         success: true,
         taskId: task.id,
+        method: 'canvas-pdf',
         filename,
         pageCount: 1,
         duration: Date.now() - task.createdAt.getTime()
@@ -229,7 +231,7 @@ export class PDFExportService {
       }
 
       // 下载文件
-      const filename = generateFilename(options?.filename)
+      const filename = task.filename
       pdf.save(filename)
 
       // 更新任务状态
@@ -238,6 +240,7 @@ export class PDFExportService {
       const result: ExportResult = {
         success: true,
         taskId: task.id,
+        method: 'canvas-pdf',
         filename,
         pageCount: captures.length,
         duration: Date.now() - task.createdAt.getTime()
@@ -293,12 +296,49 @@ export class PDFExportService {
       mode,
       status: ExportStatus.PENDING,
       progress: 0,
-      filename: generateFilename(options?.filename),
+      filename: this.generateExportFilename(mode, options),
       totalPages: mode === 'current' ? 1 : 0,
       completedPages: 0,
       createdAt: now,
       updatedAt: now
     }
+  }
+
+  /**
+   * 生成导出文件名。
+   * @param mode 导出范围
+   * @param options 导出选项
+   */
+  private generateExportFilename(mode: 'current' | 'all', options?: ExportOptions): string {
+    return generateFilename(options?.filename, `${this.getDefaultFilenameBase(mode)}-{timestamp}`)
+  }
+
+  /**
+   * 根据导出范围获取默认文件名主体。
+   * @param mode 导出范围
+   */
+  private getDefaultFilenameBase(mode: 'current' | 'all'): string {
+    if (mode === 'all') {
+      return this.pickTitle(runtimeAppConfig.value.app.title) ?? '项目'
+    }
+
+    const routeTitle = this.pickTitle(this.router?.currentRoute.value.meta?.title)
+    const documentTitle = typeof document === 'undefined' ? undefined : this.pickTitle(document.title)
+
+    return routeTitle ?? documentTitle ?? this.pickTitle(runtimeAppConfig.value.app.title) ?? '页面'
+  }
+
+  /**
+   * 规范化标题文本，空字符串不作为有效标题。
+   * @param title 候选标题
+   */
+  private pickTitle(title: unknown): string | undefined {
+    if (typeof title !== 'string') {
+      return undefined
+    }
+
+    const normalizedTitle = title.trim()
+    return normalizedTitle.length > 0 ? normalizedTitle : undefined
   }
 
   /**

@@ -39,6 +39,11 @@ describe('Core 模块对外接口 (External API)', () => {
     expect(CoreAPI.pdfExportService.exportCurrentPage).toBeTypeOf('function')
     expect(CoreAPI.pdfExportService.exportAllPages).toBeTypeOf('function')
 
+    // 验证 browserPrintService
+    expect(CoreAPI.browserPrintService).toBeDefined()
+    expect(CoreAPI.browserPrintService.printCurrentPage).toBeTypeOf('function')
+    expect(CoreAPI.browserPrintService.printAllPages).toBeTypeOf('function')
+
     // 验证 pageCaptureService
     expect(CoreAPI.pageCaptureService).toBeDefined()
     expect(CoreAPI.pageCaptureService.captureElement).toBeTypeOf('function')
