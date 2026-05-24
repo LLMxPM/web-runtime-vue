@@ -17,7 +17,7 @@
 
 ```vue
 <script setup lang="ts">
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
 </script>
 
 <template>
@@ -39,7 +39,7 @@ import DefaultContainer from '@runtime-kit/public/components/page/layout/Default
 
 ```vue
 <script setup lang="ts">
-import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'
+import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'
 
 const { width, height, aspectRatio, pageStyle } = usePageSize()
 </script>
@@ -50,7 +50,7 @@ const { width, height, aspectRatio, pageStyle } = usePageSize()
 非响应式场景可以使用 `buildPageCanvasStyle`：
 
 ```ts
-import { buildPageCanvasStyle } from '@runtime-kit/public/composables/page/usePageSize'
+import { buildPageCanvasStyle } from '@runtime-kit/public/composables/page/buildPageCanvasStyle.v1'
 
 const style = buildPageCanvasStyle({ width: 1600, height: 900 })
 ```
@@ -63,7 +63,7 @@ Runtime Kit 不再推荐公开 `Pagination`、`TableOfContents` 这类 UI 组件
 
 ```vue
 <script setup lang="ts">
-import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage'
+import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage.v1'
 
 const { currentPage, totalPages, title } = useCurrentPage()
 </script>
@@ -79,7 +79,7 @@ const { currentPage, totalPages, title } = useCurrentPage()
 
 ```vue
 <script setup lang="ts">
-import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog.v1'
 
 const { catalogItems } = useRouteCatalog()
 </script>
@@ -100,7 +100,7 @@ const { catalogItems } = useRouteCatalog()
 
 ```vue
 <script setup lang="ts">
-import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation'
+import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation.v1'
 
 const { canGoNext, canGoPrevious, goToNextPage, goToPreviousPage } = usePageNavigation()
 </script>
@@ -114,8 +114,8 @@ const { canGoNext, canGoPrevious, goToNextPage, goToPreviousPage } = usePageNavi
 
 ```vue
 <script setup lang="ts">
-import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'
-import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
+import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
+import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
@@ -143,7 +143,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
 
 ```vue
 <script setup lang="ts">
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 </script>
 
 <template>
@@ -154,7 +154,7 @@ import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
 自定义 SVG、连线或图表颜色需要解析 Runtime 主题色时，使用 `resolveColor`。
 
 ```ts
-import { resolveColor } from '@runtime-kit/public/utils/colors'
+import { resolveColor } from '@runtime-kit/public/utils/colors.v1'
 
 const color = resolveColor('accent1-300')
 ```
@@ -167,7 +167,7 @@ const color = resolveColor('accent1-300')
 
 ```vue
 <script setup lang="ts">
-import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
+import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vue'
 </script>
 
 <template>
@@ -185,6 +185,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
 
 - 不要使用旧路径 `@runtime-kit/components/...`。
 - 不要引用 `@runtime-kit/internal/...`。
+- 不要使用未带 `.vN` 的 `@runtime-kit/public/...` 路径。
 - 不要把 Runtime Kit 当作通用 UI 组件库。
 - 不要要求 Runtime Kit 提供通用内容块、卡片、布局辅助、封面模板或内容页模板。
 - 不要使用 `AssetRenderer`。

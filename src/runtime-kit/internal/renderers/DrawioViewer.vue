@@ -3,7 +3,8 @@
 -->
 
 <template>
-  <div ref="viewerRoot" class="drawio-viewer" :class="[
+  <div
+ref="viewerRoot" class="drawio-viewer" :class="[
     props.class,
     {
       'drawio-viewer--loading': loading,
@@ -15,9 +16,11 @@
     <div v-if="loading" class="drawio-viewer__loading layout-center">
       <div class="animate-spin">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-8 h-8">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          <circle
+cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-dasharray="31.416" stroke-dashoffset="31.416">
-            <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416"
+            <animate
+attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416"
               repeatCount="indefinite" />
             <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite" />
           </circle>
@@ -43,7 +46,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { resolveResourcePath } from '@runtime-kit/public/utils/assets'
+import { resolveResourcePath } from '@runtime-kit/public/utils/assets.v1'
 import { buildViewerSurfaceStyle, type ViewerSurfaceProps } from '@runtime-kit/internal/utils/viewer-style'
 
 interface Props extends ViewerSurfaceProps {
@@ -53,6 +56,8 @@ interface Props extends ViewerSurfaceProps {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  src: '',
+  class: '',
   width: '100%',
   height: '400px',
   minHeight: '200px',

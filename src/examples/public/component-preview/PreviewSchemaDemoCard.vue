@@ -126,7 +126,7 @@ import { computed } from 'vue'
  *         { "type": "text", "value": "数据更新时间：09:30  " },
  *         {
  *           "type": "component",
- *           "component": "@runtime-kit/public/components/primitives/Icon.vue",
+ *           "component": "@runtime-kit/public/components/primitives/Icon.v1.vue",
  *           "props": { "name": "home", "size": 14, "color": "#64748b" }
  *         }
  *       ]

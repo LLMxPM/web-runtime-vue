@@ -23,15 +23,15 @@
 
         <div class="space-y-4">
           <button 
-            @click="goHome"
             class="w-full font-body font-medium py-3 px-6 rounded-lg transition-opacity duration-200 bg-primary text-invert hover:opacity-90"
+            @click="goHome"
           >
             返回首页
           </button>
           
           <button 
-            @click="goBack"
             class="w-full font-body font-medium py-3 px-6 rounded-lg transition-colors duration-200 bg-bg-subtle text-primary border border-border-default hover:bg-border-subtle"
+            @click="goBack"
           >
             返回上一页
           </button>
@@ -44,8 +44,8 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
 
 /**
  * 404页面组件

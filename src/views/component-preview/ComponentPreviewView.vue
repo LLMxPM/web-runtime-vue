@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, readonly, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, readonly, ref, shallowRef, type Component } from 'vue'
 
 import { COMPONENT_PREVIEW_MOCKS_KEY } from '@/core/composables/useComponentPreviewMock'
 import {
@@ -54,7 +54,7 @@ import {
 } from './placement'
 import PreviewContentRenderer from './PreviewContentRenderer'
 
-const componentDefinition = shallowRef<any>(null)
+const componentDefinition = shallowRef<Component | null>(null)
 const previewSchema = ref<ComponentPreviewSchema | null>(null)
 const previewState = ref<ComponentPreviewState>(buildInitialComponentPreviewState(null))
 const loading = ref(true)
@@ -91,7 +91,7 @@ async function bootstrapComponentPreview(): Promise<void> {
     loading.value = true
     placementOptions.value = normalizeComponentPreviewPlacement(previewConfig.placement)
     const importedModule = await importPreviewModule(previewConfig.component_import_path)
-    componentDefinition.value = importedModule?.default || importedModule
+    componentDefinition.value = resolveModuleComponent(importedModule)
     previewSchema.value = normalizeComponentPreviewSchema(previewConfig.schema)
     previewState.value = buildInitialComponentPreviewState(previewSchema.value)
     await nextTick()
@@ -103,6 +103,22 @@ async function bootstrapComponentPreview(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * 从动态模块对象中解析 Vue 组件。
+ * @param module 动态导入返回的模块对象或组件本身
+ * @returns Vue 组件定义
+ */
+function resolveModuleComponent(module: unknown): Component {
+  if (module && typeof module === 'object' && 'default' in module) {
+    const defaultExport = (module as { default?: unknown }).default
+    if (defaultExport) {
+      return defaultExport as Component
+    }
+  }
+
+  return module as Component
 }
 
 /**

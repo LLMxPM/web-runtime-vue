@@ -95,6 +95,8 @@ export interface RuntimeModuleResolverConfig {
   runtime_kit_manifest_version?: string
   runtime_kit_exports?: Array<{
     kind: string
+    base_name?: string
+    version_no?: number
     name: string
     import_path: string
     category: string
@@ -219,6 +221,7 @@ export interface RuntimePreloadedConfigBundle {
 }
 
 export const RUNTIME_REMOTE_MODULE_PREFIX = '/@runtime-preview'
+export const RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH = '/__runtime-snapdom-resource-proxy'
 
 const BUILTIN_LOCAL_VIEW_PREFIXES = [
   'src/runtime-shell/fallback/',

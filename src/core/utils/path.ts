@@ -17,12 +17,12 @@ export interface RuntimeConfigContext {
 }
 
 /**
- * 判断是否为远程绝对地址。
+ * 判断是否为浏览器可直接访问的资源地址。
  * @param value 待判断的路径
- * @returns 是否为 http/https 地址
+ * @returns 是否为 http/https/data/blob 地址
  */
 export function isRemoteUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value)
+  return /^(https?:\/\/|data:|blob:)/i.test(value)
 }
 
 /**

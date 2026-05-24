@@ -8,7 +8,10 @@ import { nextTick } from 'vue'
 import type { Router } from 'vue-router'
 import { pageCaptureService } from './PageCaptureService'
 import { ExportStatus } from '@/core/types/pdf-export'
-import { appConfig as runtimeAppConfig } from '@/core/utils/config'
+import { appConfig as runtimeAppConfig, appPageConfig } from '@/core/utils/config'
+import { findRuntimePageSource } from '@/core/utils/export-dom'
+import { getRuntimePreviewContext, getRuntimePreviewToken } from '@/core/utils/path'
+import { RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH } from '@/core/shared/runtime-preview'
 import { generateFilename } from '../utils/file'
 import type {
   ExportOptions,
@@ -17,7 +20,8 @@ import type {
   ExportResult,
   PageCapture,
   ExportConfig,
-  PageInfo
+  PageInfo,
+  CaptureOptions
 } from '@/core/types/pdf-export'
 
 export class PDFExportService {
@@ -46,7 +50,7 @@ export class PDFExportService {
       waitForImages: true,
       useCORS: true,
       backgroundColor: '#ffffff', // 使用白色背景避免透明问题
-      proxyUrl: (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SNAPDOM_PROXY_URL) || undefined
+      proxyUrl: undefined
     },
     file: {
       nameTemplate: 'export-{timestamp}',
@@ -92,14 +96,9 @@ export class PDFExportService {
       this.updateTaskStatus(ExportStatus.IN_PROGRESS)
 
       // 捕获当前页面
-      const canvas = await pageCaptureService.captureCurrentPage({
-        scale: this.defaultConfig.capture.scale,
-        useCORS: this.defaultConfig.capture.useCORS,
-        allowTaint: false, // 避免污染画布
-        backgroundColor: this.defaultConfig.capture.backgroundColor,
-        timeout: this.defaultConfig.capture.timeout,
-        proxyUrl: this.defaultConfig.capture.proxyUrl
-      })
+      const canvas = await pageCaptureService.captureCurrentPage(
+        this.buildCaptureOptions(this.router?.currentRoute.value.path),
+      )
 
       // 生成PDF
       const pdf = await this.createPDF()
@@ -150,6 +149,7 @@ export class PDFExportService {
     }
 
     const task = this.createTask('all', options)
+    const originalRoute = this.router.currentRoute.value.fullPath
     this.currentTask = task
     this.isExporting = true
     this.progressCallback = onProgress
@@ -183,17 +183,12 @@ export class PDFExportService {
           await this.navigateToPage(page.route)
 
           // 等待页面加载
-          await this.waitForPageReady()
+          await this.waitForPageReady(page.route)
 
           // 捕获页面
-          const canvas = await pageCaptureService.captureCurrentPage({
-            scale: this.defaultConfig.capture.scale,
-            useCORS: this.defaultConfig.capture.useCORS,
-            allowTaint: false, // 避免污染画布
-            backgroundColor: this.defaultConfig.capture.backgroundColor,
-            timeout: this.defaultConfig.capture.timeout,
-            proxyUrl: this.defaultConfig.capture.proxyUrl
-          })
+          const canvas = await pageCaptureService.captureCurrentPage(
+            this.buildCaptureOptions(page.route),
+          )
 
           // 添加到PDF（第一页不需要新建页面）
           if (i > 0) {
@@ -251,6 +246,7 @@ export class PDFExportService {
       this.updateTaskStatus(ExportStatus.FAILED, error instanceof Error ? error.message : '导出失败')
       throw error
     } finally {
+      await this.restoreRoute(originalRoute)
       this.isExporting = false
       this.currentTask = null
       this.progressCallback = null
@@ -418,12 +414,32 @@ export class PDFExportService {
   }
 
   /**
-   * 等待页面准备就绪
+   * 等待页面准备就绪。
+   * @param expectedRoutePath 期望出现的路由路径
    * @param timeout 超时时间
    */
-  private async waitForPageReady(timeout: number = 2000): Promise<void> {
+  private async waitForPageReady(expectedRoutePath?: string, timeout: number = 8000): Promise<void> {
+    const startedAt = Date.now()
+
     // 等待Vue的下一个tick
     await nextTick()
+
+    // 等待目标路由的页面源节点完成渲染，避免过渡期截到上一页或布局容器
+    for (;;) {
+      await this.waitForAnimationFrame()
+
+      const hasRouteMarkers = !!document.querySelector('.runtime-page-print-source')
+      if (!expectedRoutePath || findRuntimePageSource(expectedRoutePath) || !hasRouteMarkers) {
+        break
+      }
+
+      if (Date.now() - startedAt > timeout) {
+        console.warn(`等待页面 ${expectedRoutePath} 渲染超时，将尝试使用当前页面内容`)
+        break
+      }
+
+      await new Promise(resolve => window.setTimeout(resolve, 50))
+    }
 
     // 等待页面加载完成
     await new Promise<void>((resolve) => {
@@ -451,7 +467,7 @@ export class PDFExportService {
       // 超时保护
       setTimeout(() => {
         handleLoad()
-      }, timeout)
+      }, Math.min(timeout, 2000))
     })
 
     // 额外等待确保页面渲染完成
@@ -459,26 +475,30 @@ export class PDFExportService {
   }
 
   /**
+   * 等待一次浏览器绘制帧。
+   */
+  private async waitForAnimationFrame(): Promise<void> {
+    await new Promise(resolve => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => resolve(undefined))
+        return
+      }
+
+      window.setTimeout(resolve, 16)
+    })
+  }
+
+  /**
    * 创建PDF实例
    * @returns jsPDF实例
    */
   private async createPDF(): Promise<jsPDF> {
-    // 获取当前页面的实际尺寸作为参考
-    const { getPageDimensions } = await import('../utils/dom')
-    const actualDimensions = getPageDimensions()
-
-    // 计算合适的PDF尺寸
-    const aspectRatio = actualDimensions.width / actualDimensions.height
-
-    // 使用A4横向作为基准，但根据实际内容调整
-    let pageWidth = 297 // A4横向宽度(mm)
-    let pageHeight = 210 // A4横向高度(mm)
-
-    // 如果内容比例与A4差异较大，使用自定义尺寸
-    if (aspectRatio > 1.6 || aspectRatio < 1.2) {
-      // 保持宽度，调整高度以匹配内容比例
-      pageHeight = pageWidth / aspectRatio
-    }
+    const pageConfigWidth = Number(appPageConfig.value.width) || 1920
+    const pageConfigHeight = Number(appPageConfig.value.height) || 1080
+    const aspectRatio = pageConfigWidth / pageConfigHeight
+    const longEdge = 297
+    const pageWidth = aspectRatio >= 1 ? longEdge : longEdge * aspectRatio
+    const pageHeight = aspectRatio >= 1 ? longEdge / aspectRatio : longEdge
 
     return new jsPDF({
       orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
@@ -497,6 +517,7 @@ export class PDFExportService {
    * @param pageIndex 页面索引
    */
   private addCanvasToPDF(pdf: jsPDF, canvas: HTMLCanvasElement, pageIndex: number): void {
+    void pageIndex
     // 获取PDF页面尺寸
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
@@ -525,8 +546,6 @@ export class PDFExportService {
       sy = Math.round((canvas.height - sHeight) / 2)
     }
 
-    // 目标尺寸与PDF页面比例一致
-    const destRatio = sWidth / sHeight
     // 使用一个中间画布进行裁剪，保持较高质量
     const cropCanvas = document.createElement('canvas')
     const cropCtx = cropCanvas.getContext('2d')
@@ -557,6 +576,93 @@ export class PDFExportService {
       console.warn('添加高质量图片失败，尝试压缩图片:', error)
       const fallbackImgData = cropCanvas.toDataURL('image/jpeg', 0.7)
       pdf.addImage(fallbackImgData, 'JPEG', x, y, imgWidth, imgHeight)
+    }
+  }
+
+  /**
+   * 构造统一的截图参数。
+   * @param routePath 目标路由路径
+   */
+  private buildCaptureOptions(routePath?: string): CaptureOptions {
+    return {
+      scale: this.defaultConfig.capture.scale,
+      useCORS: this.defaultConfig.capture.useCORS,
+      allowTaint: false,
+      backgroundColor: this.defaultConfig.capture.backgroundColor,
+      timeout: this.defaultConfig.capture.timeout,
+      proxyUrl: this.resolveSnapdomProxyUrl(),
+      routePath,
+    }
+  }
+
+  /**
+   * 解析 snapDOM 跨域资源代理地址。
+   * 优先使用显式环境变量；SaaS 预览下自动回退到 Runtime 同源代理，避免远端图片缺少 CORS 时截图空白。
+   */
+  private resolveSnapdomProxyUrl(): string | undefined {
+    const explicitProxyUrl = String(
+      import.meta.env.VITE_SNAPDOM_PROXY_URL
+      || this.defaultConfig.capture.proxyUrl
+      || '',
+    ).trim()
+    if (explicitProxyUrl) {
+      return explicitProxyUrl
+    }
+
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const previewContext = getRuntimePreviewContext()
+    const previewToken = getRuntimePreviewToken()
+    if (!previewContext?.artifactId || !previewToken) {
+      return undefined
+    }
+
+    const runtimePublicBaseUrl = this.resolveRuntimePublicBaseUrl()
+    const proxyBaseUrl = runtimePublicBaseUrl || window.location.origin
+    const proxyUrl = new URL(
+      RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH.replace(/^\/+/, ''),
+      `${proxyBaseUrl.replace(/\/+$/, '')}/`,
+    )
+    proxyUrl.searchParams.set('artifactId', previewContext.artifactId)
+    proxyUrl.searchParams.set('token', previewToken)
+    proxyUrl.searchParams.set('url', '')
+
+    return proxyUrl.href
+  }
+
+  /**
+   * 读取预览 HTML 注入的 Runtime 公开基址。
+   * @returns 规范化后的 Runtime 公开基址，缺失或非法时返回空串
+   */
+  private resolveRuntimePublicBaseUrl(): string {
+    const runtimePublicBaseUrl = String(window.__RUNTIME_PUBLIC_BASE_URL__ || '').trim()
+    if (!runtimePublicBaseUrl) {
+      return ''
+    }
+
+    try {
+      return new URL(runtimePublicBaseUrl, window.location.href).href.replace(/\/+$/, '')
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * 恢复导出前的路由位置。
+   * @param route 原始路由
+   */
+  private async restoreRoute(route: string): Promise<void> {
+    if (!this.router || !route || this.router.currentRoute.value.fullPath === route) {
+      return
+    }
+
+    try {
+      await this.router.push(route)
+      await this.waitForPageReady(this.router.currentRoute.value.path)
+    } catch (error) {
+      console.warn('恢复导出前路由失败:', error)
     }
   }
 

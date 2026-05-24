@@ -21,8 +21,8 @@ Runtime Kit 不再把 `TableOfContents` 作为推荐公开 UI 组件。目录的
 
 ```vue
 <script setup lang="ts">
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
-import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog.v1'
 
 const { catalogItems } = useRouteCatalog()
 </script>
@@ -85,7 +85,7 @@ interface RuntimeKitRouteCatalogItem {
 ```vue
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog.v1'
 
 const router = useRouter()
 const { catalogItems } = useRouteCatalog()
@@ -114,3 +114,4 @@ function go(path: string) {
 - Backend/Agent 不应为了隔离组件预览伪造业务路由。
 - 新页面不应再引用旧路径 `@runtime-kit/components/...`。
 - 页面源码不应引用 `@runtime-kit/internal/...`。
+- 页面源码不应引用未带 `.vN` 的 `@runtime-kit/public/...` 路径。

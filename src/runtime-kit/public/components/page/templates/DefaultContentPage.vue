@@ -43,9 +43,9 @@
 
 <script setup lang="ts">
 import { computed, type CSSProperties } from 'vue'
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
-import HeaderSection from '@runtime-kit/public/components/page/sections/HeaderSection.vue'
-import FooterSection from '@runtime-kit/public/components/page/sections/FooterSection.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
+import HeaderSection from '../sections/HeaderSection.vue'
+import FooterSection from '../sections/FooterSection.vue'
 import { appPageConfig } from '@/core/utils/config'
 
 const BASE_PAGE_HEIGHT = 1080
@@ -72,7 +72,7 @@ defineOptions({
  */
 interface Props {
   /** 页面标题文字 */
-  title: string
+  title?: string
   /** 页面副标题文字,可选,默认为空 */
   subtitle?: string
 }
@@ -81,6 +81,7 @@ const props = withDefaults(defineProps<Props>(), {
   title: '默认标题',
   subtitle: '',
 })
+void props
 
 /**
  * 将旧版基线尺寸按当前页面高度等比缩放。

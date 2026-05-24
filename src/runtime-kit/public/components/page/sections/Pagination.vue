@@ -42,6 +42,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  currentPage: undefined,
+  totalPages: undefined,
   separator: '/',
   showTotal: true,
   prefix: '',

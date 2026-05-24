@@ -61,7 +61,7 @@
 - 页面模块与组件模块均以源码文本形式存储。
 - 逻辑路径统一为 `src/...` 形式。
 - 路由配置中的 `component` 字段可继续使用 `@/...` 形式，Runtime 会在加载前规范化。
-- 页面/组件源码引用 Runtime 基础能力时只允许使用 `@runtime-kit/...` manifest 公开路径；`@/components`、`@/layouts`、`@/core`、`@/styles` 属于 Runtime 私有路径。
+- 页面/组件源码引用 Runtime 基础能力时只允许使用 `@runtime-kit/...` manifest 公开的版本化路径；`@/components`、`@/layouts`、`@/core`、`@/styles` 属于 Runtime 私有路径。
 
 ### 2.4 资源索引
 
@@ -166,7 +166,7 @@ manifest 中的 `modules` 使用逻辑路径为 key，例如：
 - `path` 建议与 key 保持一致。
 - `hash` 用于审计、缓存与预览追踪。
 - Runtime Kit 内建组件预览的 `modules` 必须为空对象。
-- Runtime Kit 内建组件预览的根组件通过 `config-bundle.component_preview.component_import_path` 指向 `@runtime-kit/public/...` 本地公开组件模块。
+- Runtime Kit 内建组件预览的根组件通过 `config-bundle.component_preview.component_import_path` 指向 `@runtime-kit/public/...` 版本化本地公开组件模块。
 - Runtime Kit doc-only 能力，例如 `composable/util/type` 或 `previewable=false` 组件，不生成 preview artifact，也不应出现在 `component_preview` 中。
 - 页码、目录和导航能力应通过 `useCurrentPage`、`useRouteCatalog`、`usePageNavigation` 暴露为数据或控制能力，Backend/Agent 在页面源码中生成对应 UI，不应通过组件预览伪造业务路由。
 
@@ -190,7 +190,7 @@ manifest 中的 `modules` 使用逻辑路径为 key，例如：
 - Runtime 会将 `@/views/...`、`/src/views/...`、`views/...` 统一规范化为 `src/views/...`。
 - 本地内建兜底页面，如 `src/runtime-shell/fallback/NotFoundPage.vue`，仍由 Runtime 本地代码提供。
 - 单页面预览的入口模块允许不进入 `manifest.modules` 白名单，但仅限 `entry_descriptor.module_path` 指向的那一个入口模块。
-- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开路径；`@runtime-kit/internal/...` 和旧 `@runtime-kit/components/...` 不属于公开契约。
+- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开的版本化路径；`@runtime-kit/internal/...`、旧 `@runtime-kit/components/...` 和未带 `.vN` 的 `@runtime-kit/public/...` 不属于公开契约。
 
 ## 8. 生命周期建议
 

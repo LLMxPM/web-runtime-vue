@@ -17,7 +17,7 @@
  *   name     — 资源的逻辑名 `asset.name`（必传）
  *   fallback — 未命中 manifest 时的兜底 URL（可选）
  */
-import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAssetSrc.v1'
 import MermaidViewer from '@runtime-kit/internal/renderers/MermaidViewer.vue'
 
 interface Props {

@@ -32,7 +32,7 @@ Backend 创建 artifact 时应在资源元数据中提供 `asset_metadata[name].
 
 ```vue
 <script setup lang="ts">
-import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'
+import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 </script>
 
 <template>
@@ -57,7 +57,7 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'
 
 ```vue
 <script setup lang="ts">
-import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.vue'
+import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
 </script>
 
 <template>
@@ -83,7 +83,7 @@ import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.vue'
 
 ```vue
 <script setup lang="ts">
-import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.vue'
+import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vue'
 </script>
 
 <template>
@@ -107,7 +107,7 @@ import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.vue'
 
 ```vue
 <script setup lang="ts">
-import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.vue'
+import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'
 </script>
 
 <template>
@@ -131,7 +131,7 @@ import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.vue
 
 ```vue
 <script setup lang="ts">
-import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
+import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
@@ -155,7 +155,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
 
 ```vue
 <script setup lang="ts">
-import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.vue'
+import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.vue'
 </script>
 
 <template>
@@ -179,7 +179,7 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.vue
 
 ```vue
 <script setup lang="ts">
-import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAssetSrc.v1'
 
 const src = useAssetSrc('product-hero')
 </script>
@@ -193,7 +193,7 @@ const src = useAssetSrc('product-hero')
 
 ```vue
 <script setup lang="ts">
-import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAssetBackground.v1'
 
 const backgroundStyle = useAssetBackground('cover')
 </script>
@@ -208,7 +208,7 @@ const backgroundStyle = useAssetBackground('cover')
 ### resolveResourcePath
 
 ```ts
-import { resolveResourcePath } from '@runtime-kit/public/utils/assets'
+import { resolveResourcePath } from '@runtime-kit/public/utils/assets.v1'
 
 const logoSrc = resolveResourcePath('img/logo/ppt-e.png')
 ```
@@ -219,7 +219,7 @@ const logoSrc = resolveResourcePath('img/logo/ppt-e.png')
 
 ```vue
 <script setup lang="ts">
-import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAssetFontFamily.v1'
 
 const titleFont = useAssetFontFamily('BrandSerif', 'sans-serif')
 </script>
@@ -234,7 +234,7 @@ const titleFont = useAssetFontFamily('BrandSerif', 'sans-serif')
 ### resolveAssetFontFamily
 
 ```ts
-import { resolveAssetFontFamily } from '@runtime-kit/public/utils/fonts'
+import { resolveAssetFontFamily } from '@runtime-kit/public/utils/fonts.v1'
 
 const titleFont = resolveAssetFontFamily('BrandSerif', 'sans-serif')
 ```
@@ -272,6 +272,7 @@ import MermaidViewer from '@runtime-kit/internal/renderers/MermaidViewer.vue'
 - 页面内容资源是否根据 `asset_metadata.render_type` 选择了显式组件。
 - 是否没有使用 `AssetRenderer`。
 - 是否没有引用 `@runtime-kit/internal/...`。
+- 是否没有引用未带 `.vN` 的 `@runtime-kit/public/...` 路径。
 - 背景图是否通过 `useAssetBackground` 或 `resolveResourcePath` 解析。
 - 图片是否通过 `AssetImage` 或 `useAssetSrc` 绑定。
 - 非主题字体是否通过 `useAssetFontFamily` 或 `resolveAssetFontFamily` 使用静态字体资源名声明。

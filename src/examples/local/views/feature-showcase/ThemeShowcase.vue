@@ -458,8 +458,8 @@
 </template>
 
 <script setup lang="ts">
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 
 defineOptions({
   name: 'ThemeShowcase'

@@ -6,7 +6,7 @@
 
 - Runtime Kit 只公开运行时能力：资源 URL 解析、特殊格式资源渲染、页面尺寸与路由上下文、图标资源处理、少量 DOM 运行期能力。
 - Backend/Agent 负责生成页面结构、内容块、卡片、网格、页头页脚、目录样式、分页样式和其他视觉布局。
-- 页面源码、工作空间组件源码和 preview schema 只能引用 manifest 中公开的 `@runtime-kit/public/...` 路径。
+- 页面源码、工作空间组件源码和 preview schema 只能引用 manifest 中公开的版本化 `@runtime-kit/public/...` 路径，公开能力文件名必须带 `.vN`。
 - `@runtime-kit/internal/...`、`@/core`、`@/runtime-shell`、`@/styles` 都是 Runtime 内部实现，不属于公开契约。
 - 不再提供 `AssetRenderer` 这种聚合入口。Backend/Agent 应根据资源元数据显式选择资源组件。
 
@@ -55,8 +55,8 @@
 
 ```vue
 <script setup lang="ts">
-  import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
-  import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage'
+  import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
+  import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage.v1'
 
   const { currentPage, totalPages } = useCurrentPage()
 </script>
@@ -82,11 +82,14 @@
 | 能力           | 适用场景                                                        | 不适用场景                                      |
 | -------------- | --------------------------------------------------------------- | ----------------------------------------------- |
 | `Icon`         | 根据 Runtime 图标配置渲染静态图标、inline SVG、主题色和描边宽度 | 负责图标周围的按钮、卡片和布局样式              |
-| `useTheme`     | 读取主题配置、主题样式变量、主题 logo 与反色 logo               | 主题编辑、项目主题切换                          |
+| `ThemeLogo`    | 渲染当前主题的常规 Logo 或反色 Logo                             | 自定义图片资源、图标资源、Logo 周围布局         |
+| `useTheme`     | 读取主题配置、主题样式变量、主题 logo 与反色 logo               | 主题编辑、项目主题切换、普通 Logo 图片渲染      |
 | `resolveColor` | 自定义 SVG、连线、图表等需要解析 Runtime 主题色                 | 通用样式系统或配色方案生成                      |
 | `Connector`    | 根据真实 DOM 位置绘制流程图、架构图、关系图连线                 | 普通布局、静态线条装饰、可由 SVG 直接表达的图形 |
 
 普通页面使用 `Icon` 组件即可，图标配置读取、SVG 加载和 fallback 处理属于 Runtime 内部实现。
+
+普通页面或工作空间组件需要展示项目主题 Logo 时，优先使用 `ThemeLogo`。`ThemeLogo` 只通过 `size` 控制高度，数字刻度跟随页面基础字号，宽度自动等比计算，不提供拉伸、裁剪或兜底图片。只有需要自行组合 URL、样式变量或复杂 DOM 结构时，才直接使用 `useTheme` 读取 `themeLogo`、`themeInvertLogo` 或 `themeStyles`。没有配置主题 Logo 时，`ThemeLogo` 会直接空渲染。
 
 `Connector` 依赖元素挂载、尺寸、滚动和定位上下文，因此只能在页面预览或项目预览中验证，不单独创建组件预览 artifact。
 
@@ -105,4 +108,5 @@
 - 不要要求 Runtime Kit 提供通用内容块、卡片、布局辅助、默认封面页或默认内容页。
 - 不要在页面源码中引用 `@runtime-kit/internal/...`。
 - 不要在新文档或新代码中使用旧路径 `@runtime-kit/components/...`。
+- 不要使用未带 `.vN` 的 `@runtime-kit/public/...` 路径。
 - 不要使用 `AssetRenderer`，应按资源类型显式选择组件。

@@ -8,7 +8,7 @@ import type { BaseRouteConfig, BaseRouteMeta } from './routes'
  */
 export interface RouteConfig extends BaseRouteConfig {
   name: string
-  component: () => Promise<any>
+  component: () => Promise<unknown>
   meta: RouteMeta
   children?: RouteConfig[]
 }
@@ -19,8 +19,8 @@ export interface RouteConfig extends BaseRouteConfig {
 export interface RouteMeta extends BaseRouteMeta {
   breadcrumb?: boolean
   disabled?: boolean
-  [key: string]: any // 兼容Vue Router的RouteMeta
-  [key: symbol]: any // 兼容Vue Router的RouteMeta
+  [key: string]: unknown // 兼容Vue Router的RouteMeta
+  [key: symbol]: unknown // 兼容Vue Router的RouteMeta
 }
 
 /**
@@ -30,12 +30,11 @@ export interface NavigationItem {
   id: string
   title: string
   path: string
-  icon?: string
   order: number
   hidden: boolean
   disabled: boolean
   children?: NavigationItem[]
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 }
 
 
@@ -57,11 +56,6 @@ export interface RouteNavigationConfig {
   defaultPath?: string
   collapsible?: boolean
 }
-
-/**
- * 图标映射类型
- */
-export type IconMap = Record<string, any>
 
 /**
  * 路由激活状态检查函数类�? */

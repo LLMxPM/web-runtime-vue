@@ -10,6 +10,7 @@ import postcss, { type AcceptedPlugin } from 'postcss'
 import { describe, expect, it } from 'vitest'
 
 import {
+  createBuildReleaseViewModulesSource,
   buildRuntimeBuildCssConfig,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
@@ -74,6 +75,24 @@ describe('runtime build runner helpers', () => {
       '__build_assets/hash-photo.webp',
     )
     expect(buildStaticAssetPath('hash-font')).toBe('__build_assets/hash-font')
+  })
+
+  it('应按 manifest 生成 build release 页面模块映射', () => {
+    const source = createBuildReleaseViewModulesSource([
+      'src/views/Home.vue',
+      '@/views/Nested/About.vue',
+      '/src/views/Home.vue',
+      'src/workspace-components/Card/v/1.vue',
+      'src/examples/local/views/Demo.vue',
+      'src/views/../runtime-shell/fallback/NotFoundPage.vue',
+    ])
+
+    expect(source).toContain('"@/views/Home.vue": () => import("@/views/Home.vue")')
+    expect(source).toContain('"/src/views/Home.vue": () => import("@/views/Home.vue")')
+    expect(source).toContain('"@/views/Nested/About.vue": () => import("@/views/Nested/About.vue")')
+    expect(source).not.toContain('workspace-components')
+    expect(source).not.toContain('examples/local')
+    expect(source).not.toContain('runtime-shell')
   })
 
   it('缺少资源 hash 时应抛错', () => {

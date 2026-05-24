@@ -35,7 +35,7 @@
  *   style    — 传给容器的额外 style（会与背景样式合并）
  */
 import { computed } from 'vue'
-import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAssetBackground.v1'
 
 interface Props {
   /** 资源的逻辑名 `asset.name` */
@@ -59,6 +59,8 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'cover',
   position: 'center',
   repeat: false,
+  class: '',
+  style: () => ({}),
 })
 
 /** 从 manifest 自动解析的背景图样式 */

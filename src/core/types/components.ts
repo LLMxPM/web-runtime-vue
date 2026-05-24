@@ -20,15 +20,15 @@ export interface CardProps extends BaseComponentProps {
 }
 
 // Table组件相关类型
-export interface TableColumn<T = any> {
+export interface TableColumn<T = Record<string, unknown>> {
   key: keyof T
   title: string
   width?: string
   sortable?: boolean
-  render?: (value: any, record: T) => any
+  render?: (value: T[keyof T], record: T) => unknown
 }
 
-export interface TableProps<T = any> extends BaseComponentProps {
+export interface TableProps<T = Record<string, unknown>> extends BaseComponentProps {
   data: T[]
   columns: TableColumn<T>[]
 }
@@ -38,7 +38,7 @@ export interface ComparisonItem {
   feature: string
   options: {
     name: string
-    value: string | any
+    value: unknown
     highlight?: boolean
   }[]
 }
@@ -66,7 +66,7 @@ export interface ComparisonOption {
 
 export interface ComparisonData {
   feature: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // Layout组件类型
@@ -81,7 +81,7 @@ export interface StepItem {
   key?: string | number
   title: string
   description?: string
-  icon?: any
+  icon?: unknown
   status?: 'pending' | 'active' | 'completed' | 'error'
   disabled?: boolean
 }
@@ -92,7 +92,7 @@ export interface TimelineItem {
   description?: string
   content?: string
   timestamp?: string | Date
-  icon?: any
+  icon?: unknown
   dot?: string
   type?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
   tags?: string[]

@@ -15,6 +15,7 @@ import {
   resolvePreviewAssetBase,
   serializeForInlineScript,
 } from './runtime-saas-preview'
+import { isAllowedSnapdomProxyResourceUrl } from './runtime-snapdom-resource-proxy'
 
 describe('runtime saas preview helpers', () => {
   it('应优先使用 Backend 透传的浏览器可访问 Runtime 地址', () => {
@@ -60,6 +61,7 @@ describe('runtime saas preview helpers', () => {
     })
 
     expect(html).toContain(`rel="stylesheet" href="${href}"`)
+    expect(html).toContain('window.__RUNTIME_PUBLIC_BASE_URL__ = "https://runtime.example.com";')
     expect(html.indexOf(href)).toBeGreaterThan(html.indexOf('/@vite/client'))
     expect(html.indexOf(href)).toBeLessThan(html.indexOf('/src/main.ts'))
   })
@@ -115,7 +117,7 @@ describe('runtime saas preview helpers', () => {
       traceId: 'req-runtime-kit',
       componentPreviewMode: 'saved',
       componentSource: 'runtime_kit',
-      runtimeKitComponentName: 'Icon',
+      runtimeKitComponentName: 'Icon.v1',
       runtimeKitManifestVersion: '1.0.0',
     }
     const manifest: RuntimePreviewArtifactManifest = {
@@ -125,7 +127,7 @@ describe('runtime saas preview helpers', () => {
       owner_scope: {
         scope_type: 'runtime_kit_component',
         workspace_id: '1',
-        runtime_kit_component_name: 'Icon',
+        runtime_kit_component_name: 'Icon.v1',
         runtime_kit_manifest_version: '1.0.0',
       },
       entry_descriptor: { entry_type: 'component_host' },
@@ -148,7 +150,7 @@ describe('runtime saas preview helpers', () => {
       traceId: 'req-runtime-kit',
       componentPreviewMode: 'saved',
       componentSource: 'runtime_kit',
-      runtimeKitComponentName: 'Icon',
+      runtimeKitComponentName: 'Icon.v1',
       runtimeKitManifestVersion: '1.0.0',
     }
     const manifest: RuntimePreviewArtifactManifest = {
@@ -158,7 +160,7 @@ describe('runtime saas preview helpers', () => {
       owner_scope: {
         scope_type: 'workspace_component',
         workspace_id: '1',
-        runtime_kit_component_name: 'Icon',
+        runtime_kit_component_name: 'Icon.v1',
         runtime_kit_manifest_version: '1.0.0',
       },
       entry_descriptor: { entry_type: 'component_host' },
@@ -212,5 +214,63 @@ describe('runtime saas preview helpers', () => {
         asset_id: '43',
       },
     }, context)).toThrow('资源预览 asset_id 不一致')
+  })
+
+  it('截图资源代理只允许当前 artifact manifest 声明的资源 URL', () => {
+    const context: RuntimePreviewContext = {
+      artifactId: 'artifact-assets',
+      tenantId: 'tenant_1',
+      previewKind: 'page',
+      scopeType: 'project',
+      workspaceId: '1',
+      projectId: '2',
+      entryDescriptor: { entry_type: 'route', route: '/cover' },
+      assetBaseUrl: 'https://backend.example.com/assets/1',
+      traceId: 'req-assets',
+    }
+    const manifest: RuntimePreviewArtifactManifest = {
+      artifact_id: 'artifact-assets',
+      tenant_id: 'tenant_1',
+      preview_kind: 'page',
+      owner_scope: {
+        scope_type: 'project',
+        workspace_id: '1',
+        project_id: '2',
+      },
+      entry_descriptor: context.entryDescriptor,
+      asset_base_url: 'https://backend.example.com/assets/1',
+      modules: {},
+      assets: {
+        hero: 'hash hero.png',
+        remoteLogo: 'https://cdn.example.com/logo.png',
+      },
+      asset_metadata: {
+        hero: {
+          file_hash: 'hash hero.png',
+          render_type: 'image',
+        },
+      },
+    }
+
+    expect(isAllowedSnapdomProxyResourceUrl(
+      'https://backend.example.com/assets/1/hash%20hero.png',
+      manifest,
+      context,
+    )).toBe(true)
+    expect(isAllowedSnapdomProxyResourceUrl(
+      'https://cdn.example.com/logo.png',
+      manifest,
+      context,
+    )).toBe(true)
+    expect(isAllowedSnapdomProxyResourceUrl(
+      'https://backend.example.com/assets/1/not-in-manifest.png',
+      manifest,
+      context,
+    )).toBe(false)
+    expect(isAllowedSnapdomProxyResourceUrl(
+      'https://evil.example.com/logo.png',
+      manifest,
+      context,
+    )).toBe(false)
   })
 })

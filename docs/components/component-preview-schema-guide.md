@@ -136,7 +136,7 @@ slots: {
     default: [
       {
         type: 'component',
-        component: '@runtime-kit/public/components/primitives/Icon.vue',
+        component: '@runtime-kit/public/components/primitives/Icon.v1.vue',
         props: {
           name: 'star',
           size: 18,
@@ -149,7 +149,7 @@ slots: {
 
 `component` 节点当前只允许引用：
 
-- Runtime Kit 公开清单中的基础能力：`@runtime-kit/...`
+- Runtime Kit 公开清单中的版本化基础能力：`@runtime-kit/...`
 - 工作空间组件：`@workspace-components/<component_code>/v/<version_no>`
 
 不允许引用：

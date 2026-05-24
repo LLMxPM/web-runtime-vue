@@ -59,6 +59,7 @@ export function formatLocalFilenameTimestamp(date: Date = new Date()): string {
  */
 export function sanitizeFilenameBase(filenameBase: string): string {
   return filenameBase
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, ' ')
     .replace(/-+/g, '-')

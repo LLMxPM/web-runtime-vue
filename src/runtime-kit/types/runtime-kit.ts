@@ -16,6 +16,8 @@ export interface RuntimeKitCapabilityDoc {
 
 export interface RuntimeKitExportItem {
   kind: RuntimeKitExportKind
+  base_name: string
+  version_no: number
   name: string
   import_path: string
   category: string

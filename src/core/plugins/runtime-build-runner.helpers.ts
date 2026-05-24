@@ -88,6 +88,75 @@ export function hasForbiddenRootAbsoluteAssetPath(content: string): boolean {
 }
 
 /**
+ * 生成 build release 专用页面模块映射源码。
+ * @param modulePaths manifest.modules 中的逻辑模块路径
+ * @returns 可写入 `build-release-view-modules.ts` 的源码
+ */
+export function createBuildReleaseViewModulesSource(modulePaths: Iterable<string>): string {
+  const moduleEntries = new Map<string, string>()
+  const normalizedPaths = Array.from(modulePaths)
+    .map(path => normalizeBuildReleaseViewModulePath(path))
+    .filter((path): path is string => Boolean(path))
+    .sort()
+
+  for (const normalizedPath of normalizedPaths) {
+    const aliasPath = toBuildReleaseAliasPath(normalizedPath)
+    moduleEntries.set(aliasPath, aliasPath)
+    moduleEntries.set(`/${normalizedPath}`, aliasPath)
+  }
+
+  const entries = Array.from(moduleEntries.entries())
+    .map(([key, importPath]) => `  ${JSON.stringify(key)}: () => import(${JSON.stringify(importPath)}),`)
+
+  return [
+    '/**',
+    ' * 文件用途：Backend build release 临时页面模块映射，由 Runtime 构建插件按 manifest 生成。',
+    ' */',
+    '',
+    'export const BUILD_RELEASE_VIEW_MODULES = {',
+    ...entries,
+    '} satisfies Record<string, () => Promise<unknown>>',
+    '',
+  ].join('\n')
+}
+
+/**
+ * 规范化 build release 中允许进入路由映射的页面模块路径。
+ * @param rawPath 原始逻辑路径
+ * @returns 标准 `src/views/*.vue` 路径；非法路径返回空
+ */
+function normalizeBuildReleaseViewModulePath(rawPath: string): string {
+  let normalizedPath = String(rawPath || '').trim().replace(/\\/g, '/')
+  if (!normalizedPath) {
+    return ''
+  }
+  if (normalizedPath.startsWith('@/')) {
+    normalizedPath = normalizedPath.replace('@/', 'src/')
+  } else if (normalizedPath.startsWith('/src/')) {
+    normalizedPath = normalizedPath.slice(1)
+  }
+  normalizedPath = normalizedPath.replace(/^\/+/, '')
+
+  const segments = normalizedPath.split('/')
+  if (segments.some(segment => segment === '.' || segment === '..' || segment === '')) {
+    return ''
+  }
+  if (!normalizedPath.startsWith('src/views/') || !normalizedPath.endsWith('.vue')) {
+    return ''
+  }
+  return normalizedPath
+}
+
+/**
+ * 将 build release 视图逻辑路径转换为源码别名路径。
+ * @param normalizedPath 标准 `src/views/*.vue` 路径
+ * @returns `@/views/*.vue` 路径
+ */
+function toBuildReleaseAliasPath(normalizedPath: string): string {
+  return normalizedPath.replace(/^src\//, '@/')
+}
+
+/**
  * 移除源码中的常见注释，避免示例代码触发根绝对路径误报。
  * @param content 原始源码文本
  * @returns 去除注释后的源码文本

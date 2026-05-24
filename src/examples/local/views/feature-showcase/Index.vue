@@ -2,8 +2,8 @@
   文件用途：本地功能展示入口页，汇总 Runtime Kit 公开能力与本地调试页面。
 -->
 <script setup lang="ts">
-import DefaultCoverPage from '@runtime-kit/public/components/page/templates/DefaultCoverPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultCoverPage from '@/runtime-kit/public/components/page/templates/DefaultCoverPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 
 /**
  * 功能入口卡片配置。

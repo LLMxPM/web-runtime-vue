@@ -6,7 +6,7 @@
 
 - **只读、无状态优先**：Runtime 不再提供浏览器直连本地文件系统、本地页面编辑器、资源管理器或配置面板。
 - **统一预览入口**：整项目预览、单页面预览和组件预览共享同一套 `PreviewContextToken + PreviewArtifact` 启动链路。
-- **远程虚拟模块**：项目页面源码通过发布产物按需拉取；页面可引用基础能力通过 `@runtime-kit` manifest 显式公开，Runtime shell 私有能力保留在 Runtime 本地。
+- **远程虚拟模块**：项目页面源码通过发布产物按需拉取；页面可引用基础能力通过 `@runtime-kit` manifest 显式公开，公开能力 import path 必须带 `.vN` 文件名版本，Runtime shell 私有能力保留在 Runtime 本地。
 - **多租户隔离**：预览上下文以 `tenant_id + artifact_id + scope_type` 为主键，跨租户/跨作用域/跨 artifact 请求会被拒绝。
 
 ## 当前能力
@@ -15,7 +15,7 @@
 - `app.config.yaml` 驱动的页面画布尺寸（`app.page.width` / `app.page.height`）
 - 目录导航、翻页、全屏放映
 - 主题与图标配置加载
-- Runtime Kit 基础组件清单（`src/runtime-kit/manifest/runtime-kit.manifest.json`）
+- Runtime Kit 基础组件清单（`src/runtime-kit/manifest/runtime-kit.manifest.json`）：清单项使用 `base_name + version_no + name` 描述能力版本，`name` 形如 `Icon.v1`，不兼容演进新增 v2/v3 文件。
 - PDF 导出
 - 通过 `x-runtime-preview-context` + JWKS 验签启动整项目预览
 - 通过 preview artifact 清单白名单解析远程页面模块与静态资源
@@ -38,6 +38,8 @@ pnpm dev
 - 默认路由指向 `src/examples/local/views` 下的本地示例页面
 - 适合调试 Runtime 壳层、布局、示例页面和基础交互
 - 不提供浏览器内编辑、资源上传或本地文件写入
+- 如需禁止直接打开 Runtime 独立 fixture 页面，可设置 `RUNTIME_STANDALONE_PREVIEW_ENABLED=false`；该开关只拦截 `/` 等独立页面入口，仍保留 Backend 调用的 `/__preview`、构建与诊断链路。
+- 本地默认监听 `127.0.0.1:7373`；容器部署通过 `RUNTIME_SERVER_HOST=0.0.0.0` 和 `RUNTIME_SERVER_PORT=7373` 暴露给平台内网。
 
 ### 3. 示例目录分层
 
@@ -52,6 +54,29 @@ pnpm check
 pnpm test
 pnpm build
 ```
+
+### 5. 容器镜像
+
+Runtime 作为独立子项目发布自己的 Docker Hub 镜像。镜像保留 Vite dev server，因为 `/__preview`、`/__runtime_internal/v1/builds/project` 和诊断接口由 Vite 插件承载：
+
+```bash
+docker build -t web-runtime-vue:local .
+docker run --rm -p 7373:7373 --env-file .env.example web-runtime-vue:local
+```
+
+容器健康检查端点为 `GET /__runtime_healthz`。
+
+### 6. Backend build release
+
+Backend 触发整项目构建时，Runtime 会使用专用的 `build-release-main` 入口和 manifest 生成的页面模块映射。构建产物保留演示外壳能力，包括导航、翻页、全屏、侧栏/缩略图与 PDF 导出；组件预览宿主、资源预览宿主、Standalone 单页预览、本地 examples/fixture 页面和默认 Runtime Shell 静态示例资源不会进入 build release 依赖图。
+
+## CI/CD
+
+- `.github/workflows/ci.yml` 在 push、pull request 与手动触发时执行 `pnpm check`、`pnpm test`、`pnpm build`，并构建 Runtime 镜像 smoke，不推送。
+- `.github/workflows/docker-release.yml` 在 GitHub Release `published` 后执行质量门禁并推送 Docker Hub。
+- Docker Hub 需要配置 `vars.DOCKERHUB_NAMESPACE`、`vars.DOCKER_USERNAME`、`secrets.DOCKER_PASSWORD`。
+- 稳定 Release 推送 `<release_tag>`、`sha-<12位提交>` 和 `latest`；Pre-release 只推送 `<release_tag>` 与 `sha-<12位提交>`。
+- 平台根仓会校验 `web-runtime-vue:sha-<12位提交>` 是否存在，因此每个被平台子模块锁定的 Runtime 提交都应先完成本仓 Release。
 
 ## SaaS/平台接入方式
 
@@ -79,7 +104,12 @@ pnpm build
 
 - `RUNTIME_PREVIEW_JWKS_URL`
 - `RUNTIME_PREVIEW_TOKEN_AUDIENCE`
+- `RUNTIME_BUILD_TOKEN_AUDIENCE`
+- `RUNTIME_DIAGNOSTICS_TOKEN_AUDIENCE`
 - `RUNTIME_BACKEND_API_BASE_URL`
+- `RUNTIME_SERVER_HOST`
+- `RUNTIME_SERVER_PORT`
+- `RUNTIME_STANDALONE_PREVIEW_ENABLED`：默认 `true`；设为 `false` 时关闭 Runtime 独立 fixture 页面入口，但不关闭平台预览、构建和诊断服务。
 
 ## 文档
 
@@ -103,7 +133,7 @@ pnpm build
 
 - `public/config/routes.config.yaml` 中的 `component` 字段仍保持字符串形式，但在 SaaS 场景下它表示 **preview artifact 中的逻辑模块路径**，不再意味着 Runtime 本地文件路径。
 - Runtime 不再依赖 `preview-session` 恢复上下文；后续远程模块请求必须显式携带 `ctx=<PreviewContextToken>`。
-- 如果未来需要恢复作者态编辑、草稿预览或 HMR，请通过 Backend 工作区/发布 API 重新设计，不要恢复浏览器直写本地文件的旧方案。
+- `RUNTIME_STANDALONE_PREVIEW_ENABLED=false` 不是强安全网关；Vite dev server 仍需暴露 `/src`、`/@vite` 等资源给 Backend 预览页面使用。共享或生产环境仍应通过内网、反向代理或 Service Mesh 限制 Runtime 端口访问。
 
 ## 许可证
 

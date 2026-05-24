@@ -22,7 +22,8 @@
         </div>
 
         <!-- 自定义内容区域（可选） -->
-        <div v-if="slots.content"
+        <div
+v-if="slots.content"
           class="w-full mt-8 max-h-96 overflow-y-auto flex flex-col justify-center items-center content-section">
           <slot name="content"></slot>
         </div>
@@ -33,7 +34,7 @@
 
 <script setup lang="ts">
 import { useSlots } from 'vue'
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
 
 /**
  * 章节封面容器组件
@@ -48,8 +49,8 @@ defineOptions({
  * 组件属性定义
  */
 interface Props {
-  /** 标题文本（必须） */
-  title: string
+  /** 标题文本 */
+  title?: string
   /** 副标题文本（可选） */
   subtitle?: string
 }

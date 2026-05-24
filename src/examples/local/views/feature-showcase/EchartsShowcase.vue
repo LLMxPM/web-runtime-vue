@@ -76,8 +76,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { EChartsOption } from 'echarts'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 import EchartsViewer from '@runtime-kit/internal/renderers/EchartsViewer.vue'
 
 type ChartType = 'bar' | 'line' | 'pie' | 'scatter'

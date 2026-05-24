@@ -13,7 +13,7 @@ export interface MenuItem {
   hidden: boolean
   disabled: boolean
   children?: MenuItem[]
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 }
 
 
@@ -82,7 +82,6 @@ export interface MenuEvents {
  * 菜单渲染选项
  */
 export interface MenuRenderOptions {
-  showIcon?: boolean
   showBadge?: boolean
   maxDepth?: number
   itemHeight?: number

@@ -8,13 +8,13 @@
 
 <template>
   <div
-    class="w-full h-full flex items-center justify-center overflow-hidden"
     :ref="setContainerRef"
+    class="w-full h-full flex items-center justify-center overflow-hidden"
     :data-runtime-view-preview-state="previewState"
     :data-runtime-view-preview-message="previewStateMessage"
   >
     <ScaledCanvasViewport
-      :isFullscreen="false"
+      :is-fullscreen="false"
       :scale="scale"
       :design-width="effectiveDesignWidth"
       :design-height="effectiveDesignHeight"
@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onUnmounted, ref, shallowRef, watch, type Component } from 'vue'
 
 import ScaledCanvasViewport from '@runtime-kit/internal/components/viewport/ScaledCanvasViewport.vue'
 import { appPageConfig } from '@/core/utils/config'
@@ -43,11 +43,13 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  designWidth: undefined,
+  designHeight: undefined,
   scaleLimit: 3,
   refreshToken: 0
 })
 
-const previewComponent = shallowRef<any>(buildEmptyComponent('未找到可预览页面'))
+const previewComponent = shallowRef<Component>(buildEmptyComponent('未找到可预览页面'))
 const containerRef = ref<HTMLElement | null>(null)
 const scale = ref(1)
 const refreshKey = ref(0)

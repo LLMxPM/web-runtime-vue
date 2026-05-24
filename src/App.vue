@@ -15,7 +15,7 @@
  * 本版本移除全局主题依赖，直接根据配置文件默认主题应用样式。
  */
 import { watch, onMounted } from 'vue'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
 import ToastContainer from '@/runtime-shell/feedback/ToastContainer.vue'
 
 /**
@@ -64,6 +64,3 @@ onMounted(() => {
   overflow: hidden;
 }
 </style>
-
-
-

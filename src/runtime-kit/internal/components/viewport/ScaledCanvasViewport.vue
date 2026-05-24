@@ -3,7 +3,8 @@
 -->
 
 <template>
-  <div class="scaled-canvas-viewport" :class="{ 'scaled-canvas-viewport--fullscreen': isFullscreen }"
+  <div
+class="scaled-canvas-viewport" :class="{ 'scaled-canvas-viewport--fullscreen': isFullscreen }"
     :style="containerStyle">
     <slot />
   </div>

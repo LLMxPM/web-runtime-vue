@@ -239,12 +239,14 @@ vi.mock('@/core/composables/usePageNavigation', async () => {
   }
 })
 
-vi.mock('@runtime-kit/public/composables/theme/useTheme', async () => {
+vi.mock('@runtime-kit/public/composables/theme/useTheme.v1', async () => {
   const { computed } = await import('vue')
 
   return {
     useTheme: () => ({
-      themeStyles: computed(() => ({})),
+      themeStyles: computed(() => ({
+        '--theme-font-size-base': mockPageConfig.value.baseFontSize,
+      })),
     }),
   }
 })
@@ -259,7 +261,7 @@ vi.mock('@/core/services/PDFExportService', () => ({
   },
 }))
 
-vi.mock('lucide-vue-next', async () => {
+vi.mock('@lucide/vue', async () => {
   const { defineComponent, h } = await import('vue')
 
   const createIconStub = (name: string) => defineComponent({
@@ -547,6 +549,57 @@ describe('ResponsiveLayout', () => {
       'calc(var(--theme-font-size-base, 20px) * 0.666667)',
     )
     expect(pageSource?.style.getPropertyValue('--tw-spacing-unit')).toBe('calc(var(--tw-font-size-base) * 0.25)')
+
+    app.unmount()
+  })
+
+  it('页面基础字号变化时不应把页面字号缩放变量注入 Runtime shell 容器', async () => {
+    mockPageConfig.value = {
+      width: 1280,
+      height: 720,
+      baseFontSize: '30px',
+      iconDefaultStrokeWidth: 2,
+    }
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/',
+          component: {
+            template: '<div>route content</div>',
+          },
+        },
+      ],
+    })
+
+    await router.push('/')
+    await router.isReady()
+
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(ResponsiveLayout)
+    app.use(router)
+    app.config.errorHandler = (error) => {
+      throw error
+    }
+
+    app.mount(host)
+    await nextTick()
+
+    const shellRoot = host.querySelector('.responsive-layout') as HTMLElement | null
+    const pageSource = host.querySelector('.runtime-page-print-source') as HTMLElement | null
+    expect(shellRoot).not.toBeNull()
+    expect(pageSource).not.toBeNull()
+    expect(shellRoot?.style.getPropertyValue('--theme-font-size-base')).toBe('30px')
+    expect(shellRoot?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('')
+    expect(shellRoot?.style.getPropertyValue('--tw-font-size-base')).toBe('')
+    expect(shellRoot?.style.getPropertyValue('--tw-spacing-unit')).toBe('')
+    expect(pageSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('0.666667')
+    expect(pageSource?.style.getPropertyValue('--tw-font-size-base')).toBe(
+      'calc(var(--theme-font-size-base, 20px) * 0.666667)',
+    )
 
     app.unmount()
   })

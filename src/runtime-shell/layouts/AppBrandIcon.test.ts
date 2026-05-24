@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/component-definition-name-casing */
 
 /**
  * 文件用途：验证应用品牌图标组件按静态图标配置渲染原始图片资源。

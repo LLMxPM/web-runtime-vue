@@ -37,13 +37,13 @@ describe('runtime preview shared helpers', () => {
   })
 
   it('应识别 Runtime 对远程模块开放的本地公共模块路径', () => {
-    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/components/primitives/Icon.vue')).toBe(true)
-    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/utils/assets.ts')).toBe(true)
-    expect(normalizeRuntimeModulePath('@runtime-kit/public/components/assets/AssetImage.vue')).toBe(
-      'src/runtime-kit/public/components/assets/AssetImage.vue',
+    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/components/primitives/Icon.v1.vue')).toBe(true)
+    expect(isRuntimeLocalPublicModulePath('src/runtime-kit/public/utils/assets.v1.ts')).toBe(true)
+    expect(normalizeRuntimeModulePath('@runtime-kit/public/components/assets/AssetImage.v1.vue')).toBe(
+      'src/runtime-kit/public/components/assets/AssetImage.v1.vue',
     )
-    expect(toAliasModulePath('src/runtime-kit/public/components/primitives/Icon.vue')).toBe(
-      '@runtime-kit/public/components/primitives/Icon.vue',
+    expect(toAliasModulePath('src/runtime-kit/public/components/primitives/Icon.v1.vue')).toBe(
+      '@runtime-kit/public/components/primitives/Icon.v1.vue',
     )
     expect(isRuntimeLocalPublicModulePath('src/components/common/AppIcon.vue')).toBe(false)
     expect(isRuntimeLocalPublicModulePath('src/core/utils/path.ts')).toBe(false)

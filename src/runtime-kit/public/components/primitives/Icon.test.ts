@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/component-definition-name-casing */
 
 /**
  * 文件用途：验证通用 Icon 组件默认尺寸收敛为 Tailwind class，并保留描边宽度配置。
@@ -10,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadAppConfig } from '@/core/utils/config'
 import { setRuntimePreloadedConfig } from '@/core/utils/path'
 
-import Icon from './Icon.vue'
+import Icon from './Icon.v1.vue'
 
 vi.mock('@/core/composables/useIcon', () => ({
   useIcon: () => ({

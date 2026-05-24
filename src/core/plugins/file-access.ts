@@ -14,7 +14,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'fs'
-import { basename, extname, isAbsolute, relative, resolve, sep } from 'path'
+import { basename, extname, isAbsolute, relative, resolve } from 'path'
 
 export type FileOperation = 'read' | 'write' | 'delete' | 'upload'
 

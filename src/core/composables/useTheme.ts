@@ -4,7 +4,6 @@
 
 import { computed, ref, type ComputedRef, type CSSProperties } from 'vue'
 
-import { defaultThemeInvertLogoUrl, defaultThemeLogoUrl } from '@/assets/runtime-shell'
 import { DEFAULT_PAGE_CONFIG, appConfig, loadYamlFromUrl } from '@/core/utils/config'
 import { resolveThemeFontFamily } from '@/core/utils/font-registry'
 import { buildConfigUrl, hasExternalConfigSource, resolveResourcePath, getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
@@ -371,12 +370,12 @@ export function useTheme(theme?: string | ComputedRef<string>) {
 
   const themeLogo = computed(() => {
     const logoPath = String(themeConfig.value?.logo || '').trim()
-    return logoPath ? resolveResourcePath(logoPath) : defaultThemeLogoUrl
+    return logoPath ? resolveResourcePath(logoPath) : ''
   })
 
   const themeInvertLogo = computed(() => {
     const invertLogo = String(themeConfig.value?.invertLogo || '').trim()
-    return invertLogo ? resolveResourcePath(invertLogo) : defaultThemeInvertLogoUrl
+    return invertLogo ? resolveResourcePath(invertLogo) : ''
   })
 
   return {

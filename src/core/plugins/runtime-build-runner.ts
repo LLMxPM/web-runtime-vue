@@ -18,6 +18,7 @@ import type { RuntimePreloadedConfigBundle, RuntimePreviewArtifactManifest } fro
 import { normalizeAssetKey, normalizeRuntimeModulePath } from '../shared/runtime-preview'
 import {
   buildRuntimeBuildCssConfig,
+  createBuildReleaseViewModulesSource,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
   normalizeBuildBaseUrl,
@@ -96,6 +97,15 @@ interface BuildArtifactSummary {
   message: string
 }
 
+interface BuildArtifactUploadParams {
+  jobId: string
+  buildToken: string
+  archiveBuffer: Buffer
+  entryFile: string
+  sha256: string
+  sizeBytes: number
+}
+
 interface BuildAssetFetchContext {
   logicalName: string
   fileHash: string
@@ -117,6 +127,8 @@ const DEFAULT_DIAGNOSTICS_ENDPOINT = '/__runtime_internal/v1/diagnostics/artifac
 const DEFAULT_BUILD_AUDIENCE = 'runtime-build'
 const DEFAULT_DIAGNOSTICS_AUDIENCE = 'runtime-diagnostics'
 const DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER = 'x-runtime-service-token'
+const DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS = 3
+const DEFAULT_ARTIFACT_UPLOAD_RETRY_BASE_MS = 750
 
 /**
  * 输出远程构建调试日志，便于定位 Runtime 实际执行路径。
@@ -533,36 +545,75 @@ function createBuildBackendClient(options: {
       }
     },
 
-    async uploadBuildArtifact(params: {
-      jobId: string
-      buildToken: string
-      archiveBuffer: Buffer
-      entryFile: string
-      sha256: string
-      sizeBytes: number
-    }): Promise<UploadedBuildArtifactSummary> {
-      const formData = new FormData()
-      formData.set('archive', new Blob([params.archiveBuffer], { type: 'application/zip' }), 'dist.zip')
-      formData.set('entry_file', params.entryFile)
-      formData.set('sha256', params.sha256)
-      formData.set('size_bytes', String(params.sizeBytes))
-
-      const response = await fetch(
-        `${apiBaseUrl}/internal/runtime/build-jobs/${encodeURIComponent(params.jobId)}/artifact`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${params.buildToken}`,
-          },
-          body: formData,
-        },
-      )
+    async uploadBuildArtifact(params: BuildArtifactUploadParams): Promise<UploadedBuildArtifactSummary> {
+      const uploadUrl = `${apiBaseUrl}/internal/runtime/build-jobs/${encodeURIComponent(params.jobId)}/artifact`
+      const response = await uploadBuildArtifactWithRetry(uploadUrl, params)
       if (!response.ok) {
         throw await toBuildError(response, 'BUILD_ARTIFACT_UPLOAD_FAILED')
       }
       return response.json() as Promise<UploadedBuildArtifactSummary>
     },
   }
+}
+
+/**
+ * 带网络重试地上传构建产物，规避 Backend 热重载或本地连接瞬断。
+ * @param uploadUrl Backend 构建产物上传地址
+ * @param params 上传参数
+ * @returns 上传响应
+ */
+async function uploadBuildArtifactWithRetry(
+  uploadUrl: string,
+  params: BuildArtifactUploadParams,
+): Promise<Response> {
+  let lastError: unknown = null
+  for (let attempt = 1; attempt <= DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${params.buildToken}`,
+        },
+        body: buildArtifactUploadFormData(params),
+      })
+      return response
+    } catch (error) {
+      lastError = error
+      if (attempt >= DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS) {
+        break
+      }
+      logRuntimeBuild('artifact.upload.retry', {
+        jobId: params.jobId,
+        uploadUrl,
+        attempt,
+        maxAttempts: DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS,
+        error: formatUnknownError(error),
+        cause: formatUnknownError((error as { cause?: unknown } | null)?.cause),
+      })
+      await sleep(DEFAULT_ARTIFACT_UPLOAD_RETRY_BASE_MS * attempt)
+    }
+  }
+
+  throw buildArtifactUploadNetworkError(
+    uploadUrl,
+    lastError,
+    DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS,
+  )
+}
+
+/**
+ * 为单次上传创建新的 multipart 表单；重试时不能复用已消费的 body。
+ * @param params 上传参数
+ * @returns multipart 表单
+ */
+function buildArtifactUploadFormData(params: BuildArtifactUploadParams): FormData {
+  const formData = new FormData()
+  const archiveBytes = new Uint8Array(params.archiveBuffer)
+  formData.set('archive', new Blob([archiveBytes], { type: 'application/zip' }), 'dist.zip')
+  formData.set('entry_file', params.entryFile)
+  formData.set('sha256', params.sha256)
+  formData.set('size_bytes', String(params.sizeBytes))
+  return formData
 }
 
 /**
@@ -626,6 +677,24 @@ function buildAssetFetchNetworkError(
 }
 
 /**
+ * 将构建产物上传网络异常转换为可定位的构建错误。
+ * @param uploadUrl 产物上传 URL
+ * @param error 底层 fetch 异常
+ * @param attempts 已尝试次数
+ * @returns Runtime 构建错误
+ */
+function buildArtifactUploadNetworkError(uploadUrl: string, error: unknown, attempts: number): RuntimeBuildError {
+  const message = error instanceof Error ? error.message : String(error || '未知网络错误')
+  const cause = (error as { cause?: unknown } | null)?.cause
+  const causeMessage = cause ? `；底层原因：${formatUnknownError(cause)}` : ''
+  return new RuntimeBuildError(
+    502,
+    'BUILD_ARTIFACT_UPLOAD_NETWORK_FAILED',
+    `构建产物上传失败：${message}${causeMessage}。已重试 ${attempts} 次，URL ${uploadUrl}`,
+  )
+}
+
+/**
  * 给资源下载错误追加逻辑资源名、hash 与原始 URL。
  * @param message 原始错误信息
  * @param assetUrl 资源下载 URL
@@ -659,6 +728,14 @@ function formatUnknownError(error: unknown): string {
     }
   }
   return String(error || '未知错误')
+}
+
+/**
+ * 等待指定时间后继续执行。
+ * @param ms 等待毫秒数
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
@@ -725,6 +802,9 @@ async function runProjectBuild(params: {
       configFile: false,
       root: tempRoot,
       base: params.baseUrl,
+      define: {
+        __RUNTIME_BACKEND_BUILD__: 'true',
+      },
       plugins: [vue()],
       assetsInclude: ['**/*.drawio'],
       resolve: {
@@ -747,8 +827,11 @@ async function runProjectBuild(params: {
         sourcemap: false,
         rollupOptions: {
           output: {
-            manualChunks: {
-              vendor: ['vue', 'vue-router'],
+            manualChunks(id) {
+              if (id.includes('/node_modules/vue/') || id.includes('/node_modules/vue-router/')) {
+                return 'vendor'
+              }
+              return undefined
             },
           },
         },
@@ -841,6 +924,9 @@ async function runArtifactDiagnostics(params: {
       configFile: false,
       root: tempRoot,
       base: './',
+      define: {
+        __RUNTIME_BACKEND_BUILD__: 'true',
+      },
       plugins: [vue()],
       assetsInclude: ['**/*.drawio'],
       resolve: {
@@ -863,8 +949,11 @@ async function runArtifactDiagnostics(params: {
         sourcemap: false,
         rollupOptions: {
           output: {
-            manualChunks: {
-              vendor: ['vue', 'vue-router'],
+            manualChunks(id) {
+              if (id.includes('/node_modules/vue/') || id.includes('/node_modules/vue-router/')) {
+                return 'vendor'
+              }
+              return undefined
             },
           },
         },
@@ -1235,10 +1324,20 @@ async function writeBuildEntryFiles(
 ): Promise<void> {
   const entryFilePath = resolve(tempRoot, 'src/__build_entry__.ts')
   const indexHtmlPath = resolve(tempRoot, 'index.html')
+  const buildReleaseViewModulesPath = resolve(tempRoot, 'src/core/utils/build-release-view-modules.ts')
 
   await writeFile(
     entryFilePath,
     createBuildEntrySource(preloadedConfig),
+    'utf-8',
+  )
+
+  await writeFile(
+    buildReleaseViewModulesPath,
+    createBuildReleaseViewModulesSource([
+      ...Object.keys(preloadedConfig.manifest?.modules || {}),
+      String(preloadedConfig.manifest?.entry_descriptor?.module_path || ''),
+    ]),
     'utf-8',
   )
 

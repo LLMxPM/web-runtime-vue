@@ -18,10 +18,10 @@
           </div>
           <div class="mt-6 rounded-md bg-default p-5">
             <p class="font-mono text-sm leading-7 text-primary">
-              import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+              import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
             </p>
             <p class="mt-3 font-mono text-sm leading-7 text-primary">
-              import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'
+              import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'
             </p>
           </div>
         </section>
@@ -54,9 +54,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
-import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
+import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'
 
 const { width, height, aspectRatio, pageStyle } = usePageSize()
 

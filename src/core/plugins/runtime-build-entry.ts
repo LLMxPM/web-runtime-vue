@@ -21,7 +21,7 @@ export function createBuildEntrySource(preloadedConfig: RuntimePreloadedConfigBu
     ' * 文件用途：构建态入口文件，负责注入 build_release 预加载配置并启动 Runtime 应用。',
     ' */',
     `window.__RUNTIME_PRELOADED_CONFIG__ = ${serializedConfig};`,
-    "void import('./main').catch((error) => {",
+    "void import('./build-release-main').catch((error) => {",
     "  console.error('构建态入口加载失败', error)",
     '  document.body.innerHTML = `',
     '    <div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:Segoe UI,PingFang SC,sans-serif;background:#f8fafc;">',

@@ -38,8 +38,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { defaultBackgroundUrl } from '@/assets/runtime-shell'
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 
 /**
  * 结束页

@@ -327,7 +327,7 @@ export class BrowserPrintService {
   private async waitForPageReady(expectedRoutePath?: string): Promise<void> {
     const startedAt = Date.now()
 
-    while (true) {
+    for (;;) {
       await nextTick()
       await this.waitForAnimationFrame()
 
