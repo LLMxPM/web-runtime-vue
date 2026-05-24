@@ -19,14 +19,14 @@
         <div class="right-section">
           <div class="toc-container">
             <TableOfContents
-              :numberFormat="'custom'"
-              :customFormat="'第{n}部分'"
+              :number-format="'custom'"
+              :custom-format="'第{n}部分'"
               :show-dots="true"
               :show-page-numbers="true"
               :clickable="true"
-              :twoColumn="false"
-              :columnBreakpoint="6"
-              :autoFontSize="true"
+              :two-column="false"
+              :column-breakpoint="6"
+              :auto-font-size="true"
               :width=900
               :height=700
             />
@@ -39,8 +39,8 @@
 
 <script setup lang="ts">
 import { defaultBackgroundUrl } from '@/assets/runtime-shell'
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
-import TableOfContents from '@runtime-kit/public/components/page/sections/TableOfContents.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
+import TableOfContents from '@/runtime-kit/public/components/page/sections/TableOfContents.vue'
 
 /**
  * 目录页面

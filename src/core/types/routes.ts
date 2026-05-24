@@ -7,7 +7,7 @@ import type { RouteRecordRaw } from 'vue-router'
 export interface BaseRouteConfig {
   path: string
   title: string
-  component?: () => Promise<any> // Vue 3 异步组件
+  component?: () => Promise<unknown> // Vue 3 异步组件
   children?: BaseRouteConfig[]
   pageNumber?: number
   hidden?: boolean

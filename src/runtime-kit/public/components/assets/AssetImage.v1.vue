@@ -13,8 +13,13 @@
   >
     <template #fallback>
       <slot v-if="$slots.fallback" name="fallback" />
-      <span v-else-if="showFallbackPlaceholder" :class="props.class" :style="props.style" class="asset-image--placeholder"
-        aria-hidden="true" />
+      <span
+        v-else-if="showFallbackPlaceholder"
+        :class="props.class"
+        :style="props.style"
+        class="asset-image--placeholder"
+        aria-hidden="true"
+      />
     </template>
   </ImageViewer>
 </template>
@@ -38,7 +43,7 @@
  *   manifest.assets 中的 key 为资源逻辑名 `asset.name`，
  *   例：上传 "background.png" 后，默认 name 为 "background"。
  */
-import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAssetSrc.v1'
 import ImageViewer from '@runtime-kit/internal/renderers/ImageViewer.vue'
 
 interface Props {
@@ -59,6 +64,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   alt: '',
   fallback: '',
+  class: '',
+  style: () => ({}),
   showFallbackPlaceholder: true,
 })
 

@@ -53,6 +53,7 @@ export interface CaptureOptions {
   timeout?: number                // 超时时间(毫秒)
   proxyUrl?: string               // 跨域资源代理前缀，例如 'https://corsproxy.io/?url='
   fullBleed?: boolean            // 是否移除容器的阴影、圆角、内边距等装饰以实现无边距捕获
+  routePath?: string              // 指定要捕获的运行时页面路由，导出多页时用于避免截错过渡页
 }
 
 // 导出任务接口
@@ -126,7 +127,7 @@ export interface PageInfo {
     pageNumber?: number           // 页码
     level?: number               // 层级
     hidden?: boolean             // 是否隐藏
-    [key: string]: any           // 其他元数据
+    [key: string]: unknown       // 其他元数据
   }
 }
 
@@ -137,7 +138,7 @@ export type ExportEventType = 'start' | 'progress' | 'complete' | 'error' | 'can
 export interface ExportEvent {
   type: ExportEventType           // 事件类型
   taskId: string                  // 任务ID
-  data?: any                      // 事件数据
+  data?: unknown                  // 事件数据
   timestamp: Date                 // 事件时间
 }
 

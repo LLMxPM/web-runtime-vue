@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { sampleDrawioUrl } from '@/assets/runtime-shell'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
 import DrawioViewer from '@runtime-kit/internal/renderers/DrawioViewer.vue'
 
 </script>

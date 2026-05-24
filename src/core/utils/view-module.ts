@@ -10,6 +10,9 @@ import {
   toAliasModulePath,
 } from '@/core/shared/runtime-preview'
 import { getRuntimePreviewContext, getRuntimePreviewToken, getRuntimePreloadedConfig } from '@/core/utils/path'
+import { BUILD_RELEASE_VIEW_MODULES } from './build-release-view-modules'
+
+type ViewModuleLoader = () => Promise<unknown>
 
 /**
  * Runtime 壳层内建兜底页面模块。
@@ -20,21 +23,7 @@ import { getRuntimePreviewContext, getRuntimePreviewToken, getRuntimePreloadedCo
 const BUILTIN_VIEW_MODULES = {
   ...import.meta.glob('@/runtime-shell/fallback/*.vue'),
   ...import.meta.glob('/src/runtime-shell/fallback/*.vue')
-}
-
-/**
- * Runtime 本地开发 / 本地构建模式可加载的页面模块。
- * 关键约束：
- * 1. 仅在非 preview、非 backend build_release 模式下启用；
- * 2. 允许加载 `src/views/**` 与 `src/examples/local/views/**` 下的本地页面；
- * 3. 是否真正启用由运行模式判断，而不是由 glob 白名单决定。
- */
-const LOCAL_RUNTIME_VIEW_MODULES = {
-  ...import.meta.glob('@/views/**/*.vue'),
-  ...import.meta.glob('/src/views/**/*.vue'),
-  ...import.meta.glob('@/examples/local/views/**/*.vue'),
-  ...import.meta.glob('/src/examples/local/views/**/*.vue'),
-}
+} satisfies Record<string, ViewModuleLoader>
 
 const NOT_FOUND_FALLBACK_KEYS = [
   '@/runtime-shell/fallback/NotFoundPage.vue',
@@ -169,7 +158,7 @@ export async function importViewModule(viewPath: string): Promise<any> {
     return buildReleaseLoader()
   }
 
-  const localModuleLoader = resolveLocalRuntimeViewModuleLoader(aliasPath, normalizedPath, preloadedConfig)
+  const localModuleLoader = await resolveLocalRuntimeViewModuleLoader(aliasPath, normalizedPath, preloadedConfig)
   if (localModuleLoader) {
     return localModuleLoader()
   }
@@ -182,7 +171,7 @@ export async function importViewModule(viewPath: string): Promise<any> {
  * @param aliasPath `@/views/...` 形式的别名路径
  * @returns 对应导入器；未命中时返回 null
  */
-function resolveBuiltinViewModuleLoader(aliasPath: string): (() => Promise<any>) | null {
+function resolveBuiltinViewModuleLoader(aliasPath: string): ViewModuleLoader | null {
   if (!aliasPath) {
     return null
   }
@@ -206,22 +195,20 @@ function resolveBuiltinViewModuleLoader(aliasPath: string): (() => Promise<any>)
  * @param preloadedConfig 当前预加载配置
  * @returns 对应导入器；未命中时返回 null
  */
-function resolveLocalRuntimeViewModuleLoader(
+async function resolveLocalRuntimeViewModuleLoader(
   aliasPath: string,
   normalizedPath: string,
   preloadedConfig?: RuntimePreloadedConfigBundle,
-): (() => Promise<any>) | null {
+): Promise<ViewModuleLoader | null> {
+  if (__RUNTIME_BACKEND_BUILD__) {
+    return null
+  }
   if (!shouldUseLocalRuntimeViewModule(normalizedPath, preloadedConfig)) {
     return null
   }
 
-  const directLoader = LOCAL_RUNTIME_VIEW_MODULES[aliasPath]
-  if (directLoader) {
-    return directLoader
-  }
-
-  const srcPath = aliasPath.replace('@/', '/src/')
-  return LOCAL_RUNTIME_VIEW_MODULES[srcPath] || null
+  const localModules = await import('./view-module-local')
+  return localModules.resolveLocalRuntimeViewModuleLoader(aliasPath)
 }
 
 /**
@@ -235,18 +222,18 @@ function resolveBuildReleaseViewModuleLoader(
   aliasPath: string,
   normalizedPath: string,
   preloadedConfig?: RuntimePreloadedConfigBundle,
-): (() => Promise<any>) | null {
+): ViewModuleLoader | null {
   if (!shouldUseBuildReleaseLocalViewModule(normalizedPath, preloadedConfig)) {
     return null
   }
 
-  const directLoader = LOCAL_RUNTIME_VIEW_MODULES[aliasPath]
+  const directLoader = BUILD_RELEASE_VIEW_MODULES[aliasPath]
   if (directLoader) {
     return directLoader
   }
 
   const srcPath = aliasPath.replace('@/', '/src/')
-  return LOCAL_RUNTIME_VIEW_MODULES[srcPath] || null
+  return BUILD_RELEASE_VIEW_MODULES[srcPath] || null
 }
 
 /**

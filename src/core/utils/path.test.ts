@@ -185,6 +185,14 @@ describe('runtime path helpers', () => {
     expect(resolveResourcePath('./fonts/demo.woff2')).toBe('./fonts/demo.woff2')
   })
 
+  it('应保留 data 与 blob 资源地址，供内建组件安全示例直连使用', () => {
+    const dataUrl = 'data:text/plain,hello'
+    const blobUrl = 'blob:https://runtime.example/asset-1'
+
+    expect(resolveResourcePath(dataUrl)).toBe(dataUrl)
+    expect(resolveResourcePath(blobUrl)).toBe(blobUrl)
+  })
+
   it('build_release 模式应解析为产物内 __build_assets 相对路径', () => {
     setRuntimePreloadedConfig({
       manifest: {

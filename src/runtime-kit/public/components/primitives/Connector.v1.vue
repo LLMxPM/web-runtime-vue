@@ -3,7 +3,8 @@
 -->
 
 <template>
-  <svg ref="svgRef" class="connector-svg" :style="{
+  <svg
+ref="svgRef" class="connector-svg" :style="{
     position: 'absolute',
     top: 0,
     left: 0,
@@ -15,13 +16,15 @@
   }">
     <defs>
       <!-- 箭头标记定义（使用 userSpaceOnUse 并手动 scale，确保不管 SVG 缩放机制如何，尖端永远与线段缩进完美抵消） -->
-      <marker v-if="arrow === 'end' || arrow === 'both'" :id="`arrow-end-${uniqueId}`" markerWidth="1" markerHeight="1"
+      <marker
+v-if="arrow === 'end' || arrow === 'both'" :id="`arrow-end-${uniqueId}`" markerWidth="1" markerHeight="1"
         refX="0" refY="0" orient="auto" markerUnits="userSpaceOnUse" style="overflow: visible;">
         <g :transform="`scale(${strokeWidth}) translate(-5, -3)`">
           <path d="M0,0 L0,6 L9,3 z" :fill="resolvedColor" />
         </g>
       </marker>
-      <marker v-if="arrow === 'start' || arrow === 'both'" :id="`arrow-start-${uniqueId}`" markerWidth="1"
+      <marker
+v-if="arrow === 'start' || arrow === 'both'" :id="`arrow-start-${uniqueId}`" markerWidth="1"
         markerHeight="1" refX="0" refY="0" orient="auto" markerUnits="userSpaceOnUse" style="overflow: visible;">
         <g :transform="`scale(${strokeWidth}) translate(-4, -3)`">
           <path d="M9,0 L9,6 L0,3 z" :fill="resolvedColor" />
@@ -29,7 +32,8 @@
       </marker>
     </defs>
 
-    <path v-if="pathData" :d="pathData" :stroke="resolvedColor" :stroke-width="strokeWidth" fill="none"
+    <path
+v-if="pathData" :d="pathData" :stroke="resolvedColor" :stroke-width="strokeWidth" fill="none"
       :stroke-dasharray="dashed ? '5,5' : 'none'"
       :marker-end="arrow === 'end' || arrow === 'both' ? `url(#arrow-end-${uniqueId})` : ''"
       :marker-start="arrow === 'start' || arrow === 'both' ? `url(#arrow-start-${uniqueId})` : ''" />
@@ -186,34 +190,19 @@ const getAnchorPoint = (
 ): { x: number; y: number } => {
   const pos = getElementPosition(element, container)
 
-  let x = 0
-  let y = 0
-
   switch (anchor) {
     case 'top':
-      x = pos.x + pos.width / 2
-      y = pos.y
-      break
+      return { x: pos.x + pos.width / 2, y: pos.y }
     case 'bottom':
-      x = pos.x + pos.width / 2
-      y = pos.y + pos.height
-      break
+      return { x: pos.x + pos.width / 2, y: pos.y + pos.height }
     case 'left':
-      x = pos.x
-      y = pos.y + pos.height / 2
-      break
+      return { x: pos.x, y: pos.y + pos.height / 2 }
     case 'right':
-      x = pos.x + pos.width
-      y = pos.y + pos.height / 2
-      break
+      return { x: pos.x + pos.width, y: pos.y + pos.height / 2 }
     case 'center':
     default:
-      x = pos.x + pos.width / 2
-      y = pos.y + pos.height / 2
-      break
+      return { x: pos.x + pos.width / 2, y: pos.y + pos.height / 2 }
   }
-
-  return { x, y }
 }
 
 // 生成直线路径

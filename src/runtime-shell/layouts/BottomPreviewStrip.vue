@@ -5,34 +5,40 @@
 <template>
   <div class="h-full flex flex-col gap-2 min-h-0 relative" :class="{ 'justify-center items-center': collapsed }">
     <div class="relative h-6 w-full flex items-center justify-center shrink-0 px-14">
-      <span v-if="!collapsed && appTitle" class="absolute left-2 flex max-w-[calc(50%_-_3.5rem)] items-center gap-1.5 overflow-hidden text-xl font-bold text-slate-700"
+      <span
+v-if="!collapsed && appTitle" class="absolute left-2 flex max-w-[calc(50%_-_3.5rem)] items-center gap-1.5 overflow-hidden text-xl font-bold text-slate-700"
         :title="appTitle">
         <AppBrandIcon v-if="appIcon" :name="appIcon" :alt="appTitle" :size="28" class="shrink-0" />
         <span class="min-w-0 truncate">{{ appTitle }}</span>
       </span>
-      <button type="button"
+      <button
+type="button"
         class="self-center w-12 h-6 flex items-center justify-center border border-slate-200 rounded-full bg-slate-50 cursor-pointer shadow-sm transition-all duration-200 hover:bg-slate-100 hover:scale-105 hover:shadow-md z-10"
         :title="collapsed ? '展开底栏' : '收起底栏'" @click="toggleStripCollapsed">
-        <ChevronDown :size="16" class="text-slate-500 transition-transform duration-300"
+        <ChevronDown
+:size="16" class="text-slate-500 transition-transform duration-300"
           :class="{ 'rotate-180': !collapsed }" />
       </button>
     </div>
 
     <div v-if="!collapsed" class="flex-1 min-h-0 relative flex items-center w-full">
       <transition name="fade">
-        <button v-if="canScrollLeft"
+        <button
+v-if="canScrollLeft"
           class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center -translate-x-3 transition-opacity"
           @click="scrollBy(-300)">
           <ChevronLeft :size="18" class="text-slate-600" />
         </button>
       </transition>
 
-      <div ref="scrollContainer"
+      <div
+ref="scrollContainer"
         class="flex-1 h-full flex items-stretch gap-2.5 overflow-x-auto overflow-y-hidden scrollbar-none p-2"
         :class="hasHorizontalOverflow ? 'justify-start' : 'justify-center'"
         @scroll="handleScroll">
         <template v-for="section in previewSections" :key="section.id">
-          <section v-if="section.kind === 'group'"
+          <section
+v-if="section.kind === 'group'"
             class="flex-none flex items-stretch gap-2 p-1.5 rounded-2xl transition-all duration-300"
             :class="[section.items.some(isActiveRoute) ? 'bg-blue-300/70' : 'bg-slate-200', isGroupCollapsed(section.id) ? '' : '']">
             <div
@@ -68,7 +74,8 @@
       </div>
 
       <transition name="fade">
-        <button v-if="canScrollRight"
+        <button
+v-if="canScrollRight"
           class="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center translate-x-3 transition-opacity"
           @click="scrollBy(300)">
           <ChevronRight :size="18" class="text-slate-600" />
@@ -80,7 +87,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ChevronDown, ChevronLeft, ChevronRight } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 
 import PreviewThumbnail from '@/runtime-shell/layouts/PreviewThumbnail.vue'
@@ -121,6 +128,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  pageConfig: () => ({}),
+  appConfig: () => ({}),
   collapsed: false,
 })
 

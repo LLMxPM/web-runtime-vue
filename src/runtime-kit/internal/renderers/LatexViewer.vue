@@ -3,6 +3,7 @@
 -->
 <template>
   <section class="latex-viewer" :style="surfaceStyle" v-bind="$attrs">
+    <!-- eslint-disable-next-line vue/no-v-html -- MathJax 输出由 renderer 生成，组件只渲染受控 SVG HTML。 -->
     <div v-if="renderedHtml" class="latex-viewer__content" v-html="renderedHtml" />
     <span v-else-if="error" class="latex-viewer__state latex-viewer__state--error">{{ error }}</span>
     <span v-else class="latex-viewer__state">公式内容为空</span>

@@ -79,9 +79,9 @@ export function normalizeComponentPreviewSchema(value: unknown): ComponentPrevie
 
   const source = value as Record<string, unknown>
   return {
-    props: normalizeRecord(source.props),
-    slots: normalizeRecord(source.slots),
-    mocks: normalizeRecord(source.mocks),
+    props: normalizeRecord<ComponentPreviewSchema['props']>(source.props),
+    slots: normalizeRecord<ComponentPreviewSchema['slots']>(source.slots),
+    mocks: normalizeRecord<ComponentPreviewSchema['mocks']>(source.mocks),
     presets: normalizePresetList(source.presets),
   }
 }
@@ -117,14 +117,14 @@ export function buildInitialComponentPreviewState(schema: ComponentPreviewSchema
 export function normalizeComponentPreviewState(value: unknown): ComponentPreviewState {
   const source = isPlainObject(value) ? value : {}
   return {
-    props: normalizeRecord(source.props),
+    props: normalizeRecord<Record<string, unknown>>(source.props),
     slots: Object.fromEntries(
-      Object.entries(normalizeRecord(source.slots)).map(([slotKey, slotValue]) => [
+      Object.entries(normalizeRecord<Record<string, unknown>>(source.slots)).map(([slotKey, slotValue]) => [
         slotKey,
         Array.isArray(slotValue) ? (slotValue as ComponentPreviewSlotNode[]) : [],
       ]),
     ),
-    mocks: normalizeRecord(source.mocks),
+    mocks: normalizeRecord<Record<string, unknown>>(source.mocks),
     activePresetKey: typeof source.activePresetKey === 'string' ? source.activePresetKey : null,
   }
 }
@@ -192,6 +192,6 @@ function normalizePresetList(value: unknown): ComponentPreviewSchema['presets'] 
  * @param value 输入值
  * @returns 普通对象
  */
-function normalizeRecord(value: unknown): Record<string, any> {
-  return isPlainObject(value) ? { ...value } : {}
+function normalizeRecord<T extends object>(value: unknown): T {
+  return (isPlainObject(value) ? { ...value } : {}) as T
 }

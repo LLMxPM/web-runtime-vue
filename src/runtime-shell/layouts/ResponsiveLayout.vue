@@ -5,82 +5,96 @@
 <template>
   <div class="responsive-layout" :class="{ 'responsive-layout--fullscreen': isFullscreen }" :style="layoutStyles">
     <!-- 响应式侧边栏 -->
-    <div v-if="isSidebarMenuVisible" class="sidebar-wrapper" :class="{
+    <div
+v-if="isSidebarMenuVisible" class="sidebar-wrapper" :class="{
       'sidebar-wrapper--fullscreen': isFullscreen,
       'sidebar-wrapper--fullscreen-hover': isFullscreen && isSidebarHovered
     }" @mouseenter="handleSidebarMouseEnter" @mouseleave="handleSidebarMouseLeave">
-      <ResponsiveSidebar v-if="effectiveMenuMode === 'text'" :navigation-items="processedNavigationItems"
+      <ResponsiveSidebar
+v-if="effectiveMenuMode === 'text'" :navigation-items="processedNavigationItems"
         :app-config="sidebarAppConfig" @collapse-change="handleCollapseChange" />
-      <SidePreviewStrip v-else-if="effectiveMenuMode === 'preview'" :navigation-items="processedNavigationItems"
+      <SidePreviewStrip
+v-else-if="effectiveMenuMode === 'preview'" :navigation-items="processedNavigationItems"
         :app-config="sidebarAppConfig" @collapse-change="handleCollapseChange" />
     </div>
 
     <!-- 全屏模式下的左侧悬停触发区域 -->
-    <div v-if="isFullscreen && isSidebarMenuVisible" class="fullscreen-sidebar-trigger"
+    <div
+v-if="isFullscreen && isSidebarMenuVisible" class="fullscreen-sidebar-trigger"
       @mouseenter="handleSidebarMouseEnter" @mouseleave="handleSidebarMouseLeave"></div>
 
     <!-- 全屏模式下的底栏悬停触发区域 -->
-    <div v-if="isFullscreen && isBottomPreviewMode" class="fullscreen-bottom-preview-trigger"
+    <div
+v-if="isFullscreen && isBottomPreviewMode" class="fullscreen-bottom-preview-trigger"
       @mouseenter="handleBottomPreviewMouseEnter" @mouseleave="handleBottomPreviewMouseLeave"></div>
 
     <!-- 主内容区域 -->
-    <main class="main-content" :class="{
+    <main
+class="main-content" :class="{
       'main-content--collapsed': isCollapsed,
       'main-content--fullscreen': isFullscreen,
       'main-content--bottom-preview': isBottomPreviewMode
     }" :style="mainContentStyles">
       <!-- 全屏模式下的右上角悬停触发区域 -->
-      <div v-if="isFullscreen" class="fullscreen-button-trigger" @mouseenter="handleFullscreenButtonMouseEnter"
+      <div
+v-if="isFullscreen" class="fullscreen-button-trigger" @mouseenter="handleFullscreenButtonMouseEnter"
         @mouseleave="handleFullscreenButtonMouseLeave"></div>
 
-      <div class="top-right-controls" :class="{
+      <div
+class="top-right-controls" :class="{
         'top-right-controls--fullscreen': isFullscreen,
         'top-right-controls--visible': isTopRightControlsVisible
       }" @mouseenter="handleFullscreenButtonMouseEnter" @mouseleave="handleFullscreenButtonMouseLeave">
         <!-- 全屏切换按钮 -->
-        <button class="fullscreen-button" :class="{
+        <button
+class="fullscreen-button" :class="{
           'fullscreen-button--fullscreen': isFullscreen
-        }" @click.stop="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '进入全屏'">
+        }" :title="isFullscreen ? '退出全屏' : '进入全屏'" @click.stop="toggleFullscreen">
           <Minimize2 v-if="isFullscreen" :size="20" />
           <Maximize2 v-else :size="20" />
         </button>
       </div>
 
       <!-- 页面导航按钮 -->
-      <div v-if="shouldShowTopRightPageControls || canTogglePreviewMenuMode" class="page-navigation-buttons" :class="{
+      <div
+v-if="shouldShowTopRightPageControls || canTogglePreviewMenuMode" class="page-navigation-buttons" :class="{
         'page-navigation-buttons--fullscreen': isFullscreen,
         'page-navigation-buttons--visible': isTopRightControlsVisible
       }" @mouseenter="handleFullscreenButtonMouseEnter" @mouseleave="handleFullscreenButtonMouseLeave">
         <!-- 预览模式切换按钮 -->
-        <button v-if="canTogglePreviewMenuMode" class="nav-button nav-button--mode"
+        <button
+v-if="canTogglePreviewMenuMode" class="nav-button nav-button--mode"
           :class="{ 'nav-button--fullscreen': isFullscreen }" :title="menuModeToggleTitle" @click.stop="toggleMenuMode">
           <PanelLeft v-if="currentMenuMode === 'bottom-preview'" :size="16" />
           <PanelBottom v-else :size="16" />
         </button>
 
         <!-- PDF导出按钮 -->
-        <button v-if="shouldShowPdfExportButton" class="nav-button nav-button--export" :class="{
+        <button
+v-if="shouldShowPdfExportButton" class="nav-button nav-button--export" :class="{
           'nav-button--fullscreen': isFullscreen
-        }" @click.stop="showPDFExportDialog" title="导出PDF">
+        }" title="导出PDF" @click.stop="showPDFExportDialog">
           <FileDown :size="16" />
         </button>
 
         <template v-if="!isBottomPreviewMode">
           <!-- 上一页按钮 -->
-          <button class="nav-button nav-button--previous" :class="{
+          <button
+class="nav-button nav-button--previous" :class="{
             'nav-button--disabled': !canGoPrevious,
             'nav-button--fullscreen': isFullscreen
-          }" :aria-disabled="!canGoPrevious" @click.stop="handlePreviousPageAction"
-            :title="canGoPrevious ? `上一页 ${getPageTitle(previousPage)}` : '当前已经是首页'">
+          }" :aria-disabled="!canGoPrevious" :title="canGoPrevious ? `上一页 ${getPageTitle(previousPage)}` : '当前已经是首页'"
+            @click.stop="handlePreviousPageAction">
             <ChevronLeft :size="16" />
           </button>
 
           <!-- 下一页按钮 -->
-          <button class="nav-button nav-button--next" :class="{
+          <button
+class="nav-button nav-button--next" :class="{
             'nav-button--disabled': !canGoNext,
             'nav-button--fullscreen': isFullscreen
-          }" :aria-disabled="!canGoNext" @click.stop="handleNextPageAction"
-            :title="canGoNext ? `下一页 ${getPageTitle(nextPage)}` : '当前已经是末页'">
+          }" :aria-disabled="!canGoNext" :title="canGoNext ? `下一页 ${getPageTitle(nextPage)}` : '当前已经是末页'"
+            @click.stop="handleNextPageAction">
             <ChevronRightIcon :size="16" />
           </button>
         </template>
@@ -95,7 +109,8 @@
       <!-- 页面内容 -->
       <div class="page-content-wrapper">
         <div v-if="isBottomPreviewMode" class="canvas-navigation-buttons">
-          <button class="nav-button nav-button--canvas nav-button--canvas-left" :class="{
+          <button
+class="nav-button nav-button--canvas nav-button--canvas-left" :class="{
             'nav-button--disabled': !canGoPrevious,
             'nav-button--fullscreen': isFullscreen
           }" :style="canvasPreviousButtonStyle" :aria-disabled="!canGoPrevious"
@@ -104,7 +119,8 @@
             <ChevronLeft :size="18" />
           </button>
 
-          <button class="nav-button nav-button--canvas nav-button--canvas-right" :class="{
+          <button
+class="nav-button nav-button--canvas nav-button--canvas-right" :class="{
             'nav-button--disabled': !canGoNext,
             'nav-button--fullscreen': isFullscreen
           }" :style="canvasNextButtonStyle" :aria-disabled="!canGoNext"
@@ -114,7 +130,8 @@
           </button>
         </div>
 
-        <ScaledCanvasViewport :is-fullscreen="isFullscreen" :scale="scaleRatio" :design-width="pageViewport.width"
+        <ScaledCanvasViewport
+:is-fullscreen="isFullscreen" :scale="scaleRatio" :design-width="pageViewport.width"
           :design-height="pageViewport.height">
           <ErrorBoundary>
             <router-view v-slot="{ Component, route }">
@@ -135,17 +152,20 @@
 
     </main>
 
-    <div v-if="isBottomPreviewMode" class="bottom-preview-wrapper" :class="{
+    <div
+v-if="isBottomPreviewMode" class="bottom-preview-wrapper" :class="{
       'bottom-preview-wrapper--collapsed': isBottomStripCollapsed,
       'bottom-preview-wrapper--fullscreen': isFullscreen,
       'bottom-preview-wrapper--fullscreen-hover': isFullscreen && isBottomPreviewHovered
     }" @mouseenter="handleBottomPreviewMouseEnter" @mouseleave="handleBottomPreviewMouseLeave">
-      <BottomPreviewStrip :collapsed="isBottomStripCollapsed" :navigation-items="processedNavigationItems"
+      <BottomPreviewStrip
+:collapsed="isBottomStripCollapsed" :navigation-items="processedNavigationItems"
         :page-config="pageViewport" :app-config="layoutAppConfig" @collapsed-change="handleBottomStripCollapsedChange" />
     </div>
 
     <!-- PDF导出对话框 -->
-    <PDFExportDialog v-model:visible="isPDFExportDialogVisible" @export-start="handlePDFExportStart"
+    <PDFExportDialog
+v-model:visible="isPDFExportDialogVisible" @export-start="handlePDFExportStart"
       @export-complete="handlePDFExportComplete" @export-error="handlePDFExportError" />
   </div>
 </template>
@@ -161,7 +181,7 @@ import {
   FileDown,
   PanelLeft,
   PanelBottom
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import ResponsiveSidebar from '@/runtime-shell/layouts/ResponsiveSidebar.vue'
 import SidePreviewStrip from '@/runtime-shell/layouts/SidePreviewStrip.vue'
 import BottomPreviewStrip from '@/runtime-shell/layouts/BottomPreviewStrip.vue'
@@ -173,7 +193,7 @@ import { usePageNavigation } from '@/core/composables/usePageNavigation'
 import { PDFExportService } from '@/core/services/PDFExportService'
 import { appConfig as runtimeAppConfig, appPageConfig, type RuntimeMenuMode } from '@/core/utils/config'
 import { buildPageContentScaleStyles } from '@/core/utils/page-scale'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
 
 // 应用配置已迁移到 @/config/app.config.ts
 
@@ -568,14 +588,6 @@ const handleFullscreenButtonMouseLeave = (): void => {
 }
 
 /**
- * 预览模式切换按钮文案。
- * @returns 按钮展示的目标模式简称
- */
-const menuModeToggleLabel = computed(() => {
-  return currentMenuMode.value === 'bottom-preview' ? '侧栏' : '底栏'
-})
-
-/**
  * 预览模式切换按钮提示。
  * @returns 目标模式的完整标题
  */
@@ -662,7 +674,6 @@ const showPDFExportDialog = (): void => {
  * 处理PDF导出开始事件
  */
 const handlePDFExportStart = (): void => {
-  console.log('PDF导出开始')
   isExportingPdf.value = true
 }
 
@@ -670,8 +681,7 @@ const handlePDFExportStart = (): void => {
  * 处理PDF导出完成事件
  * @param result 导出结果
  */
-const handlePDFExportComplete = (result: any): void => {
-  console.log('PDF导出完成:', result)
+const handlePDFExportComplete = (): void => {
   isExportingPdf.value = false
 }
 

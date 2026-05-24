@@ -4,9 +4,13 @@
  */
 
 import { snapdom } from '@zumer/snapdom'
-import type { CaptureOptions, PageInfo } from '@/core/types/pdf-export'
+import type { CaptureOptions } from '@/core/types/pdf-export'
 import { waitForPageLoad, waitForImages, getPageDimensions } from '../utils/dom'
 import { optimizeCanvas } from '../utils/file'
+import { appPageConfig } from '@/core/utils/config'
+import { createRuntimePageCaptureTarget } from '@/core/utils/export-dom'
+import { getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
+import { normalizeAssetKey } from '@/core/shared/runtime-preview'
 
 export class PageCaptureService {
   private static instance: PageCaptureService
@@ -46,6 +50,7 @@ export class PageCaptureService {
     try {
       // 预处理元素以优化捕获效果
       const cleanup = this.preprocessElement(element)
+      const cleanupResourceProxy = this.applyCaptureResourceProxy(element, mergedOptions.proxyUrl)
 
       try {
         // 等待页面加载完成
@@ -57,17 +62,19 @@ export class PageCaptureService {
         // 始终等待图片加载完成，确保资源就绪
         await waitForImages(element)
 
-        // 获取元素尺寸
-        const rect = element.getBoundingClientRect()
-        // console.log('元素尺寸:', rect)
+        // 获取元素尺寸；jsdom 对离屏元素的 rect 可能为 0，因此同时读取 CSS 与 offset 尺寸
+        const captureSize = this.measureElementForCapture(element)
+        // console.log('元素尺寸:', captureSize)
 
-        if (rect.width === 0 || rect.height === 0) {
-          throw new Error(`元素尺寸无效: ${rect.width}x${rect.height}`)
+        if (captureSize.width === 0 || captureSize.height === 0) {
+          throw new Error(`元素尺寸无效: ${captureSize.width}x${captureSize.height}`)
         }
 
         // 使用 snapdom 捕获（支持 useProxy）
         const capPromise = snapdom(element, {
           scale: mergedOptions.scale ?? 2,
+          backgroundColor: mergedOptions.backgroundColor,
+          embedFonts: true,
           ...(mergedOptions.proxyUrl ? { useProxy: mergedOptions.proxyUrl } : {})
         })
         const timeout = mergedOptions.timeout ?? 15000
@@ -129,6 +136,8 @@ export class PageCaptureService {
           if (mergedOptions.proxyUrl) {
             const proxied = await snapdom(element, {
               scale: mergedOptions.scale ?? 2,
+              backgroundColor: mergedOptions.backgroundColor,
+              embedFonts: true,
               useProxy: mergedOptions.proxyUrl
             })
             const proxiedOutput = await proxied.toPng()
@@ -215,6 +224,7 @@ export class PageCaptureService {
         return finalCanvas
       } finally {
         // 清理预处理效果
+        cleanupResourceProxy()
         cleanup()
       }
     } catch (error) {
@@ -226,7 +236,7 @@ export class PageCaptureService {
         offsetWidth: element.offsetWidth,
         offsetHeight: element.offsetHeight
       })
-      throw new Error(`页面捕获失败: ${error instanceof Error ? error.message : '未知错误'}`)
+      throw new Error(`页面捕获失败: ${error instanceof Error ? error.message : '未知错误'}`, { cause: error })
     }
   }
 
@@ -236,6 +246,26 @@ export class PageCaptureService {
    * @returns Promise<HTMLCanvasElement>
    */
   async captureCurrentPage(options?: CaptureOptions): Promise<HTMLCanvasElement> {
+    const runtimeTarget = createRuntimePageCaptureTarget({
+      routePath: options?.routePath,
+      width: appPageConfig.value.width,
+      height: appPageConfig.value.height,
+      backgroundColor: options?.backgroundColor ?? this.defaultOptions.backgroundColor,
+    })
+
+    if (runtimeTarget) {
+      const captureOptions = { ...options }
+      delete captureOptions.routePath
+
+      try {
+        return await this.captureElement(runtimeTarget.captureElement, captureOptions)
+      } finally {
+        runtimeTarget.cleanup()
+      }
+    }
+
+    console.warn('未找到运行时页面源节点，将使用旧内容区域选择器兜底')
+
     // 查找主要内容区域，优先级更高
     const contentElement = this.findBestContentElement()
     if (!contentElement) {
@@ -324,9 +354,13 @@ export class PageCaptureService {
 
     // 4. 全幅捕获（移除装饰性的边距与阴影）
     try {
-      const isLikelyPageContent = element.classList.contains('page-content') ||
-        element.classList.contains('fixed-ratio-container') ||
-        /(page|content|fixed-ratio)/i.test(element.className)
+      const isRuntimePageSource = element.classList.contains('runtime-page-print-source')
+      const isExportSandbox = element.classList.contains('runtime-export-capture-sandbox')
+      const isLikelyPageContent = !isRuntimePageSource &&
+        !isExportSandbox &&
+        (element.classList.contains('page-content') ||
+          element.classList.contains('page-content-wrapper') ||
+          element.classList.contains('fixed-ratio-container'))
       if (isLikelyPageContent) {
         // 记录直接子元素的样式（路由视图容器）
         const child = element.firstElementChild as HTMLElement | null
@@ -379,6 +413,333 @@ export class PageCaptureService {
         }
       })
     }
+  }
+
+  /**
+   * 获取用于截图校验的元素尺寸。
+   * @param element 目标元素
+   * @returns 有效宽高，优先使用浏览器布局尺寸
+   */
+  private measureElementForCapture(element: HTMLElement): { width: number; height: number } {
+    const rect = element.getBoundingClientRect()
+    const style = window.getComputedStyle(element)
+    const width = rect.width || element.offsetWidth || Number.parseFloat(style.width) || 0
+    const height = rect.height || element.offsetHeight || Number.parseFloat(style.height) || 0
+
+    return {
+      width: Math.max(0, width),
+      height: Math.max(0, height),
+    }
+  }
+
+  /**
+   * 将截图沙箱中的工作空间资源 URL 改写为 Runtime 同源代理。
+   * @param element 目标元素
+   * @param proxyUrl snapDOM 资源代理 URL
+   * @returns 清理函数
+   */
+  private applyCaptureResourceProxy(element: HTMLElement, proxyUrl?: string): () => void {
+    if (!proxyUrl) {
+      return () => {}
+    }
+
+    const cleanupFunctions: Array<() => void> = []
+    this.proxyImageElementSources(element, proxyUrl, cleanupFunctions)
+    this.proxyCssImageSources(element, proxyUrl, cleanupFunctions)
+
+    return () => {
+      cleanupFunctions.forEach(cleanup => {
+        try {
+          cleanup()
+        } catch (error) {
+          console.warn('恢复截图资源代理改写失败:', error)
+        }
+      })
+    }
+  }
+
+  /**
+   * 改写 img / source / SVG image 的资源地址。
+   * @param root 查询根节点
+   * @param proxyUrl 代理 URL
+   * @param cleanupFunctions 清理函数集合
+   */
+  private proxyImageElementSources(
+    root: HTMLElement,
+    proxyUrl: string,
+    cleanupFunctions: Array<() => void>,
+  ): void {
+    const imageElements = [
+      ...Array.from(root.querySelectorAll<HTMLImageElement | HTMLSourceElement>('img, source')),
+      ...(root.matches('img, source') ? [root as HTMLImageElement | HTMLSourceElement] : []),
+    ]
+    imageElements.forEach(image => {
+      const originalSrc = image.getAttribute('src')
+      const originalSrcset = image.getAttribute('srcset')
+      const nextSrc = originalSrc ? this.buildCaptureProxyUrl(originalSrc, proxyUrl) : ''
+      const nextSrcset = originalSrcset ? this.rewriteSrcsetUrls(originalSrcset, proxyUrl) : ''
+
+      if (nextSrc || nextSrcset) {
+        cleanupFunctions.push(() => {
+          this.restoreAttribute(image, 'src', originalSrc)
+          this.restoreAttribute(image, 'srcset', originalSrcset)
+        })
+      }
+      if (nextSrc) {
+        image.setAttribute('src', nextSrc)
+      }
+      if (nextSrcset) {
+        image.setAttribute('srcset', nextSrcset)
+      }
+    })
+
+    const svgImages = Array.from(root.querySelectorAll<SVGImageElement>('image'))
+    svgImages.forEach(image => {
+      const originalHref = image.getAttribute('href')
+      const originalXlinkHref = image.getAttribute('xlink:href')
+      const nextHref = originalHref ? this.buildCaptureProxyUrl(originalHref, proxyUrl) : ''
+      const nextXlinkHref = originalXlinkHref ? this.buildCaptureProxyUrl(originalXlinkHref, proxyUrl) : ''
+
+      if (nextHref || nextXlinkHref) {
+        cleanupFunctions.push(() => {
+          this.restoreAttribute(image, 'href', originalHref)
+          this.restoreAttribute(image, 'xlink:href', originalXlinkHref)
+        })
+      }
+      if (nextHref) {
+        image.setAttribute('href', nextHref)
+      }
+      if (nextXlinkHref) {
+        image.setAttribute('xlink:href', nextXlinkHref)
+      }
+    })
+  }
+
+  /**
+   * 改写背景图和 mask 相关 CSS URL。
+   * @param root 查询根节点
+   * @param proxyUrl 代理 URL
+   * @param cleanupFunctions 清理函数集合
+   */
+  private proxyCssImageSources(
+    root: HTMLElement,
+    proxyUrl: string,
+    cleanupFunctions: Array<() => void>,
+  ): void {
+    const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))]
+    const properties = [
+      'background-image',
+      'border-image-source',
+      'list-style-image',
+      'mask-image',
+      '-webkit-mask-image',
+    ]
+
+    elements.forEach(item => {
+      const computedStyle = window.getComputedStyle(item)
+      const originalInlineValues = new Map<string, string>()
+      let changed = false
+
+      properties.forEach(property => {
+        const cssValue = computedStyle.getPropertyValue(property)
+        const rewrittenValue = this.rewriteCssUrlValue(cssValue, proxyUrl)
+        if (!rewrittenValue || rewrittenValue === cssValue) {
+          return
+        }
+
+        originalInlineValues.set(property, item.style.getPropertyValue(property))
+        item.style.setProperty(property, rewrittenValue)
+        changed = true
+      })
+
+      if (changed) {
+        cleanupFunctions.push(() => {
+          originalInlineValues.forEach((value, property) => {
+            if (value) {
+              item.style.setProperty(property, value)
+            } else {
+              item.style.removeProperty(property)
+            }
+          })
+        })
+      }
+    })
+  }
+
+  /**
+   * 改写 srcset 中的资源 URL。
+   * @param srcset 原始 srcset
+   * @param proxyUrl 代理 URL
+   */
+  private rewriteSrcsetUrls(srcset: string, proxyUrl: string): string {
+    return srcset
+      .split(',')
+      .map(candidate => {
+        const trimmedCandidate = candidate.trim()
+        if (!trimmedCandidate) {
+          return ''
+        }
+        const [rawUrl, ...descriptors] = trimmedCandidate.split(/\s+/)
+        const proxiedUrl = this.buildCaptureProxyUrl(rawUrl, proxyUrl)
+        return proxiedUrl ? [proxiedUrl, ...descriptors].join(' ') : trimmedCandidate
+      })
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  /**
+   * 改写 CSS url(...) 中的资源 URL。
+   * @param cssValue 原始 CSS 属性值
+   * @param proxyUrl 代理 URL
+   */
+  private rewriteCssUrlValue(cssValue: string, proxyUrl: string): string {
+    if (!cssValue || cssValue === 'none' || !cssValue.includes('url(')) {
+      return cssValue
+    }
+
+    return cssValue.replace(/url\((?:"([^"]*)"|'([^']*)'|([^)]*))\)/g, (match, doubleQuoted, singleQuoted, unquoted) => {
+      const rawUrl = String(doubleQuoted || singleQuoted || unquoted || '').trim()
+      const proxiedUrl = this.buildCaptureProxyUrl(rawUrl, proxyUrl)
+      return proxiedUrl ? `url("${proxiedUrl}")` : match
+    })
+  }
+
+  /**
+   * 为当前 artifact 声明的资源构造截图代理 URL。
+   * @param rawUrl 原始资源 URL
+   * @param proxyUrl 代理 URL
+   */
+  private buildCaptureProxyUrl(rawUrl: string, proxyUrl: string): string {
+    const sourceUrl = this.normalizeCaptureResourceUrl(rawUrl)
+    if (!sourceUrl || !this.isManifestAssetUrl(sourceUrl)) {
+      return ''
+    }
+
+    try {
+      const nextUrl = new URL(proxyUrl, window.location.href)
+      nextUrl.searchParams.set('url', sourceUrl)
+      return nextUrl.href
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * 判断 URL 是否属于当前 manifest 声明的工作空间资源。
+   * @param sourceUrl 绝对资源 URL
+   */
+  private isManifestAssetUrl(sourceUrl: string): boolean {
+    const previewContext = getRuntimePreviewContext()
+    const manifest = getRuntimePreloadedConfig()?.manifest
+    if (!previewContext || !manifest) {
+      return false
+    }
+
+    const normalizedSourceUrl = this.normalizeComparableUrl(sourceUrl)
+    if (!normalizedSourceUrl) {
+      return false
+    }
+
+    const allowedUrls = new Set<string>()
+    const assetBaseUrls = [
+      previewContext.assetBaseUrl,
+      manifest.asset_base_url,
+    ]
+      .map(value => String(value || '').trim().replace(/\/+$/, ''))
+      .filter((value, index, values) => value && values.indexOf(value) === index)
+
+    Object.entries(manifest.assets || {}).forEach(([logicalName, mappedValue]) => {
+      const normalizedMappedValue = String(mappedValue || '').trim()
+      if (!normalizedMappedValue) {
+        return
+      }
+
+      this.addComparableUrl(allowedUrls, normalizedMappedValue)
+
+      const metadata = manifest.asset_metadata?.[logicalName] || manifest.asset_metadata?.[normalizeAssetKey(logicalName)]
+      const fileHash = String(metadata?.file_hash || normalizedMappedValue || '').trim()
+      if (!fileHash || /^https?:\/\//i.test(fileHash)) {
+        return
+      }
+
+      assetBaseUrls.forEach(assetBaseUrl => {
+        this.addComparableUrl(allowedUrls, this.joinAssetUrl(assetBaseUrl, fileHash, false))
+        this.addComparableUrl(allowedUrls, this.joinAssetUrl(assetBaseUrl, fileHash, true))
+      })
+    })
+
+    return allowedUrls.has(normalizedSourceUrl)
+  }
+
+  /**
+   * 解析为绝对 http(s) URL。
+   * @param rawUrl 原始资源 URL
+   */
+  private normalizeCaptureResourceUrl(rawUrl: string): string {
+    const normalized = String(rawUrl || '').trim()
+    if (!normalized || /^(data|blob|about|#):?/i.test(normalized)) {
+      return ''
+    }
+
+    try {
+      const url = new URL(normalized, window.location.href)
+      return /^https?:$/i.test(url.protocol) ? url.href : ''
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * 拼接资源基址和资源路径。
+   * @param assetBaseUrl 资源基址
+   * @param assetPath 资源路径或文件 hash
+   * @param encodePath 是否编码路径
+   */
+  private joinAssetUrl(assetBaseUrl: string, assetPath: string, encodePath: boolean): string {
+    const normalizedBaseUrl = String(assetBaseUrl || '').trim().replace(/\/+$/, '')
+    const normalizedAssetPath = normalizeAssetKey(assetPath)
+    if (!normalizedBaseUrl || !normalizedAssetPath) {
+      return ''
+    }
+    return `${normalizedBaseUrl}/${encodePath ? encodeURIComponent(normalizedAssetPath) : normalizedAssetPath}`
+  }
+
+  /**
+   * 添加可比较 URL。
+   * @param target 目标集合
+   * @param rawUrl 原始 URL
+   */
+  private addComparableUrl(target: Set<string>, rawUrl: string): void {
+    const normalizedUrl = this.normalizeComparableUrl(rawUrl)
+    if (normalizedUrl && /^https?:\/\//i.test(normalizedUrl)) {
+      target.add(normalizedUrl)
+    }
+  }
+
+  /**
+   * 规范化 URL，便于与 manifest 派生 URL 精确比较。
+   * @param rawUrl 原始 URL
+   */
+  private normalizeComparableUrl(rawUrl: string): string {
+    try {
+      return new URL(rawUrl, window.location.href).href
+    } catch {
+      return ''
+    }
+  }
+
+  /**
+   * 恢复属性值。
+   * @param element 目标元素
+   * @param name 属性名
+   * @param value 原始值
+   */
+  private restoreAttribute(element: Element, name: string, value: string | null): void {
+    if (value === null) {
+      element.removeAttribute(name)
+      return
+    }
+    element.setAttribute(name, value)
   }
 
   /**
@@ -514,6 +875,7 @@ export class PageCaptureService {
    * @param element 目标元素
    */
   private ensureCSSVariables(element: HTMLElement): void {
+    void element
     try {
       // 获取所有CSS自定义属性
       const computedStyle = window.getComputedStyle(document.documentElement)

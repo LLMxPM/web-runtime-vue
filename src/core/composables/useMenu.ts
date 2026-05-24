@@ -161,14 +161,12 @@ export function useMenu(config?: Partial<MenuConfig>) {
   function handleItemClick(item: MenuItem) {
     
     if (item.disabled) {
-      console.log('菜单项已禁用，跳过处理')
       return
     }
     
     // 如果有子菜单，切换展开状态
     if (item.children && item.children.length > 0) {
       toggleExpanded(item.id)
-      console.log('切换后展开状态', menuState.expandedItems.has(item.id))
     } else {
       // 导航到目标路径
       router.push(item.path).then(() => {

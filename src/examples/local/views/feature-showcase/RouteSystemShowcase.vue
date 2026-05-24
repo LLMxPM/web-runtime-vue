@@ -63,11 +63,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
-import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage'
-import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation'
-import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
+import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage.v1'
+import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation.v1'
+import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog.v1'
 
 const page = useCurrentPage()
 const { catalogItems } = useRouteCatalog()

@@ -13,7 +13,8 @@
             <!-- 主题选择 -->
             <div>
               <label class="block text-sm font-medium text-primary mb-2">主题</label>
-              <select v-model="selectedTheme"
+              <select
+v-model="selectedTheme"
                 class="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="default">默认</option>
                 <option value="dark">深色</option>
@@ -25,7 +26,8 @@
             <!-- 图表类型选择 -->
             <div>
               <label class="block text-sm font-medium text-primary mb-2">图表类型</label>
-              <select v-model="selectedDiagramType"
+              <select
+v-model="selectedDiagramType"
                 class="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="flowchart">流程图</option>
                 <option value="sequence">时序图</option>
@@ -39,8 +41,9 @@
 
             <!-- 操作按钮 -->
             <div class="flex space-x-2 items-end">
-              <button @click="refreshDiagram"
-                class="px-4 py-2 bg-background border border-border text-primary rounded-md hover:bg-primary-600 transition-colors text-sm">
+              <button
+class="px-4 py-2 bg-background border border-border text-primary rounded-md hover:bg-primary-600 transition-colors text-sm"
+                @click="refreshDiagram">
                 刷新
               </button>
             </div>
@@ -64,7 +67,8 @@
           </div>
 
           <div class="p-6">
-            <MermaidViewer ref="mermaidViewer" :content="currentDiagramContent" :theme="selectedTheme" height="500px"
+            <MermaidViewer
+ref="mermaidViewer" :content="currentDiagramContent" :theme="selectedTheme" height="500px"
               width="100%" />
           </div>
         </section>
@@ -78,8 +82,8 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 import MermaidViewer from '@runtime-kit/internal/renderers/MermaidViewer.vue'
 
 defineOptions({
@@ -230,34 +234,12 @@ const currentDiagramContent = computed(() => {
 })
 
 /**
- * 选择图表类型
- */
-const selectDiagramType = (type: string) => {
-  selectedDiagramType.value = type
-}
-
-/**
  * 刷新图表
  */
 const refreshDiagram = async () => {
   if (mermaidViewer.value) {
     await nextTick()
     mermaidViewer.value.reload()
-  }
-}
-
-
-
-/**
- * 复制代码
- */
-const copyCode = async () => {
-  try {
-    await navigator.clipboard.writeText(currentDiagramContent.value)
-    // 这里可以添加成功提示
-    console.log('代码已复制到剪贴板')
-  } catch (err) {
-    console.error('复制失败:', err)
   }
 }
 </script>

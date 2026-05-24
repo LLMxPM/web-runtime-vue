@@ -62,5 +62,8 @@ describe('view module load strategy', () => {
     expect(
       shouldUseLocalRuntimeViewModule('src/views/PG20260412001.vue', preloadedConfig),
     ).toBe(false)
+    expect(
+      shouldUseLocalRuntimeViewModule('src/examples/local/views/defaultpage/HomePage.vue', preloadedConfig),
+    ).toBe(false)
   })
 })

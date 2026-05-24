@@ -4,8 +4,10 @@
   "exports": [
     {
       "kind": "component",
-      "name": "AssetImage",
-      "import_path": "@runtime-kit/public/components/assets/AssetImage.vue",
+      "base_name": "AssetImage",
+      "version_no": 1,
+      "name": "AssetImage.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetImage.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染图片。",
       "capability": {
@@ -14,9 +16,11 @@
         "recommendation_level": "default",
         "display_name": "图片资源渲染",
         "summary": "渲染 render_type=image 的工作空间图片资源，资源 URL 由 Runtime 上下文解析。",
-        "tags": ["image"],
+        "tags": [
+          "image"
+        ],
         "usage": [
-          "import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'",
+          "import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'",
           "<AssetImage name=\"product-hero\" alt=\"产品主图\" class=\"w-full\" />"
         ],
         "returns": "Vue 组件；渲染 img 或图片占位内容。",
@@ -28,7 +32,10 @@
           "Backend/Agent 应根据资源元数据显式选择该组件，不再通过 AssetRenderer 自动分发。",
           "资源名应为 manifest.assets 中的逻辑名；未命中时使用 fallback 或占位内容。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -43,7 +50,7 @@
               "type": "string",
               "label": "兜底 URL",
               "description": "资源名为空或未命中时使用的图片 URL，可填临时远程地址或 data URL。",
-              "default": "",
+              "default": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20640%20360'%3E%3Crect%20width='640'%20height='360'%20fill='%23eef2ff'/%3E%3Ccircle%20cx='320'%20cy='170'%20r='72'%20fill='%2399f6e4'/%3E%3Ctext%20x='320'%20y='292'%20text-anchor='middle'%20font-size='32'%20font-family='Arial'%20fill='%230f172a'%3EImage%20Preview%3C/text%3E%3C/svg%3E",
               "placeholder": "https://example.com/image.png"
             },
             "alt": {
@@ -59,25 +66,87 @@
             "height": {
               "type": "string",
               "label": "高度",
-              "default": "auto"
+              "default": "260px"
+            },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "160px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#f8fafc"
+            },
+            "showBorder": {
+              "type": "boolean",
+              "label": "显示边框",
+              "default": true
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "padding": {
+              "type": "string",
+              "label": "内边距",
+              "default": "0"
             },
             "fit": {
               "type": "select",
               "label": "填充方式",
               "default": "contain",
               "options": [
-                { "label": "contain", "value": "contain" },
-                { "label": "cover", "value": "cover" },
-                { "label": "fill", "value": "fill" },
-                { "label": "none", "value": "none" }
+                {
+                  "label": "contain",
+                  "value": "contain"
+                },
+                {
+                  "label": "cover",
+                  "value": "cover"
+                },
+                {
+                  "label": "fill",
+                  "value": "fill"
+                },
+                {
+                  "label": "none",
+                  "value": "none"
+                }
               ]
+            },
+            "position": {
+              "type": "string",
+              "label": "图片位置",
+              "default": "center"
             },
             "showFallbackPlaceholder": {
               "type": "boolean",
               "label": "显示占位",
               "default": true
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "contain-preview",
+              "label": "完整图片",
+              "props": {
+                "fit": "contain",
+                "height": "260px",
+                "showBorder": true
+              }
+            },
+            {
+              "key": "cover-banner",
+              "label": "封面裁切",
+              "props": {
+                "fit": "cover",
+                "height": "320px",
+                "borderRadius": "12px"
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -98,8 +167,10 @@
     },
     {
       "kind": "component",
-      "name": "AssetVideo",
-      "import_path": "@runtime-kit/public/components/assets/AssetVideo.vue",
+      "base_name": "AssetVideo",
+      "version_no": 1,
+      "name": "AssetVideo.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetVideo.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染视频。",
       "capability": {
@@ -108,19 +179,26 @@
         "recommendation_level": "default",
         "display_name": "视频资源渲染",
         "summary": "渲染 render_type=video 的工作空间视频资源，并可解析 posterName 对应的封面资源。",
-        "tags": ["video"],
+        "tags": [
+          "video"
+        ],
         "usage": [
-          "import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.vue'",
+          "import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'",
           "<AssetVideo name=\"demo-video\" poster-name=\"demo-poster\" controls height=\"360px\" />"
         ],
         "returns": "Vue 组件；渲染 video 播放区域。",
-        "return_example": ["<AssetVideo name=\"demo-video\" controls />"],
+        "return_example": [
+          "<AssetVideo name=\"demo-video\" controls />"
+        ],
         "constraints": [
           "适用于 asset_metadata.render_type=video 的资源。",
           "posterName 只用于解析工作空间封面资源；普通 URL 应传 poster。",
           "播放控件、尺寸和填充策略通过组件属性或透传属性控制。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -150,6 +228,12 @@
               "default": "",
               "placeholder": "https://example.com/poster.png"
             },
+            "posterFallback": {
+              "type": "string",
+              "label": "封面备用 URL",
+              "description": "posterName 未命中且 poster 为空时使用的封面地址。",
+              "default": ""
+            },
             "controls": {
               "type": "boolean",
               "label": "播放控件",
@@ -170,22 +254,111 @@
               "label": "静音",
               "default": false
             },
+            "playsInline": {
+              "type": "boolean",
+              "label": "行内播放",
+              "default": true
+            },
             "preload": {
               "type": "select",
               "label": "预加载策略",
               "default": "metadata",
               "options": [
-                { "label": "metadata", "value": "metadata" },
-                { "label": "none", "value": "none" },
-                { "label": "auto", "value": "auto" }
+                {
+                  "label": "metadata",
+                  "value": "metadata"
+                },
+                {
+                  "label": "none",
+                  "value": "none"
+                },
+                {
+                  "label": "auto",
+                  "value": "auto"
+                }
               ]
+            },
+            "width": {
+              "type": "string",
+              "label": "宽度",
+              "default": "100%"
             },
             "height": {
               "type": "string",
               "label": "高度",
               "default": "320px"
+            },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "180px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#000000"
+            },
+            "showBorder": {
+              "type": "boolean",
+              "label": "显示边框",
+              "default": false
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "padding": {
+              "type": "string",
+              "label": "内边距",
+              "default": "0"
+            },
+            "fit": {
+              "type": "select",
+              "label": "填充方式",
+              "default": "contain",
+              "options": [
+                {
+                  "label": "contain",
+                  "value": "contain"
+                },
+                {
+                  "label": "cover",
+                  "value": "cover"
+                },
+                {
+                  "label": "fill",
+                  "value": "fill"
+                }
+              ]
+            },
+            "position": {
+              "type": "string",
+              "label": "视频位置",
+              "default": "center"
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "empty-player",
+              "label": "空播放器",
+              "props": {
+                "controls": true,
+                "height": "320px",
+                "backgroundColor": "#000000"
+              }
+            },
+            {
+              "key": "muted-loop",
+              "label": "静音循环",
+              "props": {
+                "controls": false,
+                "muted": true,
+                "loop": true,
+                "autoplay": true
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -206,8 +379,10 @@
     },
     {
       "kind": "component",
-      "name": "AssetDrawio",
-      "import_path": "@runtime-kit/public/components/assets/AssetDrawio.vue",
+      "base_name": "AssetDrawio",
+      "version_no": 1,
+      "name": "AssetDrawio.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetDrawio.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染 Draw.io 图表。",
       "capability": {
@@ -216,19 +391,27 @@
         "recommendation_level": "default",
         "display_name": "Draw.io 图表渲染",
         "summary": "渲染 render_type=drawio 的 XML 图表资源，具体解析和缩放由 Runtime 浏览器端完成。",
-        "tags": ["drawio", "diagram"],
+        "tags": [
+          "drawio",
+          "diagram"
+        ],
         "usage": [
-          "import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.vue'",
+          "import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vue'",
           "<AssetDrawio name=\"architecture\" height=\"420px\" />"
         ],
         "returns": "Vue 组件；渲染 Draw.io 图表视图。",
-        "return_example": ["<AssetDrawio name=\"architecture\" />"],
+        "return_example": [
+          "<AssetDrawio name=\"architecture\" />"
+        ],
         "constraints": [
           "适用于 asset_metadata.render_type=drawio 的资源。",
           "Backend 不应把 Draw.io XML 预转成页面结构；Runtime 负责浏览器端图表渲染。",
           "资源缺失时不渲染图表内容。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -242,7 +425,7 @@
             "fallback": {
               "type": "string",
               "label": "兜底 URL",
-              "default": "",
+              "default": "data:text/xml,%3Cmxfile%3E%3Cdiagram%20name='Preview'%3E%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id='0'/%3E%3CmxCell%20id='1'%20parent='0'/%3E%3CmxCell%20id='2'%20value='Runtime%20Kit'%20style='rounded=1;whiteSpace=wrap;html=1;fillColor=%23dae8fc;strokeColor=%236c8ebf;'%20vertex='1'%20parent='1'%3E%3CmxGeometry%20x='120'%20y='80'%20width='160'%20height='60'%20as='geometry'/%3E%3C/mxCell%3E%3C/root%3E%3C/mxGraphModel%3E%3C/diagram%3E%3C/mxfile%3E",
               "placeholder": "https://example.com/diagram.drawio"
             },
             "width": {
@@ -255,6 +438,16 @@
               "label": "高度",
               "default": "360px"
             },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "220px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#ffffff"
+            },
             "highlightColor": {
               "type": "string",
               "label": "高亮颜色",
@@ -264,8 +457,29 @@
               "type": "boolean",
               "label": "显示边框",
               "default": true
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "padding": {
+              "type": "string",
+              "label": "内边距",
+              "default": "0"
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "architecture-box",
+              "label": "架构示例",
+              "props": {
+                "height": "360px",
+                "showBorder": true,
+                "highlightColor": "#2563eb"
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -286,8 +500,10 @@
     },
     {
       "kind": "component",
-      "name": "AssetMermaid",
-      "import_path": "@runtime-kit/public/components/assets/AssetMermaid.vue",
+      "base_name": "AssetMermaid",
+      "version_no": 1,
+      "name": "AssetMermaid.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetMermaid.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染 Mermaid 图表。",
       "capability": {
@@ -296,19 +512,27 @@
         "recommendation_level": "default",
         "display_name": "Mermaid 图表渲染",
         "summary": "渲染 render_type=mermaid 的文本图表资源，由 Runtime 在浏览器端调用 Mermaid 渲染。",
-        "tags": ["mermaid", "diagram"],
+        "tags": [
+          "mermaid",
+          "diagram"
+        ],
         "usage": [
-          "import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.vue'",
+          "import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'",
           "<AssetMermaid name=\"process-flow\" height=\"360px\" />"
         ],
         "returns": "Vue 组件；渲染 Mermaid 图表视图。",
-        "return_example": ["<AssetMermaid name=\"process-flow\" />"],
+        "return_example": [
+          "<AssetMermaid name=\"process-flow\" />"
+        ],
         "constraints": [
           "适用于 asset_metadata.render_type=mermaid 的资源。",
           "Backend/Agent 只选择组件和传入资源名，不直接依赖 Mermaid 初始化细节。",
           "Mermaid 语法错误会由内部渲染器展示失败状态。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -322,7 +546,7 @@
             "fallback": {
               "type": "string",
               "label": "兜底 URL",
-              "default": "",
+              "default": "data:text/plain,flowchart%20TD%0A%20%20A%5BInput%5D%20--%3E%20B%7BCheck%7D%0A%20%20B%20--%3E%20C%5BOutput%5D",
               "placeholder": "https://example.com/diagram.mmd"
             },
             "width": {
@@ -335,15 +559,37 @@
               "label": "高度",
               "default": "360px"
             },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "220px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#ffffff"
+            },
             "theme": {
               "type": "select",
               "label": "主题",
               "default": "default",
               "options": [
-                { "label": "default", "value": "default" },
-                { "label": "neutral", "value": "neutral" },
-                { "label": "dark", "value": "dark" },
-                { "label": "forest", "value": "forest" }
+                {
+                  "label": "default",
+                  "value": "default"
+                },
+                {
+                  "label": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "label": "dark",
+                  "value": "dark"
+                },
+                {
+                  "label": "forest",
+                  "value": "forest"
+                }
               ]
             },
             "previewEnabled": {
@@ -355,8 +601,37 @@
               "type": "boolean",
               "label": "显示边框",
               "default": true
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "padding": {
+              "type": "string",
+              "label": "内边距",
+              "default": "16px"
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "flowchart",
+              "label": "流程图",
+              "props": {
+                "theme": "default",
+                "previewEnabled": false
+              }
+            },
+            {
+              "key": "dark-preview",
+              "label": "深色预览",
+              "props": {
+                "theme": "dark",
+                "backgroundColor": "#0f172a",
+                "showBorder": false
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -377,8 +652,10 @@
     },
     {
       "kind": "component",
-      "name": "AssetChart",
-      "import_path": "@runtime-kit/public/components/assets/AssetChart.vue",
+      "base_name": "AssetChart",
+      "version_no": 1,
+      "name": "AssetChart.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetChart.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染 ECharts option。",
       "capability": {
@@ -387,9 +664,12 @@
         "recommendation_level": "default",
         "display_name": "ECharts 图表渲染",
         "summary": "加载 render_type=chart 的 ECharts option JSON 文本，并交由 Runtime 图表渲染器展示。",
-        "tags": ["chart", "echarts"],
+        "tags": [
+          "chart",
+          "echarts"
+        ],
         "usage": [
-          "import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'",
+          "import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'",
           "<AssetChart name=\"sales-chart\" height=\"360px\" />"
         ],
         "returns": "Vue 组件；渲染 ECharts 图表。",
@@ -401,7 +681,10 @@
           "资源内容应为 ECharts option JSON 或内部渲染器可解析的 option 文本。",
           "Backend/Agent 不应把该能力当作通用图表样式组件，只负责绑定资源。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -415,7 +698,7 @@
             "fallback": {
               "type": "string",
               "label": "兜底 URL",
-              "default": "",
+              "default": "data:application/json,%7B%22xAxis%22%3A%7B%22type%22%3A%22category%22%2C%22data%22%3A%5B%22Q1%22%2C%22Q2%22%2C%22Q3%22%2C%22Q4%22%5D%7D%2C%22yAxis%22%3A%7B%22type%22%3A%22value%22%7D%2C%22series%22%3A%5B%7B%22type%22%3A%22bar%22%2C%22data%22%3A%5B120%2C200%2C150%2C80%5D%7D%5D%2C%22grid%22%3A%7B%22left%22%3A32%2C%22right%22%3A16%2C%22top%22%3A24%2C%22bottom%22%3A32%7D%7D",
               "placeholder": "https://example.com/chart-option.json"
             },
             "width": {
@@ -428,21 +711,80 @@
               "label": "高度",
               "default": "360px"
             },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "240px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#ffffff"
+            },
+            "theme": {
+              "type": "string",
+              "label": "ECharts 主题",
+              "default": ""
+            },
             "renderer": {
               "type": "select",
               "label": "渲染器",
               "default": "canvas",
               "options": [
-                { "label": "canvas", "value": "canvas" },
-                { "label": "svg", "value": "svg" }
+                {
+                  "label": "canvas",
+                  "value": "canvas"
+                },
+                {
+                  "label": "svg",
+                  "value": "svg"
+                }
               ]
             },
             "showBorder": {
               "type": "boolean",
               "label": "显示边框",
               "default": true
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "padding": {
+              "type": "string",
+              "label": "内边距",
+              "default": "0"
+            },
+            "notMerge": {
+              "type": "boolean",
+              "label": "不合并旧配置",
+              "default": true
+            },
+            "lazyUpdate": {
+              "type": "boolean",
+              "label": "延迟更新",
+              "default": false
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "bar-chart",
+              "label": "柱状图",
+              "props": {
+                "renderer": "canvas",
+                "height": "360px"
+              }
+            },
+            {
+              "key": "svg-renderer",
+              "label": "SVG 渲染",
+              "props": {
+                "renderer": "svg",
+                "showBorder": true
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -463,8 +805,10 @@
     },
     {
       "kind": "component",
-      "name": "AssetFormula",
-      "import_path": "@runtime-kit/public/components/assets/AssetFormula.vue",
+      "base_name": "AssetFormula",
+      "version_no": 1,
+      "name": "AssetFormula.v1",
+      "import_path": "@runtime-kit/public/components/assets/AssetFormula.v1.vue",
       "category": "asset",
       "description": "按资源逻辑名渲染 LaTeX 公式。",
       "capability": {
@@ -473,19 +817,27 @@
         "recommendation_level": "default",
         "display_name": "LaTeX 公式渲染",
         "summary": "加载 render_type=formula 的 LaTeX 文本资源，并由 Runtime 在浏览器端渲染公式。",
-        "tags": ["latex", "formula"],
+        "tags": [
+          "latex",
+          "formula"
+        ],
         "usage": [
-          "import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.vue'",
+          "import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.vue'",
           "<AssetFormula name=\"equation\" display-mode />"
         ],
         "returns": "Vue 组件；渲染 LaTeX 公式。",
-        "return_example": ["<AssetFormula name=\"equation\" display-mode />"],
+        "return_example": [
+          "<AssetFormula name=\"equation\" display-mode />"
+        ],
         "constraints": [
           "适用于 asset_metadata.render_type=formula 的资源。",
           "资源内容应为 LaTeX 文本。",
           "Backend/Agent 不应直接生成 KaTeX DOM，Runtime 负责浏览器端公式渲染。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
@@ -499,7 +851,7 @@
             "fallback": {
               "type": "string",
               "label": "兜底 URL",
-              "default": "",
+              "default": "data:text/plain,%5Cfrac%7Ba%5E2%20%2B%20b%5E2%7D%7Bc%7D",
               "placeholder": "https://example.com/formula.tex"
             },
             "displayMode": {
@@ -512,6 +864,21 @@
               "label": "宽度",
               "default": "fit-content"
             },
+            "height": {
+              "type": "string",
+              "label": "高度",
+              "default": "auto"
+            },
+            "minHeight": {
+              "type": "string",
+              "label": "最小高度",
+              "default": "56px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "label": "背景色",
+              "default": "#ffffff"
+            },
             "padding": {
               "type": "string",
               "label": "内边距",
@@ -521,8 +888,60 @@
               "type": "boolean",
               "label": "显示边框",
               "default": true
+            },
+            "borderRadius": {
+              "type": "string",
+              "label": "圆角",
+              "default": "8px"
+            },
+            "throwOnError": {
+              "type": "boolean",
+              "label": "错误时抛出",
+              "default": false
+            },
+            "strict": {
+              "type": "select",
+              "label": "严格模式",
+              "default": "warn",
+              "options": [
+                {
+                  "label": "warn",
+                  "value": "warn"
+                },
+                {
+                  "label": "ignore",
+                  "value": "ignore"
+                },
+                {
+                  "label": "throw",
+                  "value": "throw"
+                }
+              ]
+            },
+            "trust": {
+              "type": "boolean",
+              "label": "信任命令",
+              "default": false
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "block-formula",
+              "label": "块级公式",
+              "props": {
+                "displayMode": true,
+                "width": "fit-content"
+              }
+            },
+            {
+              "key": "inline-formula",
+              "label": "行内公式",
+              "props": {
+                "displayMode": false,
+                "padding": "6px 8px"
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -543,8 +962,10 @@
     },
     {
       "kind": "component",
-      "name": "DefaultContainer",
-      "import_path": "@runtime-kit/public/components/page/layout/DefaultContainer.vue",
+      "base_name": "DefaultContainer",
+      "version_no": 1,
+      "name": "DefaultContainer.v1",
+      "import_path": "@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue",
       "category": "page",
       "description": "页面真实画布容器，负责页面宽高、定位上下文和内容裁剪。",
       "capability": {
@@ -553,9 +974,12 @@
         "recommendation_level": "default",
         "display_name": "页面画布容器",
         "summary": "页面根容器能力，只处理 Runtime 页面真实尺寸和 overflow，不提供内容模板或业务布局。",
-        "tags": ["canvas", "page-size"],
+        "tags": [
+          "canvas",
+          "page-size"
+        ],
         "usage": [
-          "import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'",
+          "import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'",
           "<DefaultContainer><main class=\"relative h-full\">...</main></DefaultContainer>"
         ],
         "returns": "Vue 组件；渲染固定页面尺寸的内容画布。",
@@ -567,7 +991,10 @@
           "通用内容块、卡片、网格、页头页脚应由 Backend/Agent 在页面源码中生成。",
           "不处理预览缩放；缩放由 Runtime shell 内部完成。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "slots": {
             "default": {
@@ -579,7 +1006,33 @@
                 }
               ]
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "center-canvas",
+              "label": "居中画布",
+              "slots": {
+                "default": [
+                  {
+                    "type": "html",
+                    "value": "<div style='height:100%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:#0D286A;'>Page Canvas</div>"
+                  }
+                ]
+              }
+            },
+            {
+              "key": "section-stack",
+              "label": "分区占位",
+              "slots": {
+                "default": [
+                  {
+                    "type": "html",
+                    "value": "<main style='height:100%;display:grid;grid-template-rows:96px 1fr 72px;background:#f8fafc;color:#0f172a;'><header style='display:flex;align-items:center;padding:0 48px;font-size:24px;font-weight:700;'>Header</header><section style='display:flex;align-items:center;justify-content:center;border-block:1px solid #e2e8f0;font-size:40px;font-weight:800;'>Content</section><footer style='display:flex;align-items:center;justify-content:flex-end;padding:0 48px;font-size:18px;'>Footer</footer></main>"
+                  }
+                ]
+              }
+            }
+          ]
         },
         "preview_options": {
           "placement": {
@@ -594,8 +1047,10 @@
     },
     {
       "kind": "component",
-      "name": "Icon",
-      "import_path": "@runtime-kit/public/components/primitives/Icon.vue",
+      "base_name": "Icon",
+      "version_no": 1,
+      "name": "Icon.v1",
+      "import_path": "@runtime-kit/public/components/primitives/Icon.v1.vue",
       "category": "runtime",
       "description": "渲染 Runtime 图标资源并支持主题色。",
       "capability": {
@@ -604,9 +1059,13 @@
         "recommendation_level": "default",
         "display_name": "图标渲染",
         "summary": "根据 Runtime 图标配置渲染静态图标，支持 SVG inline、主题色解析和可编辑描边宽度。",
-        "tags": ["icon", "svg", "theme-color"],
+        "tags": [
+          "icon",
+          "svg",
+          "theme-color"
+        ],
         "usage": [
-          "import Icon from '@runtime-kit/public/components/primitives/Icon.vue'",
+          "import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'",
           "<Icon name=\"home\" class=\"size-8\" color=\"primary\" />"
         ],
         "returns": "Vue 组件；渲染图标或回退内容。",
@@ -618,20 +1077,66 @@
           "适合需要 Runtime 解析图标资源、inline SVG 或主题色的场景。",
           "普通文本、卡片图标位置和布局仍由 Backend/Agent 生成。"
         ],
-        "audiences": ["backend", "agent"],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
         "preview_schema": {
           "props": {
             "name": {
               "type": "string",
               "label": "图标名",
-              "default": "home"
+              "default": "home",
+              "placeholder": "home"
             },
             "color": {
               "type": "string",
               "label": "颜色",
               "default": "#0D286A"
+            },
+            "class": {
+              "type": "string",
+              "label": "尺寸类名",
+              "description": "传给图标根节点的 Tailwind 尺寸类，默认给出可见尺寸。",
+              "default": "size-16"
+            },
+            "strokeWidth": {
+              "type": "number",
+              "label": "描边宽度",
+              "default": 2
+            },
+            "disabled": {
+              "type": "boolean",
+              "label": "禁用态",
+              "default": false
+            },
+            "fallback": {
+              "type": "string",
+              "label": "回退文本",
+              "default": "?"
             }
-          }
+          },
+          "presets": [
+            {
+              "key": "brand-icon",
+              "label": "品牌色",
+              "props": {
+                "name": "home",
+                "color": "#0D286A",
+                "class": "size-16",
+                "strokeWidth": 2
+              }
+            },
+            {
+              "key": "fallback-icon",
+              "label": "回退文本",
+              "props": {
+                "name": "missing-icon",
+                "fallback": "RT",
+                "class": "size-16"
+              }
+            }
+          ]
         },
         "preview_options": {
           "page": {
@@ -650,8 +1155,113 @@
     },
     {
       "kind": "component",
-      "name": "Connector",
-      "import_path": "@runtime-kit/public/components/primitives/Connector.vue",
+      "base_name": "ThemeLogo",
+      "version_no": 1,
+      "name": "ThemeLogo.v1",
+      "import_path": "@runtime-kit/public/components/primitives/ThemeLogo.v1.vue",
+      "category": "runtime",
+      "description": "按当前主题配置渲染常规 Logo 或反色 Logo。",
+      "capability": {
+        "enabled": true,
+        "previewable": true,
+        "recommendation_level": "default",
+        "display_name": "主题 Logo 渲染",
+        "summary": "读取 Runtime 主题配置中的 logo 或 invertLogo，并按单一高度刻度等比渲染为图片。",
+        "tags": [
+          "theme-logo",
+          "brand-logo"
+        ],
+        "usage": [
+          "import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vue'",
+          "<ThemeLogo :size=\"4\" />",
+          "<ThemeLogo variant=\"invert\" :size=\"12\" />"
+        ],
+        "returns": "Vue 组件；有主题 Logo 时渲染 img，没有对应 Logo 时渲染为空。",
+        "return_example": [
+          "<ThemeLogo :size=\"4\" />",
+          "<ThemeLogo variant=\"invert\" :size=\"12\" />"
+        ],
+        "constraints": [
+          "主题 Logo 路径来自当前主题配置的 logo/invertLogo，并通过 Runtime 资源解析。",
+          "没有对应主题 Logo 时不渲染 img，也不提供 fallbackSrc 或伪造资源。",
+          "尺寸只通过 size 控制高度，数字刻度跟随 Runtime Tailwind spacing 与页面基础字号；宽度始终自动等比计算。",
+          "保留 Logo 原始颜色，不应用 Icon 的主题色、SVG inline 或描边宽度逻辑。"
+        ],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
+        "preview_schema": {
+          "props": {
+            "variant": {
+              "type": "select",
+              "label": "Logo 类型",
+              "default": "logo",
+              "options": [
+                {
+                  "label": "常规 Logo",
+                  "value": "logo"
+                },
+                {
+                  "label": "反色 Logo",
+                  "value": "invert"
+                }
+              ]
+            },
+            "alt": {
+              "type": "string",
+              "label": "替代文本",
+              "default": "主题 Logo"
+            },
+            "size": {
+              "type": "number",
+              "label": "高度刻度",
+              "description": "按 Runtime Tailwind spacing 解释，4 等于一个页面基础字号，宽度自动保持比例。",
+              "default": 4
+            }
+          },
+          "presets": [
+            {
+              "key": "theme-logo",
+              "label": "常规 Logo",
+              "props": {
+                "variant": "logo",
+                "size": 4
+              }
+            },
+            {
+              "key": "theme-invert-logo",
+              "label": "反色 Logo",
+              "props": {
+                "variant": "invert",
+                "size": 12
+              }
+            }
+          ]
+        },
+        "preview_options": {
+          "page": {
+            "width": 640,
+            "height": 360
+          },
+          "placement": {
+            "width_mode": "percent",
+            "width_value": 100,
+            "height_mode": "percent",
+            "height_value": 100,
+            "horizontal_align": "center",
+            "vertical_align": "center",
+            "padding": 72
+          }
+        }
+      }
+    },
+    {
+      "kind": "component",
+      "base_name": "Connector",
+      "version_no": 1,
+      "name": "Connector.v1",
+      "import_path": "@runtime-kit/public/components/primitives/Connector.v1.vue",
       "category": "runtime",
       "description": "在页面元素之间基于真实 DOM 位置绘制连接线。",
       "capability": {
@@ -660,9 +1270,12 @@
         "recommendation_level": "advanced",
         "display_name": "DOM 连线组件",
         "summary": "用于流程图、架构图、关系图中需要根据真实 DOM 元素位置绘制连线的高级场景。",
-        "tags": ["connector", "dom"],
+        "tags": [
+          "connector",
+          "dom"
+        ],
         "usage": [
-          "import Connector from '@runtime-kit/public/components/primitives/Connector.vue'",
+          "import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vue'",
           "<Connector from=\"#node-a\" to=\"#node-b\" arrow=\"end\" type=\"polyline\" />"
         ],
         "returns": "Vue 组件；在真实 DOM 上下文中渲染 SVG 连线。",
@@ -674,13 +1287,18 @@
           "不适合普通内容布局，不进入 Agent 默认推荐流。",
           "不单独提供预览 artifact，应在页面预览或项目预览中验证。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useTheme",
-      "import_path": "@runtime-kit/public/composables/theme/useTheme",
+      "base_name": "useTheme",
+      "version_no": 1,
+      "name": "useTheme.v1",
+      "import_path": "@runtime-kit/public/composables/theme/useTheme.v1",
       "category": "runtime",
       "description": "读取当前主题配置、主题样式变量与主题 Logo。",
       "capability": {
@@ -688,10 +1306,13 @@
         "previewable": false,
         "recommendation_level": "default",
         "display_name": "主题读取",
-        "summary": "读取当前 Runtime 主题配置、CSS 变量样式、主题 logo 与反色 logo，供页面使用品牌主题资源。",
-        "tags": ["theme", "logo"],
+        "summary": "读取当前 Runtime 主题配置、CSS 变量样式、主题 logo 与反色 logo，供高级主题场景使用。",
+        "tags": [
+          "theme",
+          "logo"
+        ],
         "usage": [
-          "import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'",
+          "import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'",
           "const { themeLogo, themeInvertLogo, themeStyles } = useTheme()"
         ],
         "returns": "对象：themeConfig、themeClass、themeStyles、themeLogo、themeInvertLogo 及主题辅助方法。",
@@ -701,15 +1322,21 @@
         ],
         "constraints": [
           "仅用于读取已由 Runtime 加载的主题配置，不负责创建主题或切换项目主题。",
-          "主题 logo 路径来自主题配置 logo/invertLogo，并通过 Runtime 资源解析。"
+          "主题 logo 路径来自主题配置 logo/invertLogo，并通过 Runtime 资源解析。",
+          "普通主题 Logo 渲染优先使用 ThemeLogo 组件。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useAssetSrc",
-      "import_path": "@runtime-kit/public/composables/assets/useAsset",
+      "base_name": "useAssetSrc",
+      "version_no": 1,
+      "name": "useAssetSrc.v1",
+      "import_path": "@runtime-kit/public/composables/assets/useAssetSrc.v1",
       "category": "asset",
       "description": "按资源逻辑名解析可访问 URL。",
       "capability": {
@@ -718,9 +1345,11 @@
         "recommendation_level": "default",
         "display_name": "资源 URL 解析",
         "summary": "输入工作空间资源逻辑名，输出 Runtime 当前上下文可访问的资源 URL。",
-        "tags": ["url"],
+        "tags": [
+          "url"
+        ],
         "usage": [
-          "import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAsset'",
+          "import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAssetSrc.v1'",
           "const src = useAssetSrc('cover')"
         ],
         "returns": "ComputedRef<string>：资源 URL；资源名为空或未命中时返回 fallback，默认空串。",
@@ -733,13 +1362,18 @@
           "适合自定义组件需要拿到 URL 字符串的场景。",
           "不负责布局、占位或资源类型判断。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useAssetBackground",
-      "import_path": "@runtime-kit/public/composables/assets/useAsset",
+      "base_name": "useAssetBackground",
+      "version_no": 1,
+      "name": "useAssetBackground.v1",
+      "import_path": "@runtime-kit/public/composables/assets/useAssetBackground.v1",
       "category": "asset",
       "description": "按资源逻辑名生成背景图样式。",
       "capability": {
@@ -748,9 +1382,11 @@
         "recommendation_level": "default",
         "display_name": "背景图 URL 样式解析",
         "summary": "输入资源逻辑名，输出包含 backgroundImage 的响应式样式对象。",
-        "tags": ["background"],
+        "tags": [
+          "background"
+        ],
         "usage": [
-          "import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAsset'",
+          "import { useAssetBackground } from '@runtime-kit/public/composables/assets/useAssetBackground.v1'",
           "const backgroundStyle = useAssetBackground('cover')"
         ],
         "returns": "ComputedRef<{ backgroundImage: string }>：背景图样式对象。",
@@ -762,13 +1398,18 @@
           "仅负责解析 background-image URL，不处理 background-size、布局尺寸或视觉样式。",
           "页面结构和背景容器由 Backend/Agent 生成。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useAssetFontFamily",
-      "import_path": "@runtime-kit/public/composables/assets/useAsset",
+      "base_name": "useAssetFontFamily",
+      "version_no": 1,
+      "name": "useAssetFontFamily.v1",
+      "import_path": "@runtime-kit/public/composables/assets/useAssetFontFamily.v1",
       "category": "asset",
       "description": "按字体资源逻辑名解析响应式 font-family。",
       "capability": {
@@ -777,9 +1418,11 @@
         "recommendation_level": "default",
         "display_name": "字体资源解析",
         "summary": "输入工作空间字体资源逻辑名，输出 Runtime 当前已注册字体对应的 font-family。",
-        "tags": ["font"],
+        "tags": [
+          "font"
+        ],
         "usage": [
-          "import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAsset'",
+          "import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAssetFontFamily.v1'",
           "const titleFont = useAssetFontFamily('BrandSerif')"
         ],
         "returns": "ComputedRef<string>：可直接用于 CSS font-family 的字体族；未命中时返回 fallback。",
@@ -791,13 +1434,18 @@
           "字体资源必须是当前 artifact 中已注册并下发的字体配置。",
           "页面源码应使用静态字符串声明字体资源名，便于 Backend 汇总字体依赖。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "usePageSize",
-      "import_path": "@runtime-kit/public/composables/page/usePageSize",
+      "base_name": "usePageSize",
+      "version_no": 1,
+      "name": "usePageSize.v1",
+      "import_path": "@runtime-kit/public/composables/page/usePageSize.v1",
       "category": "page",
       "description": "读取当前页面尺寸与标准页面画布样式。",
       "capability": {
@@ -806,9 +1454,11 @@
         "recommendation_level": "default",
         "display_name": "页面尺寸读取",
         "summary": "读取 Runtime 当前页面宽高、宽高比和真实画布样式。",
-        "tags": ["page-size"],
+        "tags": [
+          "page-size"
+        ],
         "usage": [
-          "import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'",
+          "import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'",
           "const { width, height, pageStyle } = usePageSize()"
         ],
         "returns": "对象：width、height、aspectRatio、pageStyle。",
@@ -823,13 +1473,18 @@
           "用于页面内容层，不处理预览缩放。",
           "不提供任何视觉模板、布局组件或内容块。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "util",
-      "name": "buildPageCanvasStyle",
-      "import_path": "@runtime-kit/public/composables/page/usePageSize",
+      "base_name": "buildPageCanvasStyle",
+      "version_no": 1,
+      "name": "buildPageCanvasStyle.v1",
+      "import_path": "@runtime-kit/public/composables/page/buildPageCanvasStyle.v1",
       "category": "page",
       "description": "构造标准页面画布样式的纯函数。",
       "capability": {
@@ -838,9 +1493,11 @@
         "recommendation_level": "default",
         "display_name": "页面画布样式构造",
         "summary": "在非 Vue 响应式场景下构造 Runtime 页面真实宽高和裁剪样式。",
-        "tags": ["canvas"],
+        "tags": [
+          "canvas"
+        ],
         "usage": [
-          "import { buildPageCanvasStyle } from '@runtime-kit/public/composables/page/usePageSize'",
+          "import { buildPageCanvasStyle } from '@runtime-kit/public/composables/page/buildPageCanvasStyle.v1'",
           "const style = buildPageCanvasStyle({ width: 1600, height: 900 })"
         ],
         "returns": "CSSProperties：页面画布样式对象。",
@@ -852,13 +1509,18 @@
           "仅负责页面真实宽高、position: relative 和 overflow: hidden。",
           "不包含背景、内边距、网格、卡片或页面模板样式。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useCurrentPage",
-      "import_path": "@runtime-kit/public/composables/page/useCurrentPage",
+      "base_name": "useCurrentPage",
+      "version_no": 1,
+      "name": "useCurrentPage.v1",
+      "import_path": "@runtime-kit/public/composables/page/useCurrentPage.v1",
       "category": "page",
       "description": "返回当前路由、页码、总页数和标题。",
       "capability": {
@@ -867,9 +1529,12 @@
         "recommendation_level": "default",
         "display_name": "当前页上下文",
         "summary": "从当前 Vue Router 上下文读取当前页码、总页数和标题。",
-        "tags": ["route", "page-number"],
+        "tags": [
+          "route",
+          "page-number"
+        ],
         "usage": [
-          "import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage'",
+          "import { useCurrentPage } from '@runtime-kit/public/composables/page/useCurrentPage.v1'",
           "const { currentPage, totalPages, title } = useCurrentPage()"
         ],
         "returns": "对象：route、routeInfo、currentPage、totalPages、title。",
@@ -883,13 +1548,18 @@
           "仅在 Vue Router 上下文内可用。",
           "只提供数据，页码 UI 由 Backend/Agent 在页面源码中生成。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "useRouteCatalog",
-      "import_path": "@runtime-kit/public/composables/page/useRouteCatalog",
+      "base_name": "useRouteCatalog",
+      "version_no": 1,
+      "name": "useRouteCatalog.v1",
+      "import_path": "@runtime-kit/public/composables/page/useRouteCatalog.v1",
       "category": "page",
       "description": "返回可见路由、排序路由和目录查询能力。",
       "capability": {
@@ -898,9 +1568,12 @@
         "recommendation_level": "default",
         "display_name": "路由目录读取",
         "summary": "读取 Runtime 路由目录、页码范围和常用路由查询函数。",
-        "tags": ["route", "catalog"],
+        "tags": [
+          "route",
+          "catalog"
+        ],
         "usage": [
-          "import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog'",
+          "import { useRouteCatalog } from '@runtime-kit/public/composables/page/useRouteCatalog.v1'",
           "const { catalogItems, getRouteInfoByPath } = useRouteCatalog()"
         ],
         "returns": "对象：目录项、页码范围和多种查询函数。",
@@ -913,13 +1586,18 @@
           "依赖 Runtime 路由生成配置。",
           "只提供目录数据，不提供目录 UI、双列布局或连接线样式。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "composable",
-      "name": "usePageNavigation",
-      "import_path": "@runtime-kit/public/composables/page/usePageNavigation",
+      "base_name": "usePageNavigation",
+      "version_no": 1,
+      "name": "usePageNavigation.v1",
+      "import_path": "@runtime-kit/public/composables/page/usePageNavigation.v1",
       "category": "page",
       "description": "公开上一页、下一页和跳转能力。",
       "capability": {
@@ -928,9 +1606,12 @@
         "recommendation_level": "default",
         "display_name": "页面导航控制",
         "summary": "基于 Runtime 路由页码提供上一页、下一页和跳转控制。",
-        "tags": ["navigation", "route"],
+        "tags": [
+          "navigation",
+          "route"
+        ],
         "usage": [
-          "import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation'",
+          "import { usePageNavigation } from '@runtime-kit/public/composables/page/usePageNavigation.v1'",
           "const { canGoNext, goToNextPage, goToPreviousPage } = usePageNavigation()"
         ],
         "returns": "对象：导航方法和可导航状态。",
@@ -944,13 +1625,18 @@
           "依赖 Runtime 路由体系。",
           "不负责导航按钮、页脚、快捷键或其他页面样式。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "util",
-      "name": "resolveResourcePath",
-      "import_path": "@runtime-kit/public/utils/assets",
+      "base_name": "resolveResourcePath",
+      "version_no": 1,
+      "name": "resolveResourcePath.v1",
+      "import_path": "@runtime-kit/public/utils/assets.v1",
       "category": "asset",
       "description": "解析资源逻辑名到可访问 URL。",
       "capability": {
@@ -959,9 +1645,11 @@
         "recommendation_level": "default",
         "display_name": "资源路径解析",
         "summary": "将工作空间资源逻辑名、Runtime public 资源路径或远程 URL 解析为浏览器可访问路径。",
-        "tags": ["url"],
+        "tags": [
+          "url"
+        ],
         "usage": [
-          "import { resolveResourcePath } from '@runtime-kit/public/utils/assets'",
+          "import { resolveResourcePath } from '@runtime-kit/public/utils/assets.v1'",
           "const logoUrl = resolveResourcePath('logo_main')"
         ],
         "returns": "string：资源 URL 或规范化后的相对路径。",
@@ -974,13 +1662,18 @@
           "优先命中当前 artifact 的 assets 映射。",
           "适合非响应式代码；Vue 模板中需要响应式资源时优先使用 useAssetSrc。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "util",
-      "name": "resolveAssetFontFamily",
-      "import_path": "@runtime-kit/public/utils/fonts",
+      "base_name": "resolveAssetFontFamily",
+      "version_no": 1,
+      "name": "resolveAssetFontFamily.v1",
+      "import_path": "@runtime-kit/public/utils/fonts.v1",
       "category": "asset",
       "description": "按字体资源逻辑名解析 font-family。",
       "capability": {
@@ -989,9 +1682,11 @@
         "recommendation_level": "default",
         "display_name": "字体资源 font-family 解析",
         "summary": "将工作空间字体资源逻辑名解析为 Runtime 已注册字体对应的 font-family，适用于非响应式代码。",
-        "tags": ["font"],
+        "tags": [
+          "font"
+        ],
         "usage": [
-          "import { resolveAssetFontFamily } from '@runtime-kit/public/utils/fonts'",
+          "import { resolveAssetFontFamily } from '@runtime-kit/public/utils/fonts.v1'",
           "const titleFont = resolveAssetFontFamily('BrandSerif', 'sans-serif')"
         ],
         "returns": "string：可直接用于 CSS font-family 的字体族；未命中时返回 fallback。",
@@ -1003,13 +1698,18 @@
           "字体资源必须是当前 artifact 中已注册并下发的字体配置。",
           "Vue 模板中需要响应式字体时优先使用 useAssetFontFamily。"
         ],
-        "audiences": ["backend", "agent"]
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     },
     {
       "kind": "util",
-      "name": "resolveColor",
-      "import_path": "@runtime-kit/public/utils/colors",
+      "base_name": "resolveColor",
+      "version_no": 1,
+      "name": "resolveColor.v1",
+      "import_path": "@runtime-kit/public/utils/colors.v1",
       "category": "runtime",
       "description": "解析主题色、CSS 变量或普通颜色值。",
       "capability": {
@@ -1018,9 +1718,11 @@
         "recommendation_level": "default",
         "display_name": "主题颜色解析",
         "summary": "将主题色别名、色阶、CSS 变量或普通颜色值解析为可用于 style 的颜色表达式。",
-        "tags": ["theme-color"],
+        "tags": [
+          "theme-color"
+        ],
         "usage": [
-          "import { resolveColor } from '@runtime-kit/public/utils/colors'",
+          "import { resolveColor } from '@runtime-kit/public/utils/colors.v1'",
           "const color = resolveColor('primary')"
         ],
         "returns": "string | undefined：解析后的颜色值；输入为空时返回 undefined。",
@@ -1029,8 +1731,13 @@
           "resolveColor('accent1-300') // 'color-mix(in srgb, var(--tw-color-accent1) 50%, white)'",
           "resolveColor('#0D286A') // '#0D286A'"
         ],
-        "constraints": ["用于需要主题变量解析的自定义渲染场景。"],
-        "audiences": ["backend", "agent"]
+        "constraints": [
+          "用于需要主题变量解析的自定义渲染场景。"
+        ],
+        "audiences": [
+          "backend",
+          "agent"
+        ]
       }
     }
   ]

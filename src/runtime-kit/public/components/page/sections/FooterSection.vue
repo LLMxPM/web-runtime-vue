@@ -33,8 +33,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import Pagination from '@runtime-kit/public/components/page/sections/Pagination.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import Pagination from './Pagination.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 
 
 defineOptions({

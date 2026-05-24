@@ -3,14 +3,15 @@
 -->
 
 <template>
-  <div class="flex flex-col bg-background text-primary border border-border transition-colors duration-300"
+  <div
+class="flex flex-col bg-background text-primary border border-border transition-colors duration-300"
     :style="containerStyle">
     <slot></slot>
   </div>
 </template>
 
 <script setup lang="ts">
-import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'
+import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'
 
 /**
  * 默认布局容器组件。

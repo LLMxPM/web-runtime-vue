@@ -3,4 +3,3 @@
  */
 
 export { resolveResourcePath } from '@/core/utils/path'
-

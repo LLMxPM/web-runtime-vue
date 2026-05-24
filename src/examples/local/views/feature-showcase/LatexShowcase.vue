@@ -74,8 +74,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 import LatexViewer from '@runtime-kit/internal/renderers/LatexViewer.vue'
 
 type FormulaKey = 'quadratic' | 'bayes' | 'matrix' | 'integral'

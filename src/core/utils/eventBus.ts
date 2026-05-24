@@ -11,7 +11,7 @@ import { ref } from 'vue'
 export interface AppEvents {
   'config:updated': {
     type: 'containerThemes' | 'contentPageContainer' | 'app'
-    data: any
+    data: unknown
   }
   'theme:changed': {
     theme: string
@@ -22,7 +22,7 @@ export interface AppEvents {
 /**
  * 事件监听器类
  */
-type EventListener<T = any> = (data: T) => void
+type EventListener<T = unknown> = (data: T) => void
 
 /**
  * 事件总线
@@ -111,12 +111,11 @@ export const configUpdateState = ref({
 /**
  * 触发配置更新事件
  */
-export function notifyConfigUpdate(type: 'containerThemes' | 'contentPageContainer' | 'app', data: any): void {
+export function notifyConfigUpdate(type: 'containerThemes' | 'contentPageContainer' | 'app', data: unknown): void {
   configUpdateState.value.lastUpdate = Date.now()
   configUpdateState.value.updateCount++
   
   eventBus.emit('config:updated', { type, data })
-  console.log(`配置更新通知: ${type}`, data)
 }
 
 /**

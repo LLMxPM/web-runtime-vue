@@ -2,7 +2,7 @@
   文件用途：Runtime Kit 通用图标组件，仅支持静态资源图标展示，并支持静态 SVG 颜色配置。
 -->
 <template>
-  <span 
+  <span
     v-bind="rootAttrs"
     class="app-icon inline-flex items-center justify-center"
     :class="[
@@ -16,13 +16,15 @@
     :style="rootStyle"
   >
     <!-- 静态 SVG 图标（内联渲染以支持颜色配置） -->
+    <!-- eslint-disable vue/no-v-html -- SVG 来源于静态图标注册表，需内联渲染以支持颜色替换。 -->
     <span
       v-if="showStaticSvg"
       class="app-icon__static-svg"
-      v-html="coloredSvgContent"
       role="img"
       :aria-label="iconDescription || props.name || 'Icon'"
+      v-html="coloredSvgContent"
     />
+    <!-- eslint-enable vue/no-v-html -->
 
     <!-- 静态图标 -->
     <img
@@ -31,17 +33,17 @@
       :alt="iconDescription || props.name || 'Icon'"
       class="app-icon__static"
     />
-    
+
     <!-- 回退显示 -->
-    <span 
+    <span
       v-else-if="showFallback && props.fallback"
       class="app-icon-fallback text-xs"
     >
       {{ props.fallback }}
     </span>
-    
+
     <!-- 默认回退（显示图标名称首字母） -->
-    <span 
+    <span
       v-else-if="showFallback"
       class="app-icon-fallback text-xs"
     >
@@ -54,13 +56,13 @@
 import { computed, useAttrs } from 'vue'
 import { useIcon } from '@/core/composables/useIcon'
 import { appConfig, appPageConfig } from '@/core/utils/config'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
-import { resolveColor } from '@runtime-kit/public/utils/colors'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
+import { resolveColor } from '@runtime-kit/public/utils/colors.v1'
 
 interface Props {
   /** 图标名称 */
   name?: string
-  /** 
+  /**
    * 图标颜色
    * 支持以下格式：
    * - 直接颜色值：#ff0000, rgb(255,0,0), rgba(255,0,0,0.5)
@@ -71,7 +73,7 @@ interface Props {
   /** 是否禁用 */
   disabled?: boolean
   /** 自定义类名 */
-  class?: unknown
+  class?: string | string[] | Record<string, boolean>
   /** 线条宽度，仅对支持能力标记的内联静态 SVG 生效 */
   strokeWidth?: number
   /** 回退显示内容（当图标不存在时） */
@@ -83,7 +85,12 @@ defineOptions({
 })
 
 const props = withDefaults(defineProps<Props>(), {
-  disabled: false
+  name: '',
+  color: '',
+  disabled: false,
+  class: '',
+  strokeWidth: undefined,
+  fallback: '',
 })
 const attrs = useAttrs()
 
@@ -117,7 +124,7 @@ const rootAttrs = computed(() => {
 // 计算解析后的颜色值
 const resolvedColor = computed(() => {
   if (!props.color) return undefined
-  
+
   // 使用颜色解析工具解析颜色
   return resolveColor(props.color)
 })

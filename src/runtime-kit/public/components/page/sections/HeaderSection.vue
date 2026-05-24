@@ -16,14 +16,16 @@
     
     <!-- Logo区域 -->
     <div v-if="shouldShowLogo" class="flex items-center justify-center" :class="logoPositionClass">
-      <img :src="logoSrc" alt="Logo" class="object-contain" :style="logoStyle" />
+      <ThemeLogo v-if="isThemeLogo" alt="Logo" :size="logoSize" />
+      <img v-else :src="props.customLogoSrc" alt="Logo" class="object-contain" :style="customLogoStyle" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
+import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vue'
 
 
 /**
@@ -106,18 +108,19 @@ const { themeLogo } = useTheme()
  * 计算是否应该显示logo
  */
 const shouldShowLogo = computed(() => {
-  return props.logoConfig !== 'none'
+  if (props.logoConfig === 'none') {
+    return false
+  }
+  if (props.logoConfig === 'custom') {
+    return Boolean(props.customLogoSrc)
+  }
+  return Boolean(themeLogo.value)
 })
 
 /**
- * 计算logo源地址
+ * 判断是否使用主题 Logo 组件渲染。
  */
-const logoSrc = computed(() => {
-  if (props.logoConfig === 'custom' && props.customLogoSrc) {
-    return props.customLogoSrc
-  }
-  return themeLogo.value
-})
+const isThemeLogo = computed(() => props.logoConfig === 'theme')
 
 /**
  * 计算对齐样式类
@@ -197,12 +200,19 @@ const headerStyle = computed(() => ({
 }))
 
 /**
- * 计算logo样式
+ * 计算 Logo 高度。
  */
-const logoStyle = computed(() => {
+const logoSize = computed(() => {
   const logoHeight = Math.max(24, Math.min(120, props.height * 0.6))
+  return `${logoHeight}px`
+})
+
+/**
+ * 计算自定义 Logo 图片样式。
+ */
+const customLogoStyle = computed(() => {
   return {
-    height: `${logoHeight}px`,
+    height: logoSize.value,
     width: 'auto'
   }
 })

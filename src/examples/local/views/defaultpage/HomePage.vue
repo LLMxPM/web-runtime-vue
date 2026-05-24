@@ -37,9 +37,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { defaultBackgroundUrl } from '@/assets/runtime-shell'
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
+import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
 
-import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.vue'
+import DefaultContainer from '@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue'
 
 /**
  * 首页组件

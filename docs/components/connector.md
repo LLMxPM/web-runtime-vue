@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
+import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vue'
 </script>
 ```
 
@@ -63,7 +63,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import Connector from '@runtime-kit/public/components/primitives/Connector.vue'
+import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vue'
 
 const startBox = ref<HTMLElement | null>(null)
 const endBox = ref<HTMLElement | null>(null)
@@ -83,3 +83,4 @@ const endBox = ref<HTMLElement | null>(null)
 - 不要用它绘制普通分割线或静态装饰线。
 - 不要在新代码中使用旧路径 `@runtime-kit/components/primitives/Connector.vue`。
 - 不要引用 `@runtime-kit/internal/...` 实现连线。
+- 不要引用未带 `.vN` 的 `@runtime-kit/public/...` 路径。

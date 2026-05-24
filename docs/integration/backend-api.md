@@ -93,7 +93,7 @@ Accept: application/json
 - `module_resolver` 中必须下发 `remote_component_prefix`、`runtime_kit_alias`、`runtime_kit_manifest_version`、`runtime_kit_exports`
 - 组件预览额外包含 `component_preview`
 - 组件预览页面尺寸由 `app.app.page.width/height` 唯一决定，同时也是 iframe 尺寸和截图视口尺寸
-- 页面基础字号与默认图标描边宽度由 `app.app.page.baseFontSize/iconDefaultStrokeWidth` 决定，组件预览可通过 `preview_options.page` 覆盖；图标尺寸默认跟随基础字号，局部使用 Tailwind 尺寸类控制
+- 页面内容基础字号与默认图标描边宽度由 `app.app.page.baseFontSize/iconDefaultStrokeWidth` 决定，组件预览可通过 `preview_options.page` 覆盖；Runtime shell UI 不跟随页面基础字号，页面内图标尺寸默认跟随基础字号，局部使用 Tailwind 尺寸类控制
 
 #### 组件预览片段示例
 
@@ -131,10 +131,10 @@ Runtime Kit 内建组件预览使用同一个 `component_host`，但目标组件
 ```json
 {
   "component_preview": {
-    "component_import_path": "@runtime-kit/public/components/primitives/Icon.vue",
+    "component_import_path": "@runtime-kit/public/components/primitives/Icon.v1.vue",
     "component_source": "runtime_kit",
-    "component_code": "Icon",
-    "runtime_kit_component_name": "Icon",
+    "component_code": "Icon.v1",
+    "runtime_kit_component_name": "Icon.v1",
     "runtime_kit_manifest_version": "1.0.0",
     "display_name": "图标渲染器",
     "schema": {
@@ -254,8 +254,8 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
 
 - `GET /api/admin/runtime-kit/components`
   - 兼容路径：`GET /api/admin/runtime-kit/capabilities`
-  - Query：`keyword`、`category`、`kind`、`previewable`
-  - 返回：Runtime Kit capability 列表
+  - Query：`keyword`、`category`、`kind`、`base_name`、`version_no`、`include_all_versions`、`previewable`
+  - 返回：Runtime Kit capability 列表；默认只返回每个 `kind + base_name` 的最新版本
 - `GET /api/admin/runtime-kit/components/{name}`
   - 兼容路径：`GET /api/admin/runtime-kit/capabilities/{name}`
   - 返回单个 capability 详情
@@ -272,6 +272,9 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
 | `keyword`     | `string`                                  | 按 `name`、`display_name`、`summary`、`description`、`tags`、`usage`、`returns`、`return_example`、`constraints` 模糊搜索。 |
 | `category`    | `string`                                  | 按 manifest 中的 `category` 精确过滤，例如 `asset`、`page`、`runtime`。                                                     |
 | `kind`        | `component \| composable \| util \| type` | 按能力类型过滤。                                                                                                            |
+| `base_name`   | `string`                                  | 按未带版本的能力基名过滤，例如 `Icon`、`usePageSize`。                                                                       |
+| `version_no`  | `integer`                                 | 按整数版本号过滤，可用于查看历史版本。                                                                                      |
+| `include_all_versions` | `boolean`                         | 为 `true` 时返回全部历史版本；缺省时只返回最新版本。                                                                        |
 | `previewable` | `boolean`                                 | 过滤是否可创建预览 artifact；非组件能力固定为 `false`。                                                                     |
 
 ### 响应字段语义
@@ -279,8 +282,10 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
 | 字段                   | 类型                                      | 语义                                                                                                 |
 | ---------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `kind`                 | `component \| composable \| util \| type` | 能力类型，决定 Editor 展示形态和 Backend 是否允许创建预览。                                          |
-| `name`                 | `string`                                  | manifest 内唯一能力名，也是详情和预览接口的 `{name}`。                                               |
-| `import_path`          | `string`                                  | 页面或工作空间组件源码中应使用的导入路径，必须来自 Runtime Kit manifest。                            |
+| `base_name`            | `string`                                  | 未带版本的能力基名，例如 `Icon`。                                                                    |
+| `version_no`           | `integer`                                 | 整数版本号，例如 `1`。                                                                               |
+| `name`                 | `string`                                  | manifest 内唯一版本化能力名，例如 `Icon.v1`，也是详情和预览接口的 `{name}`。                         |
+| `import_path`          | `string`                                  | 页面或工作空间组件源码中应使用的版本化导入路径，必须来自 Runtime Kit manifest。                      |
 | `category`             | `string`                                  | 能力分类，用于列表过滤和 Editor 分组，只应使用 `asset`、`page`、`runtime`。                          |
 | `description`          | `string`                                  | 简短职责说明。                                                                                       |
 | `display_name`         | `string`                                  | 面向用户展示的名称；缺省时可回退 `name`。                                                            |
@@ -304,8 +309,10 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
   "items": [
     {
       "kind": "component",
-      "name": "DefaultContainer",
-      "import_path": "@runtime-kit/public/components/page/layout/DefaultContainer.vue",
+      "base_name": "DefaultContainer",
+      "version_no": 1,
+      "name": "DefaultContainer.v1",
+      "import_path": "@runtime-kit/public/components/page/layout/DefaultContainer.v1.vue",
       "category": "page",
       "description": "页面真实画布容器，负责页面宽高和内容裁剪。",
       "display_name": "默认页面画布",
@@ -341,8 +348,10 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
     },
     {
       "kind": "composable",
-      "name": "usePageSize",
-      "import_path": "@runtime-kit/public/composables/page/usePageSize",
+      "base_name": "usePageSize",
+      "version_no": 1,
+      "name": "usePageSize.v1",
+      "import_path": "@runtime-kit/public/composables/page/usePageSize.v1",
       "category": "page",
       "description": "读取当前页面尺寸与标准页面画布样式。",
       "display_name": "页面尺寸读取",
@@ -353,7 +362,7 @@ Runtime Kit capability 目录只包含 Backend/Agent 无法直接稳定实现的
       "preview_schema": null,
       "preview_options": null,
       "usage": [
-        "import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize'",
+        "import { usePageSize } from '@runtime-kit/public/composables/page/usePageSize.v1'",
         "const { width, height, pageStyle } = usePageSize()"
       ],
       "returns": "对象：width、height、aspectRatio、pageStyle。",
@@ -385,7 +394,7 @@ Runtime Kit 组件预览 artifact 必须满足：
 - `owner_scope.scope_type=runtime_kit_component`
 - `manifest.modules={}`
 - `component_preview.component_source=runtime_kit`
-- `component_preview.component_import_path` 指向 `@runtime-kit/public/...` 公开组件路径
+- `component_preview.component_import_path` 指向 `@runtime-kit/public/...` 版本化公开组件路径
 - `component_preview.placement` 包含组件占位配置，且不包含旧 `canvas` 字段
 - token 与 manifest 同时携带 `runtime_kit_component_name` 和 `runtime_kit_manifest_version`
 

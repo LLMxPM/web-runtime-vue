@@ -8,9 +8,21 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pnpm-store/
+.npm/
 dist
 dist-ssr
+.vite/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
 *.local
+
+# Tool caches
+.codex/
+.cache/
+.tmp/
 
 # Editor directories and files
 .vscode/*
@@ -22,7 +34,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.vite
 .trae
 .kiro
 

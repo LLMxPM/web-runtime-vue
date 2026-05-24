@@ -21,6 +21,7 @@ import {
   isRuntimeLocalPublicModulePath,
   normalizeRuntimeModulePath,
   parseRemoteModuleId,
+  RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH,
   type ComponentPreviewMode,
   type PreviewKind,
   type PreviewScopeType,
@@ -29,6 +30,12 @@ import {
   type RuntimePreviewContext,
   type RuntimePreviewEntryDescriptor,
 } from '../shared/runtime-preview'
+import {
+  buildSnapdomProxyFetchHeaders,
+  inferContentTypeFromUrl,
+  isAllowedSnapdomProxyResourceUrl,
+  isHttpUrl,
+} from './runtime-snapdom-resource-proxy'
 
 interface RuntimeSaaSPreviewOptions {
   previewPath?: string
@@ -111,6 +118,20 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
       server.middlewares.use(async (req, res, next) => {
         const rawUrl = req.url || ''
         const strippedUrl = stripBasePath(rawUrl, basePath)
+        if (getPathname(strippedUrl) === RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH) {
+          return handleSnapdomResourceProxyRequest(req, res, {
+            strippedUrl,
+            jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
+            previewAudience: options.previewAudience || process.env.RUNTIME_PREVIEW_TOKEN_AUDIENCE || DEFAULT_PREVIEW_AUDIENCE,
+            backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
+            jwksTimeoutMs,
+            backendRequestTimeoutMs,
+            manifestCache,
+            previewTokenCache,
+            serviceTokenCache,
+          })
+        }
+
         if (getPathname(strippedUrl) === previewTailwindPath) {
           return handlePreviewTailwindCssRequest(req, res, {
             strippedUrl,
@@ -781,6 +802,140 @@ async function fetchArtifactManifest(
   return manifest
 }
 
+interface SnapdomResourceProxyRequestOptions {
+  strippedUrl: string
+  jwksUrl: string
+  previewAudience: string
+  backendApiBaseUrl: string
+  jwksTimeoutMs: number
+  backendRequestTimeoutMs: number
+  manifestCache: Map<string, RuntimePreviewArtifactManifest>
+  previewTokenCache: Map<string, string>
+  serviceTokenCache: Map<string, string>
+}
+
+interface RuntimeNodeRequest {
+  method?: string
+}
+
+interface RuntimeNodeResponse {
+  statusCode: number
+  setHeader: (name: string, value: string) => void
+  end: (chunk?: string | Buffer) => void
+}
+
+/**
+ * 处理 snapDOM 截图阶段的远端资源代理请求。
+ * @param req Node 请求对象
+ * @param res Node 响应对象
+ * @param options 请求上下文
+ */
+async function handleSnapdomResourceProxyRequest(
+  req: RuntimeNodeRequest,
+  res: RuntimeNodeResponse,
+  options: SnapdomResourceProxyRequestOptions,
+): Promise<void> {
+  try {
+    if (req.method && req.method !== 'GET' && req.method !== 'HEAD') {
+      throw new PreviewGatewayError(405, 'METHOD_NOT_ALLOWED', '截图资源代理仅支持 GET。')
+    }
+
+    const requestUrl = new URL(options.strippedUrl || '/', 'http://runtime.local')
+    const artifactId = String(requestUrl.searchParams.get('artifactId') || '')
+    const previewToken = String(requestUrl.searchParams.get('token') || '')
+    const sourceUrl = String(requestUrl.searchParams.get('url') || '')
+    if (!artifactId || !previewToken || !sourceUrl) {
+      throw new PreviewGatewayError(400, 'SNAPDOM_PROXY_QUERY_INVALID', '缺少 artifactId、token 或 url。')
+    }
+    if (!isHttpUrl(sourceUrl)) {
+      throw new PreviewGatewayError(400, 'SNAPDOM_PROXY_URL_INVALID', '截图资源代理只允许 http/https 资源。')
+    }
+
+    const verified = await verifyPreviewToken(previewToken, {
+      jwksUrl: options.jwksUrl,
+      audience: options.previewAudience,
+      timeoutMs: options.jwksTimeoutMs,
+    })
+    if (verified.publicContext.artifactId !== artifactId) {
+      throw new PreviewGatewayError(403, 'ARTIFACT_MISMATCH', '预览 artifact 与截图资源代理请求不一致。')
+    }
+    options.previewTokenCache.set(artifactId, previewToken)
+
+    const serviceToken = options.serviceTokenCache.get(artifactId) || ''
+    if (!serviceToken) {
+      throw new PreviewGatewayError(401, 'RUNTIME_SERVICE_TOKEN_REQUIRED', '缺少 Runtime 服务令牌缓存。')
+    }
+
+    const backendClient = createBackendClient({
+      backendApiBaseUrl: options.backendApiBaseUrl,
+      serviceToken,
+      previewToken,
+      requestTimeoutMs: options.backendRequestTimeoutMs,
+    })
+    const manifest = await fetchArtifactManifest(artifactId, backendClient, options.manifestCache)
+    assertManifestMatchesContext(manifest, verified.publicContext)
+
+    if (!isAllowedSnapdomProxyResourceUrl(sourceUrl, manifest, verified.publicContext)) {
+      throw new PreviewGatewayError(403, 'SNAPDOM_PROXY_RESOURCE_FORBIDDEN', '截图资源代理只允许访问当前 artifact 声明的静态资源。')
+    }
+
+    const response = await fetchWithTimeout(
+      sourceUrl,
+      {
+        headers: buildSnapdomProxyFetchHeaders(sourceUrl, serviceToken, previewToken, manifest, verified.publicContext),
+      },
+      options.backendRequestTimeoutMs,
+      'SNAPDOM_PROXY_REQUEST_TIMEOUT',
+    )
+    if (!response.ok) {
+      throw await toPreviewError(response, 'SNAPDOM_PROXY_FETCH_FAILED')
+    }
+
+    const body = Buffer.from(await response.arrayBuffer())
+    sendBinary(res, body, {
+      contentType: response.headers.get('content-type') || inferContentTypeFromUrl(sourceUrl),
+      isHead: req.method === 'HEAD',
+    })
+  } catch (error) {
+    sendSnapdomResourceProxyError(res, error)
+  }
+}
+
+/**
+ * 写入可供 snapDOM 读取的代理响应。
+ * @param res Node 响应对象
+ * @param body 二进制内容
+ * @param options 响应选项
+ */
+function sendBinary(
+  res: RuntimeNodeResponse,
+  body: Buffer,
+  options: { contentType: string; isHead: boolean },
+): void {
+  res.statusCode = 200
+  res.setHeader('Content-Type', options.contentType || 'application/octet-stream')
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Content-Length', String(body.length))
+  res.end(options.isHead ? undefined : body)
+}
+
+/**
+ * 输出 snapDOM 资源代理错误。
+ * @param res Node 响应对象
+ * @param error 错误对象
+ */
+function sendSnapdomResourceProxyError(res: RuntimeNodeResponse, error: unknown): void {
+  const previewError = error instanceof PreviewGatewayError
+    ? error
+    : new PreviewGatewayError(500, 'SNAPDOM_PROXY_ERROR', error instanceof Error ? error.message : '截图资源代理异常。')
+
+  res.statusCode = previewError.statusCode
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  res.end(`${previewError.code}: ${previewError.message}`)
+}
+
 interface PreviewTailwindCssRequestOptions {
   strippedUrl: string
   jwksUrl: string
@@ -897,6 +1052,7 @@ export function buildPreviewHtml(params: {
   const serializedContext = serializeForInlineScript(params.publicContext)
   const serializedToken = serializeForInlineScript(params.previewToken)
   const serializedConfig = serializeForInlineScript(params.configBundle)
+  const serializedRuntimePublicBaseUrl = serializeForInlineScript(params.assetBase)
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -912,6 +1068,7 @@ export function buildPreviewHtml(params: {
       window.__RUNTIME_PREVIEW_CONTEXT__ = ${serializedContext};
       window.__RUNTIME_PREVIEW_TOKEN__ = ${serializedToken};
       window.__RUNTIME_PRELOADED_CONFIG__ = ${serializedConfig};
+      window.__RUNTIME_PUBLIC_BASE_URL__ = ${serializedRuntimePublicBaseUrl};
     </script>
     <script type="module" src="${viteClientPath}"></script>
     <link rel="stylesheet" href="${previewTailwindHref}" />

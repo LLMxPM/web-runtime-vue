@@ -8,7 +8,7 @@
  * @returns Promise<void>
  */
 export async function waitForPageLoad(timeout: number = 15000): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const startTime = Date.now()
     
     const checkReady = () => {
@@ -45,7 +45,6 @@ function checkVueAppReady(): boolean {
     if (!appElement) return true // 如果没有Vue应用，认为准备就绪
     
     // 检查Vue应用是否已挂载
-    const hasVueInstance = (appElement as any).__vue__ || (appElement as any)._vnode
     const hasContent = appElement.children.length > 0
     
     return hasContent // 简化检查，只要有内容就认为准备就绪
@@ -69,7 +68,7 @@ export async function waitForImages(element: HTMLElement): Promise<void> {
       return // 图片已加载完成
     }
     
-    const promise = new Promise<void>((resolve, reject) => {
+    const promise = new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         console.warn(`图片加载超时: ${img.src}`)
         resolve() // 超时时继续，不阻塞整个流程
@@ -134,7 +133,6 @@ export function findContentElement(): HTMLElement | null {
     try {
       const element = document.querySelector(selector) as HTMLElement
       if (element && isValidContentElement(element)) {
-        console.log(`找到内容元素: ${selector}`)
         return element
       }
     } catch (error) {

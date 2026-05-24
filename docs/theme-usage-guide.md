@@ -7,9 +7,9 @@
 扩展的字体包括：`font-body`, `font-heading`, `font-code`
 字体大小包括：`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`, `text-4xl`, `text-5xl`, `text-6xl`, `text-7xl`, `text-8xl`, `text-9xl`
 
-主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。页面需要读取主题 Logo 时使用 Runtime Kit 公开的 `useTheme`。
+主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。页面需要渲染主题 Logo 时优先使用 Runtime Kit 公开的 `ThemeLogo`。
 
-基础字号与默认图标描边宽度属于项目页面展示配置，不属于主题。新配置从 `app.config.yaml` 的 `app.page.baseFontSize` 和 `app.page.iconDefaultStrokeWidth` 下发；图标尺寸默认跟随基础字号，局部尺寸使用 `size-*` 或 `h-* w-*` Tailwind 类控制。
+基础字号与默认图标描边宽度属于项目页面展示配置，不属于主题。新配置从 `app.config.yaml` 的 `app.page.baseFontSize` 和 `app.page.iconDefaultStrokeWidth` 下发；`baseFontSize` 只用于页面内容作用域，Runtime shell 的侧栏、控制按钮、弹窗和 Toast 使用固定外壳字号基准。页面内图标尺寸默认跟随页面基础字号，局部尺寸使用 `size-*` 或 `h-* w-*` Tailwind 类控制。
 
 ### 背景色类名
 ```html
@@ -109,7 +109,7 @@
 
 ```vue
 <script setup lang="ts">
-import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetFontFamily } from '@runtime-kit/public/composables/assets/useAssetFontFamily.v1'
 
 const brandFont = useAssetFontFamily('BrandSerif', 'sans-serif')
 </script>
@@ -125,17 +125,16 @@ Backend 会扫描静态字体资源名并在预览/构建 artifact 中下发对�
 
 ```vue
 <script setup lang="ts">
-import { useTheme } from '@runtime-kit/public/composables/theme/useTheme'
-
-const { themeLogo, themeInvertLogo } = useTheme()
+import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vue'
 </script>
 
 <template>
-  <img :src="themeLogo" alt="Logo" />
+  <ThemeLogo :size="4" />
+  <ThemeLogo variant="invert" :size="12" />
 </template>
 ```
 
-`themeLogo` 和 `themeInvertLogo` 会按当前主题配置解析 `logo` 与 `invertLogo`，并自动适配预览、构建和发布形态下的资源路径。
+`ThemeLogo` 会按当前主题配置解析 `logo` 与 `invertLogo`，并自动适配预览、构建和发布形态下的资源路径。`size` 是唯一尺寸入口，数字按 Runtime Tailwind spacing 解释，`4` 等于一个页面基础字号，Logo 宽度始终自动等比计算，不做拉伸或裁剪。没有配置对应主题 Logo 时组件会空渲染；只有需要自行组合 URL、主题变量或复杂 DOM 结构时，才直接使用 `useTheme` 读取 `themeLogo`、`themeInvertLogo` 或 `themeStyles`。
 
 ## 实际使用示例
 
@@ -302,6 +301,8 @@ const { themeLogo, themeInvertLogo } = useTheme()
 --tw-font-code
 --tw-font-size-base
 ```
+
+`--tw-font-size-base` 在 `:root` 中固定为 Runtime shell 基准 `16px`；页面内容容器会按 `app.page.baseFontSize` 与页面设计尺寸重新覆写该变量。
 
 ### 在样式中使用变量
 ```vue

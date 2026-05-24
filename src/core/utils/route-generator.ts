@@ -96,7 +96,7 @@ export function generateRoutes(
         flattenedRoutes.push({
           path: parentPath,
           redirect: `${parentPath}/${firstChild.path}`,
-          meta: config.meta as any
+          meta: config.meta as RouteRecordRaw['meta']
         } as RouteRecordRaw)
       }
 
@@ -139,29 +139,10 @@ function convertToRouteRecord(
     path: routePath,
     name: 'name' in config ? config.name : config.title,
     component: config.component || (() => Promise.resolve({})),
-    meta: config.meta as any
+    meta: config.meta as RouteRecordRaw['meta']
   }
 
   // 注意：不再处理子路由，因为所有路由都是独立的
-
-  return route
-}
-
-/**
- * 将路由配置转换为 Vue Router 路由
- */
-function convertToVueRoute(config: RouteConfig): RouteRecordRaw {
-  const route: RouteRecordRaw = {
-    path: config.path,
-    name: config.name,
-    component: config.component,
-    meta: config.meta
-  }
-
-  // 处理子路由  
-  if (config.children && config.children.length > 0) {
-    (route as any).children = config.children.map(child => convertToRouteRecord(child))
-  }
 
   return route
 }
@@ -199,10 +180,6 @@ export function generateNavigation(): NavigationItem[] {
  * 将路由配置转换为导航项
  */
 function convertToNavigationItem(config: RouteConfig | BaseRouteConfig, parentPath: string = ''): NavigationItem {
-  console.log('=== convertToNavigationItem 开始 ===')
-  console.log('路由配置:', config)
-  console.log('父级路径:', parentPath)
-
   // 使用统一的路径构建工具
   const relativePath = buildRelativePath(config, parentPath)
   const fullPath = buildRouteFullPath(config, parentPath)
@@ -217,7 +194,7 @@ function convertToNavigationItem(config: RouteConfig | BaseRouteConfig, parentPa
     order: config.meta?.order || 0,
     hidden: config.meta?.hidden || false,
     disabled: config.meta?.disabled || false,
-    meta: config.meta
+    meta: config.meta ? { ...config.meta } : undefined
   }
 
   // 处理子路由
@@ -263,7 +240,7 @@ export function generateMenuConfig(): MenuConfig {
     }
     // console.log('generateMenuConfig - result:', result)
     return result
-  } catch (error) {
+  } catch {
     // console.error('generateMenuConfig 出错:', error)
     return {
       items: [],
@@ -297,7 +274,7 @@ function convertToMenuItem(config: RouteConfig | BaseRouteConfig, parentPath: st
     order: config.meta?.order || 0,
     hidden: config.meta?.hidden || config.meta?.hiddenInMenu || false,
     disabled: config.meta?.disabled || false,
-    meta: config.meta
+    meta: config.meta ? { ...config.meta } : undefined
   }
 
   // 处理子路由

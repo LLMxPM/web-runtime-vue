@@ -16,8 +16,8 @@
       :class="[fillHeight ? 'h-full' : 'w-full', active ? 'preview-thumbnail__frame--active ring-2 ring-blue-500 shadow-md -translate-y-0.5' : 'ring-1 ring-slate-200/80']"
       :style="previewFrameStyle"
     >
-      <template v-if="item.meta?.componentPath">
-        <ViewPreview :file-path="item.meta.componentPath" />
+      <template v-if="componentPath">
+        <ViewPreview :file-path="componentPath" />
       </template>
       <div
         v-else
@@ -55,6 +55,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  pageConfig: () => ({}),
   fillHeight: false,
 })
 
@@ -79,6 +80,15 @@ const resolvedPageConfig = computed(() => {
 const previewFrameStyle = computed(() => ({
   aspectRatio: `${resolvedPageConfig.value.width} / ${resolvedPageConfig.value.height}`,
 }))
+
+/**
+ * 解析菜单元数据中的页面组件路径。
+ * @returns 可用于缩略预览的组件路径；缺失或类型不匹配时返回空字符串
+ */
+const componentPath = computed(() => {
+  const value = props.item.meta?.componentPath
+  return typeof value === 'string' ? value : ''
+})
 </script>
 
 <style scoped>

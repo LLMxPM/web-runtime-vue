@@ -7,10 +7,12 @@
   <div class="w-full h-full flex flex-col text-primary bg-transparent p-8 box-border" :style="containerStyles">
     <!-- 目录列表 -->
     <div class="min-h-0 h-full flex-1" :class="listLayoutClass">
-      <div v-for="(item, index) in displayItems" :key="item.id" class="relative m-0 flex items-center flex-1"
+      <div
+v-for="(item, index) in displayItems" :key="item.id" class="relative m-0 flex items-center flex-1"
         :class="[itemPaddingClass, clickable ? 'group cursor-pointer transition-all duration-300 ease-in-out hover:translate-x-1' : '']"
         @click="handleItemClick(item)">
-        <div class="flex items-center transition-all duration-300 font-body w-full"
+        <div
+class="flex items-center transition-all duration-300 font-body w-full"
           :class="[contentGapClass, clickable ? 'group-hover:text-primary' : '']" :style="contentFontStyle">
           <!-- 序号 -->
           <span class="inline-flex items-center justify-end font-bold shrink-0 text-right" :style="numberStyle">{{
@@ -23,7 +25,8 @@
           <div v-if="showDots" class="flex-1 mx-2 h-px border-t border-dotted border-zinc-500 opacity-80"></div>
 
           <!-- 页码 -->
-          <span v-if="showPageNumbers"
+          <span
+v-if="showPageNumbers"
             class="inline-flex items-center justify-center px-2 py-1 rounded shrink-0 text-secondary font-medium min-w-[2rem] text-center"
             :style="pageFontStyle">
             {{ getPageNumber(item, index) }}
@@ -57,7 +60,6 @@ export interface TOCItem {
   id: string
   title: string
   path?: string
-  icon?: string
   pageNumber?: number | string
 }
 
@@ -118,10 +120,15 @@ const props = withDefaults(defineProps<Props>(), {
   twoColumn: false,
   columnBreakpoint: 6,
   pageStartNumber: 1, // 添加默认值
+  pageNumbers: undefined,
+  customItems: undefined,
   excludeRoutes: () => ['home', 'contents', 'endpage'], // 默认排除首页、目录和末页
   width: '100%',
   height: '100%',
-  autoFontSize: true
+  contentFontSize: undefined,
+  autoFontSize: true,
+  numberFontSize: undefined,
+  pageFontSize: undefined,
 })
 
 // 路由器实例
@@ -155,7 +162,6 @@ const routeItems = computed((): TOCItem[] => {
           id: route.name || route.title,
           title: route.title || route.meta?.title || route.name,
           path: `/${route.path}/${firstVisibleChild.path}`, // 完整路径
-          icon: route.meta?.icon,
           pageNumber: firstVisibleChild.pageNumber || firstVisibleChild.meta?.pageNumber
         })
       }
@@ -165,7 +171,6 @@ const routeItems = computed((): TOCItem[] => {
         id: route.name || route.title,
         title: route.title || route.meta?.title || route.name,
         path: `/${route.path}`,
-        icon: route.meta?.icon,
         pageNumber: route.pageNumber || route.meta?.pageNumber
       })
     }
@@ -309,11 +314,12 @@ const numberStyle = computed((): CSSProperties => {
     case 'section':
       baseWidth = 180 // 节格式：较大宽度 (第1节)
       break
-    case 'custom':
+    case 'custom': {
       // 自定义格式：根据模板长度估算宽度
       const templateLength = props.customFormat.length
       baseWidth = Math.max(120, Math.min(templateLength * 38, 250))
       break
+    }
     default:
       baseWidth = 180
   }
@@ -396,7 +402,7 @@ defineExpose({
    */
   refresh: () => {
     // 触发重新计算
-    routeItems.value
+    return routeItems.value
   },
 
   /**

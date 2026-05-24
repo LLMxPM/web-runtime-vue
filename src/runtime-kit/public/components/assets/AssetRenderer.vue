@@ -17,12 +17,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAssetMetadata } from '@/core/composables/useAsset'
-import AssetChart from '@runtime-kit/public/components/assets/AssetChart.vue'
-import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.vue'
-import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.vue'
-import AssetImage from '@runtime-kit/public/components/assets/AssetImage.vue'
-import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.vue'
-import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.vue'
+import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
+import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vue'
+import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.vue'
+import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
+import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'
+import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
 import { buildViewerSurfaceStyle, type ViewerSurfaceProps } from '@runtime-kit/internal/utils/viewer-style'
 
 type AssetRenderType = 'image' | 'drawio' | 'mermaid' | 'chart' | 'formula' | 'video'

@@ -102,7 +102,7 @@ Runtime 对远程模块和资源采用双层约束：
 - Runtime Kit 内建组件预览不写入远程模块，`manifest.modules` 必须为空对象
 - Runtime Kit 内建组件预览只能面向 `kind=component && previewable=true` 的 capability
 - Runtime Kit doc-only 能力不生成 preview artifact，也不应获得 `scope_type=runtime_kit_component` 的预览 token
-- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开路径；禁止引用 `@runtime-kit/internal/...`
+- 页面、工作空间组件和 previewSchema 只能引用 Runtime Kit manifest 公开的版本化路径；禁止引用 `@runtime-kit/internal/...` 和未带 `.vN` 的 `@runtime-kit/public/...`
 - 静态资源应优先命中 `manifest.assets`
 
 ## 6. 错误码建议

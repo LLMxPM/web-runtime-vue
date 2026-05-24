@@ -6,6 +6,7 @@ import {
   defineAsyncComponent,
   defineComponent,
   h,
+  type Component,
   type PropType,
   type SlotsType,
   type VNodeChild,
@@ -26,7 +27,7 @@ const PreviewContentRenderer = defineComponent({
   name: 'PreviewContentRenderer',
   props: {
     componentDefinition: {
-      type: Object as PropType<any>,
+      type: Object as PropType<Component>,
       required: true,
     },
     state: {
@@ -116,10 +117,26 @@ function resolveSlotAsyncComponent(modulePath: string) {
 
   const asyncComponent = defineAsyncComponent(async () => {
     const module = await importPreviewModule(cacheKey)
-    return module?.default || module
+    return resolveModuleComponent(module)
   })
   slotComponentCache.set(cacheKey, asyncComponent)
   return asyncComponent
+}
+
+/**
+ * 从动态模块对象中解析 Vue 组件。
+ * @param module 动态导入返回的模块对象或组件本身
+ * @returns Vue 组件定义
+ */
+function resolveModuleComponent(module: unknown): Component {
+  if (module && typeof module === 'object' && 'default' in module) {
+    const defaultExport = (module as { default?: unknown }).default
+    if (defaultExport) {
+      return defaultExport as Component
+    }
+  }
+
+  return module as Component
 }
 
 export default PreviewContentRenderer

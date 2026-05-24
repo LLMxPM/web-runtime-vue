@@ -2,7 +2,8 @@
   文件用途：捕获子组件渲染错误，防止整个应用崩溃，并提供错误提示UI
 -->
 <template>
-    <div v-if="hasError"
+    <div
+v-if="hasError"
         class="error-boundary p-8 w-full h-full flex flex-col items-center justify-center bg-red-50 text-red-900 rounded-lg shadow-sm border border-red-200">
         <div class="mb-4 text-red-500">
             <AlertCircle :size="48" />
@@ -11,8 +12,9 @@
         <p
             class="text-red-700 mb-4 whitespace-pre-wrap text-center max-w-2xl font-mono text-sm bg-red-100 p-4 rounded text-left overflow-auto max-h-60">
             {{ errorMessage }}</p>
-        <button @click="resetError"
-            class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors shadow-sm font-medium">
+        <button
+class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors shadow-sm font-medium"
+            @click="resetError">
             重试渲染
         </button>
     </div>
@@ -25,7 +27,7 @@
  * 捕获子树中未处理的异常，展示回退UI，并支持路由切换时自动恢复
  */
 import { ref, onErrorCaptured, watch } from 'vue'
-import { AlertCircle } from 'lucide-vue-next'
+import { AlertCircle } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 
 const hasError = ref(false)

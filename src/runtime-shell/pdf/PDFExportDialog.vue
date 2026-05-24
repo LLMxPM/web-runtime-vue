@@ -3,7 +3,8 @@
 -->
 
 <template>
-  <div v-if="isVisible"
+  <div
+v-if="isVisible"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm"
     role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" @click.self="closeDialog">
     <div
@@ -17,7 +18,8 @@
             选择生成方式和页面范围
           </p>
         </div>
-        <button type="button"
+        <button
+type="button"
           class="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="isExporting" aria-label="关闭导出弹窗" @click="closeDialog">
           <X :size="20" />
@@ -34,12 +36,14 @@
               <span class="text-xs text-slate-400">默认使用当前导出</span>
             </div>
             <div class="grid gap-3 sm:grid-cols-2">
-              <label v-for="option in methodOptions" :key="option.value"
+              <label
+v-for="option in methodOptions" :key="option.value"
                 class="group cursor-pointer rounded-lg border p-4 transition-all hover:border-blue-300 hover:bg-blue-50/40"
                 :class="exportMethod === option.value ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500/20' : 'border-slate-200 bg-white'">
                 <input v-model="exportMethod" type="radio" :value="option.value" class="sr-only">
                 <span class="flex items-start gap-3">
-                  <span class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+                  <span
+class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
                     :class="exportMethod === option.value ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700'">
                     <component :is="option.icon" :size="18" />
                   </span>
@@ -57,11 +61,13 @@
               导出范围
             </h4>
             <div class="grid grid-cols-2 gap-3">
-              <label v-for="option in rangeOptions" :key="option.value"
+              <label
+v-for="option in rangeOptions" :key="option.value"
                 class="cursor-pointer rounded-lg border px-4 py-3 transition-all hover:border-blue-300 hover:bg-blue-50/40"
                 :class="exportMode === option.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 bg-white'">
                 <input v-model="exportMode" type="radio" :value="option.value" class="sr-only">
-                <span class="flex items-center gap-2 text-sm font-medium"
+                <span
+class="flex items-center gap-2 text-sm font-medium"
                   :class="exportMode === option.value ? 'text-blue-700' : 'text-slate-700'">
                   <component :is="option.icon" :size="17" />
                   {{ option.label }}
@@ -74,9 +80,11 @@
             <label v-if="!isBrowserPrint" for="filename" class="block text-sm font-semibold text-slate-800">
               文件名（可选）
             </label>
-            <input v-if="!isBrowserPrint" id="filename" v-model="filename" type="text" :placeholder="filenamePlaceholder"
+            <input
+v-if="!isBrowserPrint" id="filename" v-model="filename" type="text" :placeholder="filenamePlaceholder"
               class="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-            <div v-else
+            <div
+v-else
               class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
               浏览器打印模式会打开系统打印对话框，文件名由打印对话框决定。
             </div>
@@ -99,7 +107,8 @@
 
           <div class="space-y-2">
             <div class="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div class="h-full rounded-full bg-blue-600 transition-all duration-300"
+              <div
+class="h-full rounded-full bg-blue-600 transition-all duration-300"
                 :style="{ width: `${progress.percentage}%` }"></div>
             </div>
             <div v-if="progress.total > 0" class="flex items-center justify-between text-xs text-slate-500">
@@ -110,7 +119,8 @@
           </div>
 
           <div class="text-center">
-            <button type="button"
+            <button
+type="button"
               class="rounded-md px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
               @click="cancelExport">
               取消导出
@@ -119,7 +129,8 @@
         </div>
 
         <div v-else-if="exportResult" class="py-4 text-center">
-          <div class="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full"
+          <div
+class="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full"
             :class="exportResult.success ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'">
             <CheckCircle2 v-if="exportResult.success" :size="30" />
             <AlertCircle v-else :size="30" />
@@ -128,12 +139,14 @@
           <h4 class="text-lg font-semibold text-slate-950">
             {{ exportResult.success ? successTitle : '导出失败' }}
           </h4>
-          <p class="mx-auto mt-2 max-w-sm text-sm leading-6"
+          <p
+class="mx-auto mt-2 max-w-sm text-sm leading-6"
             :class="exportResult.success ? 'text-slate-500' : 'text-red-600'">
             {{ exportResult.success ? successMessage : (exportResult.error || '未知错误') }}
           </p>
 
-          <div v-if="exportResult.success"
+          <div
+v-if="exportResult.success"
             class="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-left text-xs leading-6 text-slate-500">
             <p v-if="exportResult.filename">
               文件名：{{ exportResult.filename }}
@@ -145,25 +158,29 @@
       </main>
 
       <footer class="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-7 py-5">
-        <button v-if="!isExporting && !exportResult" type="button"
+        <button
+v-if="!isExporting && !exportResult" type="button"
           class="h-11 rounded-lg bg-white px-5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
           @click="closeDialog">
           取消
         </button>
-        <button v-if="!isExporting && !exportResult" type="button"
+        <button
+v-if="!isExporting && !exportResult" type="button"
           class="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           @click="startExport">
           <Printer v-if="isBrowserPrint" :size="17" />
           <FileDown v-else :size="17" />
           {{ primaryActionLabel }}
         </button>
-        <button v-if="exportResult" type="button"
+        <button
+v-if="exportResult" type="button"
           class="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           @click="resetDialog">
           <RotateCcw :size="17" />
           重新导出
         </button>
-        <button v-if="exportResult" type="button"
+        <button
+v-if="exportResult" type="button"
           class="h-11 rounded-lg bg-white px-5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
           @click="closeDialog">
           关闭
@@ -187,7 +204,7 @@ import {
   Printer,
   RotateCcw,
   X,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import { pdfExportService } from '@/core/services/PDFExportService'
 import { browserPrintService } from '@/core/services/BrowserPrintService'
 import type {

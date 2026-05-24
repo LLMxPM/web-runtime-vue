@@ -11,7 +11,8 @@
               <AppBrandIcon v-if="appConfig.icon" :name="appConfig.icon" :alt="appConfig.title" class="flex-shrink-0 transition-all duration-200" :size="24" />
               <h1 class="min-w-0 max-w-full truncate text-[22px] font-bold leading-tight text-gray-900 m-0 text-center" :title="appConfig.title">{{ appConfig.title }}</h1>
             </div>
-            <div v-else key="icon"
+            <div
+v-else key="icon"
               class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center font-bold text-[20px] cursor-pointer transition-all duration-200 shadow-sm border border-slate-200 hover:scale-105 hover:bg-slate-100 hover:shadow-md hover:border-slate-300"
               :class="appConfig.icon ? '' : 'text-blue-500 hover:text-blue-600'" :title="appConfig.title">
               <AppBrandIcon v-if="appConfig.icon" :name="appConfig.icon" :alt="appConfig.title" :size="20" />
@@ -21,7 +22,7 @@
         </div>
         <button
           class="bg-transparent border-none cursor-pointer p-2 rounded-lg text-gray-500 transition-all duration-200 flex items-center justify-center hover:text-gray-700 hover:scale-110"
-          @click="toggleCollapse" :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'">
+          :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleCollapse">
           <ChevronLeft :size="20" :class="isCollapsed ? 'rotate-180' : ''" class="transition-transform duration-300" />
         </button>
       </div>
@@ -95,7 +96,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronLeft, ChevronDown } from 'lucide-vue-next'
+import { ChevronLeft, ChevronDown } from '@lucide/vue'
 import type { MenuItem } from '@/core/types/menu'
 import { isRouteActive, hasActiveChild } from '@/core/utils/route-generator'
 

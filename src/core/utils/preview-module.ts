@@ -20,7 +20,7 @@ const LOCAL_PREVIEW_MODULES = {
  * @param modulePath 工作空间组件别名或 Runtime 公共模块路径
  * @returns 模块对象
  */
-export async function importPreviewModule(modulePath: string): Promise<any> {
+export async function importPreviewModule(modulePath: string): Promise<unknown> {
   const normalizedPath = normalizeRuntimeModulePath(modulePath)
   if (!normalizedPath) {
     throw new Error('组件预览模块路径不能为空。')

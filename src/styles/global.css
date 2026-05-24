@@ -42,7 +42,8 @@
   --tw-font-heading: var(--theme-font-heading, 'system-ui');
   --tw-font-body: var(--theme-font-body, 'system-ui');
   --tw-font-code: var(--theme-font-code, 'monospace');
-  --tw-font-size-base: var(--theme-font-size-base, 20px);
+  /* Runtime shell 使用固定字号基准；页面内容会在自身作用域内覆写该变量。 */
+  --tw-font-size-base: 16px;
   --tw-spacing-unit: 0.25rem;
   
   /* 布局 */
@@ -141,28 +142,59 @@ body {
   transition: all var(--transition-normal);
 }
 /* 动态内容样式 - 用于处理v-html等动态插入的内容 */
-.theme-content {
-  /* 标题样式 */
-  & :deep(h1) { @apply font-heading text-4xl font-bold text-primary mb-4; }
-  & :deep(h2) { @apply font-heading text-3xl font-semibold text-primary mb-3; }
-  & :deep(h3) { @apply font-heading text-2xl font-semibold text-primary mb-3; }
-  & :deep(h4) { @apply font-heading text-xl font-semibold text-primary mb-2; }
-  & :deep(h5) { @apply font-heading text-lg font-semibold text-primary mb-2; }
-  & :deep(h6) { @apply font-heading text-base font-semibold text-primary mb-2; }
-  
-  /* 文本样式 */
-  & :deep(p) { @apply font-body text-secondary mb-4 leading-relaxed; }
-  & :deep(a) { @apply text-primary hover:opacity-80 underline transition-all; }
-  
-  /* 列表样式 */
-  & :deep(ul), & :deep(ol) { @apply font-body text-secondary mb-4 pl-6; }
-  & :deep(li) { @apply mb-1; }
-  
-  /* 引用样式 */
-  & :deep(blockquote) { @apply border-l-4 border-border-500 pl-4 italic text-invert; }
-  
-  /* 代码样式 */
-  & :deep(code) { @apply font-code bg-background-100 text-primary px-1 py-0.5 rounded text-sm; }
-  & :deep(pre) { @apply font-code bg-background-100 border border-border-500 rounded-lg p-4 overflow-x-auto; }
-  & :deep(pre code) { @apply bg-transparent p-0; }
+.theme-content h1 {
+  @apply font-heading text-4xl font-bold text-primary mb-4;
+}
+
+.theme-content h2 {
+  @apply font-heading text-3xl font-semibold text-primary mb-3;
+}
+
+.theme-content h3 {
+  @apply font-heading text-2xl font-semibold text-primary mb-3;
+}
+
+.theme-content h4 {
+  @apply font-heading text-xl font-semibold text-primary mb-2;
+}
+
+.theme-content h5 {
+  @apply font-heading text-lg font-semibold text-primary mb-2;
+}
+
+.theme-content h6 {
+  @apply font-heading text-base font-semibold text-primary mb-2;
+}
+
+.theme-content p {
+  @apply font-body text-secondary mb-4 leading-relaxed;
+}
+
+.theme-content a {
+  @apply text-primary hover:opacity-80 underline transition-all;
+}
+
+.theme-content ul,
+.theme-content ol {
+  @apply font-body text-secondary mb-4 pl-6;
+}
+
+.theme-content li {
+  @apply mb-1;
+}
+
+.theme-content blockquote {
+  @apply border-l-4 border-border-500 pl-4 italic text-invert;
+}
+
+.theme-content code {
+  @apply font-code bg-background-100 text-primary px-1 py-0.5 rounded text-sm;
+}
+
+.theme-content pre {
+  @apply font-code bg-background-100 border border-border-500 rounded-lg p-4 overflow-x-auto;
+}
+
+.theme-content pre code {
+  @apply bg-transparent p-0;
 }

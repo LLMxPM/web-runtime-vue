@@ -24,7 +24,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  name: '',
   size: 20,
+  alt: '',
 })
 
 const iconSrc = ref('')

@@ -218,6 +218,55 @@ describe('runtime font registry', () => {
     expect(themeStyles.value['--theme-font-code']).toBe('SourceCodePro')
   })
 
+  it('useTheme 无字体包时应直接使用浏览器默认字体族', async () => {
+    setRuntimePreloadedConfig({
+      app: {
+        app: {
+          icon: 'slider',
+          title: '浏览器默认字体项目',
+          description: '测试无字体包主题',
+          page: {
+            width: 1440,
+            height: 900,
+            baseFontSize: '20px',
+            iconDefaultStrokeWidth: 2,
+          },
+        },
+      },
+      themes: {
+        themes: {
+          browserDefault: {
+            name: '浏览器默认字体',
+            description: '测试主题',
+            palette: {
+              text: { primary: '#111111', secondary: '#222222', invert: '#ffffff' },
+              background: { default: '#ffffff', invert: '#111111' },
+              border: { default: '#dddddd', subtle: '#cccccc' },
+              link: { default: '#3b82f6', hover: '#2563eb', visited: '#7c3aed' },
+              accent: ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666'],
+            },
+            typography: {
+              headingfont: 'system-ui',
+              bodyfont: 'system-ui',
+              codefont: 'monospace',
+            },
+          },
+        },
+        default: {
+          theme: 'browserDefault',
+        },
+      },
+    })
+
+    await loadAppConfig(true)
+    await reloadThemeConfigs()
+    const { themeStyles } = useTheme('browserDefault')
+
+    expect(themeStyles.value['--theme-font-heading']).toBe('system-ui')
+    expect(themeStyles.value['--theme-font-body']).toBe('system-ui')
+    expect(themeStyles.value['--theme-font-code']).toBe('monospace')
+  })
+
   it('useTheme 应优先使用 app.page 提供的字号与默认图标规格', async () => {
     setRuntimePreloadedConfig({
       app: {

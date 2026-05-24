@@ -10,7 +10,8 @@
   <teleport to="body">
     <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[var(--z-toast)] w-[420px] space-y-2">
       <transition-group name="toast-fade" tag="div">
-        <div v-for="t in store.list" :key="t.id" class="flex items-start gap-2 rounded-lg border p-3 shadow-sm"
+        <div
+v-for="t in store.list" :key="t.id" class="flex items-start gap-2 rounded-lg border p-3 shadow-sm"
           :class="toastClass(t.type)">
           <div class="flex-1 min-w-0">
             <p class="text-[12px] truncate" :class="textClass(t.type)">{{ t.message }}</p>
@@ -25,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { X } from 'lucide-vue-next'
+import { X } from '@lucide/vue'
 import { useToast, ToastType } from '@/core/composables/useToast'
 
 /**

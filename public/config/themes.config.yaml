@@ -37,8 +37,8 @@ themes:
     description: 白底蓝色主题，简约经典
     app:
       icon: slider
-    logo: img/logo/runtime_icon_white.svg
-    invertLogo: img/logo/runtime_icon.svg
+    logo: img/logo/runtime_icon.svg
+    invertLogo: img/logo/runtime_icon_white.svg
     palette:
       text:
         primary: "#0D286A"

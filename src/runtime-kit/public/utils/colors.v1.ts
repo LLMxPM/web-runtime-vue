@@ -3,4 +3,3 @@
  */
 
 export { resolveColor } from '@/core/utils/colorResolver'
-

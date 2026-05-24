@@ -23,7 +23,7 @@
  *   posterName     — 视频封面资源的逻辑名 `asset.name`（可选）
  *   posterFallback — 未命中 posterName 时的封面兜底 URL（可选）
  */
-import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAsset'
+import { useAssetSrc } from '@runtime-kit/public/composables/assets/useAssetSrc.v1'
 import VideoViewer from '@runtime-kit/internal/renderers/VideoViewer.vue'
 
 interface Props {

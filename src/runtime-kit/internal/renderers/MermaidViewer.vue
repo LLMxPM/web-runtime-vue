@@ -3,7 +3,8 @@
 -->
 
 <template>
-  <div class="mermaid-viewer" :style="surfaceStyle" :class="{ 'cursor-zoom-in group': previewEnabled }"
+  <div
+class="mermaid-viewer" :style="surfaceStyle" :class="{ 'cursor-zoom-in group': previewEnabled }"
     @click="handleViewerClick">
     <!-- 加载状态 -->
     <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
@@ -27,19 +28,23 @@
 
   <!-- 全屏预览弹层（覆盖整个浏览器窗口） -->
   <teleport to="body">
-    <div v-if="isPreviewOpen" class="fixed inset-0 bg-black bg-opacity-70 z-[9999] flex items-center justify-center"
+    <div
+v-if="isPreviewOpen" class="fixed inset-0 bg-black bg-opacity-70 z-[9999] flex items-center justify-center"
       @click.self="closePreview">
       <!-- Container for diagram and controls, centered by flexbox parent -->
       <div class="relative cursor-zoom-out" :style="{ width: previewWidth, height: previewHeight }">
         <!-- Controls -->
         <div class="absolute top-4 right-4 z-50 flex space-x-2">
-          <button @click="downloadPreviewSVG"
-            class="bg-gray-800/60 hover:bg-gray-900/70 text-white rounded px-3 py-1 shadow-lg transition-colors">下载图片</button>
-          <button @click="closePreview"
-            class="bg-gray-800/60 hover:bg-gray-900/70 text-white rounded px-3 py-1 shadow-lg transition-colors">关闭</button>
+          <button
+class="bg-gray-800/60 hover:bg-gray-900/70 text-white rounded px-3 py-1 shadow-lg transition-colors"
+            @click="downloadPreviewSVG">下载图片</button>
+          <button
+class="bg-gray-800/60 hover:bg-gray-900/70 text-white rounded px-3 py-1 shadow-lg transition-colors"
+            @click="closePreview">关闭</button>
         </div>
         <!-- Diagram -->
-        <div ref="previewContainer" class="mermaid-diagram-container w-full h-full"
+        <div
+ref="previewContainer" class="mermaid-diagram-container w-full h-full"
           :style="{ backgroundColor: themeBackground }"></div>
       </div>
     </div>
@@ -182,7 +187,7 @@ const initMermaid = async () => {
     return mermaidInstance
   } catch (err) {
     console.error('Failed to initialize Mermaid:', err)
-    throw new Error(`无法加载Mermaid库: ${err.message || err}`)
+    throw new Error(`无法加载Mermaid库: ${err.message || err}`, { cause: err })
   }
 }
 
@@ -197,7 +202,7 @@ const loadContentFromFile = async (src: string): Promise<string> => {
     }
     return await response.text()
   } catch (err) {
-    throw new Error(`无法加载文件 ${src}: ${err.message || err}`)
+    throw new Error(`无法加载文件 ${src}: ${err.message || err}`, { cause: err })
   }
 }
 
@@ -218,7 +223,7 @@ const fitSvgToContainer = (container?: HTMLElement | null) => {
       if (bbox && bbox.width && bbox.height) {
         svgEl.setAttribute('viewBox', `0 0 ${Math.ceil(bbox.width)} ${Math.ceil(bbox.height)}`)
       }
-    } catch (e) {
+    } catch {
       const wAttr = svgEl.getAttribute('width')
       const hAttr = svgEl.getAttribute('height')
       const w = wAttr ? parseFloat(wAttr) : svgEl.clientWidth
@@ -310,11 +315,6 @@ const addInteractivity = (container?: HTMLElement | null) => {
   const svg = target.querySelector('svg')
   if (!svg) return
 
-  // 保存SVG的原始尺寸
-  const originalWidth = svg.getAttribute('width') || svg.style.width
-  const originalHeight = svg.getAttribute('height') || svg.style.height
-  const originalViewBox = svg.getAttribute('viewBox')
-
   // 动态导入svg-pan-zoom库
   import('svg-pan-zoom').then((svgPanZoomModule) => {
     const svgPanZoom = svgPanZoomModule.default || svgPanZoomModule
@@ -339,21 +339,13 @@ const addInteractivity = (container?: HTMLElement | null) => {
       dblClickZoomEnabled: true,
       mouseWheelZoomEnabled: true,
       preventMouseEventsDefault: true,
-      beforeZoom: function (oldScale, newScale) {
+      beforeZoom: function () {
         // 可以在这里添加缩放前的逻辑
         return true
-      },
-      onZoom: function (newScale) {
-        // 缩放时的回调
-        console.log('Zoom level:', newScale)
       },
       beforePan: function (oldPan, newPan) {
         // 配合contain: false，实现真正的无限制平移
         return newPan
-      },
-      onPan: function (newPan) {
-        // 平移时的回调
-        console.log('Pan position:', newPan)
       }
     })
 

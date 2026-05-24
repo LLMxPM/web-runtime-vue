@@ -68,8 +68,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
-import DefaultContentPage from '@runtime-kit/public/components/page/templates/DefaultContentPage.vue'
-import Icon from '@runtime-kit/public/components/primitives/Icon.vue'
+import DefaultContentPage from '@/runtime-kit/public/components/page/templates/DefaultContentPage.vue'
+import Icon from '@runtime-kit/public/components/primitives/Icon.v1.vue'
 import VideoViewer from '@runtime-kit/internal/renderers/VideoViewer.vue'
 
 type ObjectFitMode = 'contain' | 'cover' | 'fill'

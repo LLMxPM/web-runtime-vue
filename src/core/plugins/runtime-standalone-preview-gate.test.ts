@@ -1,0 +1,135 @@
+/**
+ * 文件用途：验证 Runtime 独立页面入口访问控制插件的配置解析与请求判定。
+ */
+
+import { describe, expect, it, vi } from 'vitest'
+
+import runtimeStandalonePreviewGate, {
+  resolveStandalonePreviewEnabled,
+  sendStandalonePreviewDisabledResponse,
+  shouldBlockStandalonePreviewRequest,
+} from './runtime-standalone-preview-gate'
+
+describe('runtime standalone preview gate', () => {
+  it('默认启用独立页面入口，仅显式关闭值会禁用', () => {
+    expect(resolveStandalonePreviewEnabled(undefined)).toBe(true)
+    expect(resolveStandalonePreviewEnabled('')).toBe(true)
+    expect(resolveStandalonePreviewEnabled('true')).toBe(true)
+    expect(resolveStandalonePreviewEnabled('1')).toBe(true)
+
+    for (const value of ['false', '0', 'off', 'no', 'disabled', ' FALSE ']) {
+      expect(resolveStandalonePreviewEnabled(value)).toBe(false)
+    }
+  })
+
+  it('启用时不注册拦截中间件', () => {
+    const plugin = runtimeStandalonePreviewGate({ enabled: true })
+    const use = vi.fn()
+    const configureServer = plugin.configureServer as any
+
+    configureServer?.({
+      middlewares: { use },
+    })
+
+    expect(use).not.toHaveBeenCalled()
+  })
+
+  it('关闭时拦截 Runtime 独立页面入口请求', () => {
+    expect(shouldBlockStandalonePreviewRequest({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'text/html' },
+    })).toBe(true)
+
+    expect(shouldBlockStandalonePreviewRequest({
+      method: 'GET',
+      url: '/feature-showcase',
+      headers: { 'sec-fetch-mode': 'navigate' },
+    })).toBe(true)
+
+    expect(shouldBlockStandalonePreviewRequest({
+      method: 'HEAD',
+      url: '/index.html',
+      headers: { accept: 'text/html' },
+    })).toBe(true)
+
+    expect(shouldBlockStandalonePreviewRequest({
+      method: 'GET',
+      url: '/',
+      headers: { upgrade: 'websocket', 'sec-websocket-key': 'hmr' },
+    })).toBe(false)
+  })
+
+  it('关闭时放行平台预览、构建、诊断与 Vite 资源路径', () => {
+    const allowedUrls = [
+      '/__preview',
+      '/__preview-tailwind.css',
+      '/__runtime_internal/v1/builds/project',
+      '/__runtime_internal/v1/diagnostics/artifact',
+      '/@vite/client',
+      '/@runtime-preview/artifact-1/src/views/Cover.vue?ctx=token',
+      '/src/main.ts',
+      '/node_modules/vue/dist/vue.runtime.esm-bundler.js',
+      '/config/routes.config.yaml',
+      '/img/logo/runtime_icon.svg',
+      '/fonts/Monaco.woff2',
+    ]
+
+    for (const url of allowedUrls) {
+      expect(shouldBlockStandalonePreviewRequest({
+        method: 'GET',
+        url,
+        headers: { accept: 'text/html,*/*' },
+      })).toBe(false)
+    }
+  })
+
+  it('禁用响应返回明确的 403 错误码', () => {
+    const response = createMockResponse()
+
+    sendStandalonePreviewDisabledResponse({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'text/html' },
+    }, response as any)
+
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['x-runtime-error-code']).toBe('STANDALONE_PREVIEW_DISABLED')
+    expect(response.body).toContain('STANDALONE_PREVIEW_DISABLED')
+  })
+
+  it('JSON 请求返回结构化禁用响应', () => {
+    const response = createMockResponse()
+
+    sendStandalonePreviewDisabledResponse({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'application/json' },
+    }, response as any)
+
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['content-type']).toBe('application/json; charset=utf-8')
+    expect(JSON.parse(response.body)).toMatchObject({
+      success: false,
+      code: 'STANDALONE_PREVIEW_DISABLED',
+    })
+  })
+})
+
+/**
+ * 创建用于断言响应内容的最小 ServerResponse 替身。
+ * @returns 可记录状态、响应头和响应体的对象
+ */
+function createMockResponse() {
+  return {
+    statusCode: 200,
+    headers: {} as Record<string, string | number | readonly string[]>,
+    body: '',
+    setHeader(name: string, value: string | number | readonly string[]) {
+      this.headers[name.toLowerCase()] = value
+    },
+    end(chunk?: string | Uint8Array) {
+      this.body = chunk ? String(chunk) : ''
+    },
+  }
+}
