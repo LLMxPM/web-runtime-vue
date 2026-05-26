@@ -12,6 +12,7 @@ import { initializeRuntimeFaviconSync } from './core/utils/favicon'
 import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
 import { getPreviewEntryNavigationPath } from './core/utils/path'
 import { registerEditorVisualAssetProbe } from './core/utils/visual-assets'
+import { installRuntimeClientLogger, reportRuntimeClientError } from './core/utils/client-logger'
 
 import './styles/global.css'
 
@@ -62,6 +63,7 @@ async function initializeApp(): Promise<void> {
     const { default: routerPromise } = await import('./core/router')
     const router = await routerPromise
     const app = createApp(App)
+    installRuntimeClientLogger(app)
     app.use(router)
 
     const previewEntryPath = getPreviewEntryNavigationPath()
@@ -76,7 +78,7 @@ async function initializeApp(): Promise<void> {
     setEditorRuntimePreviewReady(true)
   } catch (error) {
     setEditorRuntimePreviewReady(false)
-    console.error('应用初始化失败', error)
+    reportRuntimeClientError(error, { message: '应用初始化失败', component: 'runtime-main' })
     document.body.innerHTML = `
       <div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:Segoe UI,PingFang SC,sans-serif;background:#f8fafc;">
         <div style="max-width:720px;padding:32px;text-align:center;color:#dc2626;background:#ffffff;border:1px solid #fecaca;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,.08);">

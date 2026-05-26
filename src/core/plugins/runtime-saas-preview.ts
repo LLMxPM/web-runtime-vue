@@ -36,6 +36,7 @@ import {
   isAllowedSnapdomProxyResourceUrl,
   isHttpUrl,
 } from './runtime-snapdom-resource-proxy'
+import { isRuntimeAccessLogEnabled, logRuntimeServer } from '../utils/runtime-logger'
 
 interface RuntimeSaaSPreviewOptions {
   previewPath?: string
@@ -197,7 +198,25 @@ export default function runtimeSaaSPreview(options: RuntimeSaaSPreviewOptions = 
               manifest,
             },
           }))
+          if (isRuntimeAccessLogEnabled()) {
+            logRuntimeServer('info', 'runtime.preview.request.completed', 'Runtime 预览入口请求完成。', {
+              module: 'runtime.preview',
+              request_id: String(req.headers['x-request-id'] || ''),
+              trace_id: verified.publicContext.traceId,
+              artifact_id: verified.publicContext.artifactId,
+              workspace_id: verified.publicContext.workspaceId,
+              project_id: verified.publicContext.projectId,
+              scope_type: verified.publicContext.scopeType,
+              preview_kind: verified.publicContext.previewKind,
+              status_code: 200,
+            })
+          }
         } catch (error) {
+          logRuntimeServer('error', 'runtime.preview.request.failed', 'Runtime 预览入口请求失败。', {
+            module: 'runtime.preview',
+            request_id: String(req.headers['x-request-id'] || ''),
+            error,
+          })
           sendPreviewError(res, error)
         }
       })
@@ -897,6 +916,10 @@ async function handleSnapdomResourceProxyRequest(
       isHead: req.method === 'HEAD',
     })
   } catch (error) {
+    logRuntimeServer('error', 'runtime.preview.snapdom.failed', '截图资源代理请求失败。', {
+      module: 'runtime.preview',
+      error,
+    })
     sendSnapdomResourceProxyError(res, error)
   }
 }
@@ -1012,8 +1035,9 @@ async function handlePreviewTailwindCssRequest(
     try {
       css = await compilePreviewTailwindUtilities(sources)
     } catch (error) {
-      console.error('[runtime-preview-tailwind] compile failed', {
-        artifactId,
+      logRuntimeServer('error', 'runtime.preview.tailwind.compile.failed', '预览 Tailwind CSS 编译失败。', {
+        module: 'runtime.preview',
+        artifact_id: artifactId,
         moduleCount: sources.length,
         error: error instanceof Error
           ? { name: error.name, message: error.message, stack: error.stack }
@@ -1025,6 +1049,10 @@ async function handlePreviewTailwindCssRequest(
     options.tailwindCssCache.set(cacheKey, css)
     sendCss(res, css)
   } catch (error) {
+    logRuntimeServer('error', 'runtime.preview.tailwind.request.failed', '预览 Tailwind CSS 请求失败。', {
+      module: 'runtime.preview',
+      error,
+    })
     sendPreviewTailwindErrorCss(res, error)
   }
 }
