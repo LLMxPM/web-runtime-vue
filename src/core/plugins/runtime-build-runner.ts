@@ -16,6 +16,7 @@ import vue from '@vitejs/plugin-vue'
 
 import type { RuntimePreloadedConfigBundle, RuntimePreviewArtifactManifest } from '../shared/runtime-preview'
 import { normalizeAssetKey, normalizeRuntimeModulePath } from '../shared/runtime-preview'
+import { logRuntimeServer } from '../utils/runtime-logger'
 import {
   buildRuntimeBuildCssConfig,
   createBuildReleaseViewModulesSource,
@@ -136,7 +137,10 @@ const DEFAULT_ARTIFACT_UPLOAD_RETRY_BASE_MS = 750
  * @param context 结构化上下文
  */
 function logRuntimeBuild(stage: string, context: RuntimeBuildLogContext = {}): void {
-  console.info(`[runtime-build] ${stage}`, context)
+  logRuntimeServer('info', `runtime.build.${stage}`, 'Runtime 构建阶段完成。', {
+    module: 'runtime.build',
+    ...context,
+  })
 }
 
 /**
@@ -146,7 +150,8 @@ function logRuntimeBuild(stage: string, context: RuntimeBuildLogContext = {}): v
  * @param context 结构化上下文
  */
 function logRuntimeBuildError(stage: string, error: unknown, context: RuntimeBuildLogContext = {}): void {
-  console.error(`[runtime-build] ${stage}`, {
+  logRuntimeServer('error', `runtime.build.${stage}`, 'Runtime 构建阶段失败。', {
+    module: 'runtime.build',
     ...context,
     error: error instanceof Error
       ? {
@@ -227,6 +232,7 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
             runtimeRoot,
             method: req.method,
             requestUrl: req.url,
+            request_id: String(req.headers['x-request-id'] || ''),
           }
 
           logRuntimeBuild('request.received', buildContext)
@@ -376,6 +382,7 @@ async function handleRuntimeDiagnosticsRequest(
       runtimeRoot: options.runtimeRoot,
       requestUrl: req.url,
       label: payload.label,
+      request_id: String(req.headers['x-request-id'] || ''),
     }
     logRuntimeBuild('diagnostics.request.received', diagnosticsContext)
     const serviceToken = String(req.headers[options.serviceTokenHeaderName] || '')

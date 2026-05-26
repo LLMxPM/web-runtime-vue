@@ -29,6 +29,7 @@ class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-color
 import { ref, onErrorCaptured, watch } from 'vue'
 import { AlertCircle } from '@lucide/vue'
 import { useRoute } from 'vue-router'
+import { reportRuntimeClientError } from '@/core/utils/client-logger'
 
 const hasError = ref(false)
 const errorMessage = ref('')
@@ -38,7 +39,7 @@ const route = useRoute()
 onErrorCaptured((err: unknown, instance, info) => {
     hasError.value = true
     errorMessage.value = err instanceof Error ? `${err.name}: ${err.message}\n${err.stack}` : String(err)
-    console.error('ErrorBoundary捕获到错误:', err, '组件信息:', info)
+    reportRuntimeClientError(err, { message: 'ErrorBoundary捕获到错误。', component: 'ErrorBoundary', context: { info } })
 
     // 返回 false 阻止错误继续向上传递（避免引发全局崩溃）
     return false

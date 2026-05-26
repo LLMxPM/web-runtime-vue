@@ -3,7 +3,7 @@
  */
 
 import { resolve } from 'path'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Logger, type LogErrorOptions, type LogOptions, type LogType } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 import runtimeHealth from './src/core/plugins/runtime-health'
@@ -12,6 +12,7 @@ import runtimeSaaSPreview from './src/core/plugins/runtime-saas-preview'
 import runtimeStandalonePreviewGate, {
   resolveStandalonePreviewEnabled,
 } from './src/core/plugins/runtime-standalone-preview-gate'
+import { logRuntimeServer } from './src/core/utils/runtime-logger'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '')
@@ -29,6 +30,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       cors: true,
     },
+    customLogger: createRuntimeViteLogger(),
     plugins: [
       runtimeHealth(),
       runtimeStandalonePreviewGate({
@@ -106,4 +108,60 @@ export function resolveRuntimeServerPort(rawPort?: string | null): number {
     return parsed
   }
   return 7373
+}
+
+/**
+ * 创建 Vite 自定义日志器，把 Vite banner、优化器和错误日志也纳入 Runtime JSON Lines 契约。
+ * @returns Vite Logger 实例
+ */
+export function createRuntimeViteLogger(): Logger {
+  const warnedMessages = new Set<string>()
+  const loggedErrors = new WeakSet<Error>()
+  const logger: Logger = {
+    hasWarned: false,
+    info(message: string, _options?: LogOptions) {
+      emitViteLog('info', 'vite.info', message)
+    },
+    warn(message: string, _options?: LogOptions) {
+      logger.hasWarned = true
+      emitViteLog('warn', 'vite.warn', message)
+    },
+    warnOnce(message: string, options?: LogOptions) {
+      if (warnedMessages.has(message)) {
+        return
+      }
+      warnedMessages.add(message)
+      logger.warn(message, options)
+    },
+    error(message: string, options?: LogErrorOptions) {
+      const error = options?.error instanceof Error ? options.error : null
+      if (error) {
+        loggedErrors.add(error)
+      }
+      emitViteLog('error', 'vite.error', message, error ? { error } : {})
+    },
+    clearScreen(_type: LogType) {
+      // 容器日志不清屏，避免破坏 JSON Lines 可读性。
+    },
+    hasErrorLogged(error: Error) {
+      return loggedErrors.has(error)
+    },
+  }
+  return logger
+}
+
+function emitViteLog(
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  message: string,
+  context: Record<string, unknown> = {},
+): void {
+  const normalizedMessage = String(message || '').trim()
+  if (!normalizedMessage) {
+    return
+  }
+  logRuntimeServer(level, event, normalizedMessage, {
+    module: 'runtime.vite',
+    ...context,
+  })
 }

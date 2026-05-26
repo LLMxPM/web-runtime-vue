@@ -7,6 +7,9 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
 ENV RUNTIME_SERVER_HOST=0.0.0.0
 ENV RUNTIME_SERVER_PORT=7373
+ENV RUNTIME_LOG_LEVEL=info
+ENV RUNTIME_LOG_FORMAT=json
+ENV RUNTIME_ACCESS_LOG_ENABLED=true
 ENV RUNTIME_STANDALONE_PREVIEW_ENABLED=false
 
 WORKDIR /app
@@ -22,4 +25,4 @@ EXPOSE 7373
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD node -e "const port=process.env.RUNTIME_SERVER_PORT||'7373'; fetch('http://127.0.0.1:'+port+'/__runtime_healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["pnpm", "run", "start:platform"]
+CMD ["node", "node_modules/vite/bin/vite.js"]
