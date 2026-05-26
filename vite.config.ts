@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => {
   const standalonePreviewEnabled = resolveStandalonePreviewEnabled(env.RUNTIME_STANDALONE_PREVIEW_ENABLED)
   const runtimeServerHost = resolveRuntimeServerHost(env.RUNTIME_SERVER_HOST)
   const runtimeServerPort = resolveRuntimeServerPort(env.RUNTIME_SERVER_PORT)
+  const runtimeAllowedHosts = resolveRuntimeServerAllowedHosts(env.RUNTIME_SERVER_ALLOWED_HOSTS, [
+    'runtime',
+    env.RUNTIME_PUBLIC_BASE_URL,
+    env.BACKEND_PUBLIC_BASE_URL,
+  ])
 
   return {
     define: {
@@ -29,6 +34,7 @@ export default defineConfig(({ mode }) => {
       port: runtimeServerPort,
       strictPort: true,
       cors: true,
+      allowedHosts: runtimeAllowedHosts,
     },
     customLogger: createRuntimeViteLogger(),
     plugins: [
@@ -108,6 +114,54 @@ export function resolveRuntimeServerPort(rawPort?: string | null): number {
     return parsed
   }
   return 7373
+}
+
+/**
+ * 解析 Vite Host 白名单；容器部署默认允许 Compose 服务名 runtime，并支持追加公网域名。
+ * @param rawHosts 逗号、分号或空白分隔的额外主机名，也可传入完整 URL
+ * @param defaultHosts 默认允许的主机名或 URL
+ * @returns 去重后的 Vite server.allowedHosts 列表
+ */
+export function resolveRuntimeServerAllowedHosts(
+  rawHosts?: string | null,
+  defaultHosts: Array<string | null | undefined> = ['runtime'],
+): string[] {
+  const allowedHosts: string[] = []
+
+  for (const host of defaultHosts) {
+    appendAllowedHost(allowedHosts, host)
+  }
+
+  for (const host of String(rawHosts || '').split(/[\s,;]+/)) {
+    appendAllowedHost(allowedHosts, host)
+  }
+
+  return allowedHosts
+}
+
+function appendAllowedHost(allowedHosts: string[], rawHost?: string | null): void {
+  const host = normalizeAllowedHost(rawHost)
+  if (!host || allowedHosts.includes(host)) {
+    return
+  }
+  allowedHosts.push(host)
+}
+
+function normalizeAllowedHost(rawHost?: string | null): string {
+  const normalized = String(rawHost || '').trim()
+  if (!normalized) {
+    return ''
+  }
+  if (normalized.startsWith('.')) {
+    return normalized.toLowerCase()
+  }
+
+  try {
+    return new URL(normalized).hostname.toLowerCase()
+  } catch {
+    const hostWithoutPort = normalized.replace(/^\[([^\]]+)\](?::\d+)?$/, '$1').split(':')[0] || ''
+    return hostWithoutPort.toLowerCase()
+  }
 }
 
 /**
