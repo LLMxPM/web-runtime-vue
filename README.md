@@ -109,6 +109,8 @@ Backend 触发整项目构建时，Runtime 会使用专用的 `build-release-mai
 - `RUNTIME_BACKEND_API_BASE_URL`
 - `RUNTIME_SERVER_HOST`
 - `RUNTIME_SERVER_PORT`
+- `RUNTIME_SERVER_BASE_PATH`：同域 Gateway 模式设为 `/runtime/`，独立 Runtime 域名设为 `/` 或留空。
+- `RUNTIME_SERVER_ALLOWED_HOSTS`：可追加允许访问 Vite dev server 的 Host，多个值用逗号、分号或空白分隔。
 - `RUNTIME_STANDALONE_PREVIEW_ENABLED`：默认 `true`；设为 `false` 时关闭 Runtime 独立 fixture 页面入口，但不关闭平台预览、构建和诊断服务。
 
 ## 文档

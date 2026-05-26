@@ -66,6 +66,31 @@ describe('runtime saas preview helpers', () => {
     expect(html.indexOf(href)).toBeLessThan(html.indexOf('/src/main.ts'))
   })
 
+  it('整项目预览 HTML 应沿用 Runtime 公开基址加载 Vite 模块', () => {
+    const context: RuntimePreviewContext = {
+      artifactId: 'artifact-project',
+      tenantId: 'tenant_1',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: '1',
+      projectId: '2',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
+      assetBaseUrl: 'https://backend.example.com/assets/1',
+      traceId: 'req-project',
+    }
+
+    const html = buildPreviewHtml({
+      assetBase: 'https://presentation.example.com/runtime',
+      publicContext: context,
+      previewToken: 'preview-token',
+      configBundle: {},
+    })
+
+    expect(html).toContain('src="https://presentation.example.com/runtime/@vite/client"')
+    expect(html).toContain('src="https://presentation.example.com/runtime/src/main.ts"')
+    expect(html).toContain('href="https://presentation.example.com/runtime/__preview-tailwind.css')
+  })
+
   it('应抓取 manifest 模块和未入 manifest 的独立入口模块用于 Tailwind 编译', async () => {
     const fetchedPaths: string[] = []
     const manifest: RuntimePreviewArtifactManifest = {

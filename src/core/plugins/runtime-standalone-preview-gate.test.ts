@@ -84,6 +84,32 @@ describe('runtime standalone preview gate', () => {
     }
   })
 
+  it('关闭时应放行带 Runtime 挂载前缀的平台资源路径', () => {
+    const allowedUrls = [
+      '/runtime/__preview',
+      '/runtime/__preview-tailwind.css',
+      '/runtime/__runtime_internal/v1/builds/project',
+      '/runtime/@vite/client',
+      '/runtime/@runtime-preview/artifact-1/src/views/Cover.vue?ctx=token',
+      '/runtime/src/main.ts',
+      '/runtime/node_modules/.vite/deps/vue.js',
+    ]
+
+    for (const url of allowedUrls) {
+      expect(shouldBlockStandalonePreviewRequest({
+        method: 'GET',
+        url,
+        headers: { accept: 'text/html,*/*' },
+      }, '/runtime')).toBe(false)
+    }
+
+    expect(shouldBlockStandalonePreviewRequest({
+      method: 'GET',
+      url: '/runtime/',
+      headers: { accept: 'text/html' },
+    }, '/runtime')).toBe(true)
+  })
+
   it('禁用响应返回明确的 403 错误码', () => {
     const response = createMockResponse()
 

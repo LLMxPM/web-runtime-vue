@@ -64,6 +64,23 @@ describe('runtime preview shared helpers', () => {
     expect(toAliasViewPath(parsed?.modulePath || '')).toBe('@/views/demo/Page.vue')
   })
 
+  it('应按 Runtime 公开基址构造同域 Gateway 远程模块 ID', () => {
+    const remoteId = buildRemoteModuleId(
+      'artifact_1',
+      '@/views/demo/Page.vue',
+      'signed-preview-token',
+      'http://127.0.0.1:8080/runtime/',
+    )
+    const parsed = parseRemoteModuleId(remoteId)
+
+    expect(remoteId.startsWith('http://127.0.0.1:8080/runtime/@runtime-preview/artifact_1/')).toBe(true)
+    expect(parsed).toEqual({
+      artifactId: 'artifact_1',
+      modulePath: 'src/views/demo/Page.vue',
+      previewToken: 'signed-preview-token',
+    })
+  })
+
   it('应在 Vue 子请求丢失 ctx 后仍能从路径解析远程模块逻辑路径', () => {
     const parsed = parseRemoteModuleId('/@runtime-preview/artifact_1/src/workspace-components/CMP_DEMO/v/1.vue?vue&type=style&index=0&lang.css')
 
