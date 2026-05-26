@@ -3,7 +3,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createRuntimeViteLogger } from './vite.config'
+import { createRuntimeViteLogger, resolveRuntimeServerAllowedHosts } from './vite.config'
 
 describe('runtime vite logger', () => {
   const originalFormat = process.env.RUNTIME_LOG_FORMAT
@@ -28,5 +28,20 @@ describe('runtime vite logger', () => {
     expect(payload.module).toBe('runtime.vite')
     expect(payload.event).toBe('vite.info')
     expect(payload.message).toBe('VITE ready')
+  })
+})
+
+describe('runtime vite allowed hosts', () => {
+  it('should allow docker compose runtime service host by default', () => {
+    expect(resolveRuntimeServerAllowedHosts()).toEqual(['runtime'])
+  })
+
+  it('should merge public URLs and explicit hostnames without duplicates', () => {
+    expect(
+      resolveRuntimeServerAllowedHosts('runtime, extra.example.com; .preview.example.com', [
+        'runtime',
+        'https://presentation.example.com/runtime',
+      ]),
+    ).toEqual(['runtime', 'presentation.example.com', 'extra.example.com', '.preview.example.com'])
   })
 })
