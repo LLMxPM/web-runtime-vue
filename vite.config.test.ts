@@ -3,7 +3,11 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createRuntimeViteLogger, resolveRuntimeServerAllowedHosts } from './vite.config'
+import {
+  createRuntimeViteLogger,
+  resolveRuntimeServerAllowedHosts,
+  resolveRuntimeServerBasePath,
+} from './vite.config'
 
 describe('runtime vite logger', () => {
   const originalFormat = process.env.RUNTIME_LOG_FORMAT
@@ -43,5 +47,19 @@ describe('runtime vite allowed hosts', () => {
         'https://presentation.example.com/runtime',
       ]),
     ).toEqual(['runtime', 'presentation.example.com', 'extra.example.com', '.preview.example.com'])
+  })
+})
+
+describe('runtime vite base path', () => {
+  it('should keep local development relative when no public path is configured', () => {
+    expect(resolveRuntimeServerBasePath()).toBe('./')
+  })
+
+  it('should derive same-origin gateway mount path from runtime public URL', () => {
+    expect(resolveRuntimeServerBasePath('', 'https://presentation.example.com/runtime')).toBe('/runtime/')
+  })
+
+  it('should prefer explicit base path for split runtime domain deployments', () => {
+    expect(resolveRuntimeServerBasePath('/', 'https://presentation.example.com/runtime')).toBe('/')
   })
 })

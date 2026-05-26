@@ -14,11 +14,14 @@ import runtimeStandalonePreviewGate, {
 } from './src/core/plugins/runtime-standalone-preview-gate'
 import { logRuntimeServer } from './src/core/utils/runtime-logger'
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, __dirname, '')
   const standalonePreviewEnabled = resolveStandalonePreviewEnabled(env.RUNTIME_STANDALONE_PREVIEW_ENABLED)
   const runtimeServerHost = resolveRuntimeServerHost(env.RUNTIME_SERVER_HOST)
   const runtimeServerPort = resolveRuntimeServerPort(env.RUNTIME_SERVER_PORT)
+  const runtimeServerBase = command === 'serve'
+    ? resolveRuntimeServerBasePath(env.RUNTIME_SERVER_BASE_PATH, env.RUNTIME_PUBLIC_BASE_URL)
+    : './'
   const runtimeAllowedHosts = resolveRuntimeServerAllowedHosts(env.RUNTIME_SERVER_ALLOWED_HOSTS, [
     'runtime',
     env.RUNTIME_PUBLIC_BASE_URL,
@@ -29,6 +32,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __RUNTIME_BACKEND_BUILD__: 'false',
     },
+    base: runtimeServerBase,
     server: {
       host: runtimeServerHost,
       port: runtimeServerPort,
@@ -89,7 +93,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    base: './'
   }
 })
 
@@ -114,6 +117,58 @@ export function resolveRuntimeServerPort(rawPort?: string | null): number {
     return parsed
   }
   return 7373
+}
+
+/**
+ * 解析 Runtime 对外挂载路径；同域网关部署通常为 /runtime/，独立域名或本地开发保持相对根路径。
+ * @param rawBasePath 显式配置的挂载路径
+ * @param runtimePublicBaseUrl Runtime 浏览器可访问地址，可从其中提取路径部分
+ * @returns Vite base 配置值
+ */
+export function resolveRuntimeServerBasePath(
+  rawBasePath?: string | null,
+  runtimePublicBaseUrl?: string | null,
+): string {
+  const explicitBasePath = normalizeRuntimeServerBasePath(rawBasePath)
+  if (explicitBasePath) {
+    return explicitBasePath
+  }
+
+  const publicUrlPath = extractRuntimePublicUrlPath(runtimePublicBaseUrl)
+  if (publicUrlPath) {
+    return publicUrlPath
+  }
+
+  return './'
+}
+
+function extractRuntimePublicUrlPath(runtimePublicBaseUrl?: string | null): string {
+  const normalized = String(runtimePublicBaseUrl || '').trim()
+  if (!normalized) {
+    return ''
+  }
+
+  try {
+    return normalizeRuntimeServerBasePath(new URL(normalized).pathname)
+  } catch {
+    return normalizeRuntimeServerBasePath(normalized.startsWith('/') ? normalized : '')
+  }
+}
+
+function normalizeRuntimeServerBasePath(rawBasePath?: string | null): string {
+  const normalized = String(rawBasePath || '').trim()
+  if (!normalized || normalized === '.' || normalized === './') {
+    return ''
+  }
+  if (normalized === '/') {
+    return '/'
+  }
+
+  const stripped = normalized
+    .replace(/^\.\//, '')
+    .replace(/^\/+|\/+$/g, '')
+
+  return stripped ? `/${stripped}/` : ''
 }
 
 /**

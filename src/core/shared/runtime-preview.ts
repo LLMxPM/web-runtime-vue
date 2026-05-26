@@ -368,9 +368,15 @@ export function toAliasModulePath(normalizedPath: string): string {
  * @param artifactId preview artifact ID
  * @param modulePath 逻辑模块路径
  * @param previewToken 预览上下文 token
+ * @param runtimePublicBaseUrl Runtime 浏览器可访问基址
  * @returns 远程模块 ID
  */
-export function buildRemoteModuleId(artifactId: string, modulePath: string, previewToken: string): string {
+export function buildRemoteModuleId(
+  artifactId: string,
+  modulePath: string,
+  previewToken: string,
+  runtimePublicBaseUrl = resolveRuntimePublicBaseUrl(),
+): string {
   const normalizedPath = normalizeRuntimeModulePath(modulePath)
   const searchParams = new URLSearchParams({
     ctx: previewToken,
@@ -380,7 +386,28 @@ export function buildRemoteModuleId(artifactId: string, modulePath: string, prev
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/')
-  return `${RUNTIME_REMOTE_MODULE_PREFIX}/${encodeURIComponent(artifactId)}/${encodedModulePath}?${searchParams.toString()}`
+  const remoteModulePrefix = `${normalizeRuntimePublicBaseUrl(runtimePublicBaseUrl)}${RUNTIME_REMOTE_MODULE_PREFIX}`
+  return `${remoteModulePrefix}/${encodeURIComponent(artifactId)}/${encodedModulePath}?${searchParams.toString()}`
+}
+
+/**
+ * 读取浏览器侧 Runtime 公开基址；非浏览器环境返回空串以保留本地测试默认路径。
+ * @returns Runtime 公开基址
+ */
+function resolveRuntimePublicBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return String(window.__RUNTIME_PUBLIC_BASE_URL__ || '')
+}
+
+/**
+ * 规范化 Runtime 公开基址，去掉尾部斜杠。
+ * @param rawBaseUrl 原始 Runtime 公开基址
+ * @returns 可拼接远程模块前缀的基址
+ */
+function normalizeRuntimePublicBaseUrl(rawBaseUrl: string): string {
+  return String(rawBaseUrl || '').trim().replace(/\/+$/, '')
 }
 
 /**

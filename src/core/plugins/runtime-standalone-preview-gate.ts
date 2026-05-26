@@ -48,9 +48,10 @@ export function resolveStandalonePreviewEnabled(rawValue?: string | boolean | nu
 /**
  * 判断请求是否应被独立页面入口访问控制拦截。
  * @param req Vite dev server 请求对象
+ * @param basePath Runtime 挂载路径前缀
  * @returns 是否应返回禁用响应
  */
-export function shouldBlockStandalonePreviewRequest(req: StandalonePreviewRequestLike): boolean {
+export function shouldBlockStandalonePreviewRequest(req: StandalonePreviewRequestLike, basePath = ''): boolean {
   const method = String(req.method || 'GET').toUpperCase()
   if (method !== 'GET' && method !== 'HEAD') {
     return false
@@ -59,7 +60,7 @@ export function shouldBlockStandalonePreviewRequest(req: StandalonePreviewReques
     return false
   }
 
-  const pathname = getRequestPathname(req.url || '/')
+  const pathname = stripBasePath(getRequestPathname(req.url || '/'), basePath)
   if (isPlatformRuntimePath(pathname)) {
     return false
   }
@@ -80,11 +81,16 @@ export function shouldBlockStandalonePreviewRequest(req: StandalonePreviewReques
  */
 export default function runtimeStandalonePreviewGate(options: RuntimeStandalonePreviewGateOptions = {}): Plugin {
   const enabled = options.enabled ?? true
+  let basePath = ''
 
   return {
     name: 'runtime-standalone-preview-gate',
     apply: 'serve',
     enforce: 'pre',
+
+    configResolved(config) {
+      basePath = normalizeBasePath(config.base)
+    },
 
     configureServer(server: ViteDevServer) {
       if (enabled) {
@@ -92,7 +98,7 @@ export default function runtimeStandalonePreviewGate(options: RuntimeStandaloneP
       }
 
       server.middlewares.use((req, res, next) => {
-        if (!shouldBlockStandalonePreviewRequest(req)) {
+        if (!shouldBlockStandalonePreviewRequest(req, basePath)) {
           return next()
         }
         sendStandalonePreviewDisabledResponse(req, res)
@@ -162,6 +168,43 @@ function getRequestPathname(rawUrl: string): string {
   } catch {
     return '/'
   }
+}
+
+/**
+ * 规范化 Vite base，根路径返回空串，便于请求路径判断。
+ * @param rawBase 原始 base 配置
+ * @returns 规范化后的路径前缀
+ */
+function normalizeBasePath(rawBase: string): string {
+  const normalized = String(rawBase || '').trim()
+  if (!normalized || normalized === '/' || normalized === '.' || normalized === './') {
+    return ''
+  }
+
+  const stripped = normalized
+    .replace(/^\.\//, '')
+    .replace(/^\/+|\/+$/g, '')
+
+  return stripped ? `/${stripped}` : ''
+}
+
+/**
+ * 去掉 Runtime 挂载路径前缀，避免同域 /runtime 部署下误拦截 Vite 资源。
+ * @param pathname 请求路径
+ * @param basePath Runtime 挂载路径前缀
+ * @returns 去掉前缀后的路径
+ */
+function stripBasePath(pathname: string, basePath: string): string {
+  if (!basePath) {
+    return pathname
+  }
+  if (pathname === basePath) {
+    return '/'
+  }
+  if (pathname.startsWith(`${basePath}/`)) {
+    return pathname.slice(basePath.length) || '/'
+  }
+  return pathname
 }
 
 /**
