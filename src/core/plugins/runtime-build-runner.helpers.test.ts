@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createBuildReleaseViewModulesSource,
+  createDiagnosticsBuildModulesSource,
   buildRuntimeBuildCssConfig,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
@@ -91,6 +92,28 @@ describe('runtime build runner helpers', () => {
     expect(source).toContain('"/src/views/Home.vue": () => import("@/views/Home.vue")')
     expect(source).toContain('"@/views/Nested/About.vue": () => import("@/views/Nested/About.vue")')
     expect(source).not.toContain('workspace-components')
+    expect(source).not.toContain('examples/local')
+    expect(source).not.toContain('runtime-shell')
+  })
+
+  it('应按 manifest 生成 diagnostics 页面与工作空间组件模块加载器', () => {
+    const source = createDiagnosticsBuildModulesSource([
+      'src/views/Home.vue',
+      '@/views/Nested/About.vue',
+      '/src/views/Home.vue',
+      '@workspace-components/Card/v/1',
+      'src/workspace-components/Chart/v/2.vue',
+      '@runtime-kit/public/components/assets/AssetImage.v1.vue',
+      'src/examples/local/views/Demo.vue',
+      'src/views/../runtime-shell/fallback/NotFoundPage.vue',
+    ])
+
+    expect(source).toContain('BUILD_DIAGNOSTICS_MODULE_LOADERS')
+    expect(source).toContain('() => import("@/views/Home.vue")')
+    expect(source).toContain('() => import("@/views/Nested/About.vue")')
+    expect(source).toContain('() => import("@workspace-components/Card/v/1")')
+    expect(source).toContain('() => import("@workspace-components/Chart/v/2")')
+    expect(source).not.toContain('@runtime-kit')
     expect(source).not.toContain('examples/local')
     expect(source).not.toContain('runtime-shell')
   })

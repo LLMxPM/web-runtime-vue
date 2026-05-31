@@ -11,20 +11,27 @@ import { join, resolve, sep } from 'path'
 import { zipSync } from 'fflate'
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import type { Plugin, ViteDevServer } from 'vite'
-import { build as viteBuild } from 'vite'
-import vue from '@vitejs/plugin-vue'
 
 import type { RuntimePreloadedConfigBundle, RuntimePreviewArtifactManifest } from '../shared/runtime-preview'
 import { normalizeAssetKey, normalizeRuntimeModulePath } from '../shared/runtime-preview'
 import { logRuntimeServer } from '../utils/runtime-logger'
 import {
-  buildRuntimeBuildCssConfig,
   createBuildReleaseViewModulesSource,
+  createDiagnosticsBuildModulesSource,
   buildStaticAssetPath,
   hasForbiddenRootAbsoluteAssetPath,
   normalizeBuildBaseUrl,
 } from './runtime-build-runner.helpers'
-import { createBuildEntrySource, createBuildIndexHtmlSource } from './runtime-build-entry'
+import {
+  createBuildEntrySource,
+  createBuildIndexHtmlSource,
+  createDiagnosticsBuildEntrySource,
+} from './runtime-build-entry'
+import {
+  RuntimeBuildWorkerProcessError,
+  RuntimeBuildWorkerViteError,
+  runRuntimeViteBuildInWorker,
+} from './runtime-build-worker'
 
 interface RuntimeBuildRunnerOptions {
   endpointPath?: string
@@ -805,44 +812,11 @@ async function runProjectBuild(params: {
     logRuntimeBuild('entry.write.done', buildContext)
 
     logRuntimeBuild('vite.build.start', buildContext)
-    await viteBuild({
-      configFile: false,
-      root: tempRoot,
+    await runRuntimeViteBuildInWorker({
+      tempRoot,
       base: params.baseUrl,
-      define: {
-        __RUNTIME_BACKEND_BUILD__: 'true',
-      },
-      plugins: [vue()],
-      assetsInclude: ['**/*.drawio'],
-      resolve: {
-        alias: {
-          '@': resolve(tempRoot, 'src'),
-          '@runtime-kit': resolve(tempRoot, 'src/runtime-kit'),
-          '@components': resolve(tempRoot, 'src/components'),
-          '@views': resolve(tempRoot, 'src/views'),
-          '@workspace-components': resolve(tempRoot, 'src/workspace-components'),
-          '@utils': resolve(tempRoot, 'src/utils'),
-          '@types': resolve(tempRoot, 'src/types'),
-          '@styles': resolve(tempRoot, 'src/styles'),
-        },
-        extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
-      },
-      css: buildRuntimeBuildCssConfig(tempRoot),
-      build: {
-        outDir: distRoot,
-        emptyOutDir: false,
-        sourcemap: false,
-        rollupOptions: {
-          output: {
-            manualChunks(id) {
-              if (id.includes('/node_modules/vue/') || id.includes('/node_modules/vue-router/')) {
-                return 'vendor'
-              }
-              return undefined
-            },
-          },
-        },
-      },
+      mode: 'project',
+      outDir: distRoot,
     })
     logRuntimeBuild('vite.build.done', buildContext)
 
@@ -925,46 +899,12 @@ async function runArtifactDiagnostics(params: {
         ...params.manifest,
         artifact_kind: 'build_release',
       },
-    })
+    }, { mode: 'diagnostics' })
 
-    await viteBuild({
-      configFile: false,
-      root: tempRoot,
+    await runRuntimeViteBuildInWorker({
+      tempRoot,
       base: './',
-      define: {
-        __RUNTIME_BACKEND_BUILD__: 'true',
-      },
-      plugins: [vue()],
-      assetsInclude: ['**/*.drawio'],
-      resolve: {
-        alias: {
-          '@': resolve(tempRoot, 'src'),
-          '@runtime-kit': resolve(tempRoot, 'src/runtime-kit'),
-          '@components': resolve(tempRoot, 'src/components'),
-          '@views': resolve(tempRoot, 'src/views'),
-          '@workspace-components': resolve(tempRoot, 'src/workspace-components'),
-          '@utils': resolve(tempRoot, 'src/utils'),
-          '@types': resolve(tempRoot, 'src/types'),
-          '@styles': resolve(tempRoot, 'src/styles'),
-        },
-        extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
-      },
-      css: buildRuntimeBuildCssConfig(tempRoot),
-      build: {
-        write: false,
-        emptyOutDir: false,
-        sourcemap: false,
-        rollupOptions: {
-          output: {
-            manualChunks(id) {
-              if (id.includes('/node_modules/vue/') || id.includes('/node_modules/vue-router/')) {
-                return 'vendor'
-              }
-              return undefined
-            },
-          },
-        },
-      },
+      mode: 'diagnostics',
     })
     return {
       success: true,
@@ -1006,7 +946,7 @@ function buildFailedDiagnostics(artifactId: string, error: unknown): RuntimeDiag
  * @returns 单条结构化诊断
  */
 function buildDiagnosticFromError(error: unknown): RuntimeCodeDiagnostic {
-  if (error instanceof RuntimeBuildError) {
+  if (error instanceof RuntimeBuildError || error instanceof RuntimeBuildWorkerProcessError) {
     return {
       severity: 'error',
       source: 'runtime',
@@ -1324,27 +1264,40 @@ async function writePublicBinary(tempRoot: string, relativePath: string, content
  * 写入构建专用入口脚本与 index.html。
  * @param tempRoot 临时工作区
  * @param preloadedConfig 预加载配置包
+ * @param options 入口生成模式
  */
 async function writeBuildEntryFiles(
   tempRoot: string,
   preloadedConfig: RuntimePreloadedConfigBundle,
+  options: { mode?: 'project' | 'diagnostics' } = {},
 ): Promise<void> {
   const entryFilePath = resolve(tempRoot, 'src/__build_entry__.ts')
   const indexHtmlPath = resolve(tempRoot, 'index.html')
   const buildReleaseViewModulesPath = resolve(tempRoot, 'src/core/utils/build-release-view-modules.ts')
+  const diagnosticsBuildModulesPath = resolve(tempRoot, 'src/core/utils/build-diagnostics-modules.ts')
+  const manifestModulePaths = [
+    ...Object.keys(preloadedConfig.manifest?.modules || {}),
+    String(preloadedConfig.manifest?.entry_descriptor?.module_path || ''),
+  ]
+  const entrySource = options.mode === 'diagnostics'
+    ? createDiagnosticsBuildEntrySource(preloadedConfig)
+    : createBuildEntrySource(preloadedConfig)
 
   await writeFile(
     entryFilePath,
-    createBuildEntrySource(preloadedConfig),
+    entrySource,
     'utf-8',
   )
 
   await writeFile(
     buildReleaseViewModulesPath,
-    createBuildReleaseViewModulesSource([
-      ...Object.keys(preloadedConfig.manifest?.modules || {}),
-      String(preloadedConfig.manifest?.entry_descriptor?.module_path || ''),
-    ]),
+    createBuildReleaseViewModulesSource(manifestModulePaths),
+    'utf-8',
+  )
+
+  await writeFile(
+    diagnosticsBuildModulesPath,
+    createDiagnosticsBuildModulesSource(manifestModulePaths),
     'utf-8',
   )
 
@@ -1428,6 +1381,22 @@ function sendJson(res: any, statusCode: number, payload: Record<string, unknown>
 function sendBuildError(res: any, error: unknown): void {
   if (error instanceof RuntimeBuildError) {
     return sendJson(res, error.statusCode, {
+      success: false,
+      code: error.code,
+      message: error.message,
+    })
+  }
+
+  if (error instanceof RuntimeBuildWorkerProcessError) {
+    return sendJson(res, error.statusCode, {
+      success: false,
+      code: error.code,
+      message: error.message,
+    })
+  }
+
+  if (error instanceof RuntimeBuildWorkerViteError) {
+    return sendJson(res, 500, {
       success: false,
       code: error.code,
       message: error.message,

@@ -41,6 +41,37 @@ export function createBuildEntrySource(preloadedConfig: RuntimePreloadedConfigBu
 }
 
 /**
+ * 生成诊断态轻量入口脚本文本。
+ * 关键约束：
+ * 1. 只触发页面模块构建校验，不挂载完整 Runtime Shell；
+ * 2. 不导入 build-release-main，避免诊断阶段静态拉入 PDF、截图和布局链路；
+ * 3. 必须保留预加载配置，兼容页面模块中的配置读取逻辑。
+ * @param preloadedConfig Backend 下发的构建态预加载配置
+ * @returns 诊断入口脚本源码
+ */
+export function createDiagnosticsBuildEntrySource(preloadedConfig: RuntimePreloadedConfigBundle): string {
+  const serializedConfig = JSON.stringify(preloadedConfig)
+
+  return [
+    '/**',
+    ' * 文件用途：诊断态构建入口，只加载 build release 页面模块映射以执行代码构建校验。',
+    ' */',
+    `window.__RUNTIME_PRELOADED_CONFIG__ = ${serializedConfig};`,
+    "import './styles/global.css'",
+    "import { BUILD_RELEASE_VIEW_MODULES } from './core/utils/build-release-view-modules'",
+    "import { BUILD_DIAGNOSTICS_MODULE_LOADERS } from './core/utils/build-diagnostics-modules'",
+    '',
+    'const buildReleaseModuleLoaders = Object.values(BUILD_RELEASE_VIEW_MODULES)',
+    'const diagnosticsModuleLoaders = [...buildReleaseModuleLoaders, ...BUILD_DIAGNOSTICS_MODULE_LOADERS]',
+    'void Promise.all(diagnosticsModuleLoaders.map(async (loadModule) => loadModule())).catch((error) => {',
+    "  console.error('Runtime 诊断入口加载失败', error)",
+    '  throw error',
+    '})',
+    '',
+  ].join('\n')
+}
+
+/**
  * 生成构建态 index.html。
  * @returns 构建态 index.html 源码
  */

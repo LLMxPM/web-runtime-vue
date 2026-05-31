@@ -8,6 +8,8 @@ import autoprefixer from 'autoprefixer'
 import tailwindcss from 'tailwindcss'
 import type { UserConfig } from 'vite'
 
+import { normalizeRuntimeModulePath, toAliasModulePath } from '../shared/runtime-preview'
+
 const ROOT_ABSOLUTE_ASSET_PATTERNS = [
   /url\((['"]?)\/(?:img|fonts|favicon)/i,
   /(?:src|href)=['"]\/(?:img|fonts|favicon)/i,
@@ -121,6 +123,32 @@ export function createBuildReleaseViewModulesSource(modulePaths: Iterable<string
 }
 
 /**
+ * 生成诊断态专用模块加载器源码，覆盖页面与工作空间组件。
+ * @param modulePaths manifest.modules 中的逻辑模块路径
+ * @returns 可写入 `build-diagnostics-modules.ts` 的源码
+ */
+export function createDiagnosticsBuildModulesSource(modulePaths: Iterable<string>): string {
+  const importPaths = Array.from(new Set(Array.from(modulePaths)
+    .map(path => normalizeDiagnosticsBuildModulePath(path))
+    .filter((path): path is string => Boolean(path))
+    .map(path => toAliasModulePath(path))))
+    .sort()
+
+  const entries = importPaths.map(importPath => `  () => import(${JSON.stringify(importPath)}),`)
+
+  return [
+    '/**',
+    ' * 文件用途：Runtime 诊断态临时模块加载器，由 Runtime 构建插件按 manifest 生成。',
+    ' */',
+    '',
+    'export const BUILD_DIAGNOSTICS_MODULE_LOADERS = [',
+    ...entries,
+    '] satisfies Array<() => Promise<unknown>>',
+    '',
+  ].join('\n')
+}
+
+/**
  * 规范化 build release 中允许进入路由映射的页面模块路径。
  * @param rawPath 原始逻辑路径
  * @returns 标准 `src/views/*.vue` 路径；非法路径返回空
@@ -145,6 +173,26 @@ function normalizeBuildReleaseViewModulePath(rawPath: string): string {
     return ''
   }
   return normalizedPath
+}
+
+/**
+ * 规范化诊断态允许主动加载的模块路径。
+ * @param rawPath 原始逻辑路径
+ * @returns 标准页面或工作空间组件路径；非法路径返回空
+ */
+function normalizeDiagnosticsBuildModulePath(rawPath: string): string {
+  const normalizedPath = normalizeRuntimeModulePath(rawPath)
+  const segments = normalizedPath.split('/')
+  if (segments.some(segment => segment === '.' || segment === '..' || segment === '')) {
+    return ''
+  }
+  if (!normalizedPath.endsWith('.vue')) {
+    return ''
+  }
+  if (normalizedPath.startsWith('src/views/') || normalizedPath.startsWith('src/workspace-components/')) {
+    return normalizedPath
+  }
+  return ''
 }
 
 /**
