@@ -35,6 +35,8 @@ import DefaultContainer from '@runtime-kit/public/components/page/layout/Default
 
 ## 3. 页面尺寸
 
+项目配置中的 `app.page.width` / `app.page.height` 是真实创作画布尺寸，页面源码坐标、`px`、`rem` 和 Tailwind arbitrary values 都按这个画布解释。Runtime 外壳可能为了预览区、全屏区、缩略图或 iframe 适配而等比缩放画布，但该缩放不改变页面源码中的 CSS 坐标，也不参与字号或间距计算。
+
 需要在自定义组件中读取页面尺寸时，使用 `usePageSize`。
 
 ```vue
@@ -119,10 +121,12 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero" alt="产品主图" class="w-full rounded-lg" />
-  <AssetChart name="sales-chart" height="360px" />
+  <AssetImage name="product-hero" alt="产品主图" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetChart name="sales-chart" class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
+
+资源组件的容器样式只通过 `class` 配置。使用完整静态 Tailwind 类写宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。
 
 支持的资源能力：
 

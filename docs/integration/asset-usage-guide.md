@@ -24,6 +24,8 @@ Backend 创建 artifact 时应在资源元数据中提供 `asset_metadata[name].
 
 如果需要自定义 DOM 或 CSS 结构，使用 `useAssetSrc`、`useAssetBackground`、`useAssetFontFamily` 或 `resolveResourcePath` 取得运行时资源引用，再由页面源码自行组织样式。
 
+资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。
+
 ## 3. 显式资源组件
 
 ### AssetImage
@@ -36,7 +38,7 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero" alt="产品主图" class="w-full rounded-lg" />
+  <AssetImage name="product-hero" alt="产品主图" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -45,7 +47,6 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 - `name`：资源逻辑名，必填。
 - `alt`：图片替代文本。
 - `fallback`：资源未命中时使用的兜底 URL。
-- `showFallbackPlaceholder`：解析失败时是否显示占位。
 
 失败表现：资源名为空或未命中时，使用 `fallback`；没有 fallback 时显示占位或 fallback slot。
 
@@ -61,7 +62,7 @@ import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
 </script>
 
 <template>
-  <AssetVideo name="demo-video" poster-name="demo-poster" controls height="360px" />
+  <AssetVideo name="demo-video" poster-name="demo-poster" controls class="w-full h-80 min-h-44 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -71,7 +72,7 @@ import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
 - `fallback`：视频资源兜底 URL。
 - `posterName`：封面资源逻辑名。
 - `poster` / `posterFallback`：普通封面 URL 或封面兜底 URL。
-- 其他 video/viewer 属性可透传。
+- `controls`、`autoplay`、`loop`、`muted`、`playsInline`、`preload`：视频播放行为。
 
 失败表现：视频 URL 解析为空时由内部视频渲染器显示 fallback slot 或空状态。
 
@@ -87,7 +88,7 @@ import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vu
 </script>
 
 <template>
-  <AssetDrawio name="architecture" height="420px" />
+  <AssetDrawio name="architecture" class="w-full h-96 min-h-56 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -95,7 +96,7 @@ import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vu
 
 - `name`：Draw.io XML 资源逻辑名。
 - `fallback`：未命中时的兜底 URL。
-- 尺寸和表面样式属性可透传给内部 viewer。
+- `class`：容器样式，使用静态 Tailwind 类控制宽高、边框、圆角、背景和裁剪。
 
 失败表现：资源 URL 为空时不渲染图表；XML 解析失败由内部渲染器展示失败状态。
 
@@ -111,7 +112,7 @@ import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.
 </script>
 
 <template>
-  <AssetMermaid name="process-flow" height="360px" />
+  <AssetMermaid name="process-flow" class="w-full h-96 min-h-56 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -119,7 +120,7 @@ import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.
 
 - `name`：Mermaid 文本资源逻辑名。
 - `fallback`：未命中时的兜底 URL。
-- 尺寸和表面样式属性可透传给内部 viewer。
+- `class`：容器样式，使用静态 Tailwind 类控制宽高、边框、圆角、背景和裁剪。
 
 失败表现：资源 URL 为空时不渲染图表；语法错误由 Mermaid viewer 展示失败状态。
 
@@ -135,7 +136,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
-  <AssetChart name="sales-chart" height="360px" />
+  <AssetChart name="sales-chart" class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -143,7 +144,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 
 - `name`：图表 option 资源逻辑名。
 - `fallback`：未命中时的兜底 URL。
-- 尺寸和表面样式属性可透传给内部 viewer。
+- `class`：容器样式，使用静态 Tailwind 类控制宽高、边框、圆角、背景和裁剪。
 
 失败表现：资源请求失败时内容为空，内部图表不会渲染有效图形。
 
@@ -159,7 +160,7 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.
 </script>
 
 <template>
-  <AssetFormula name="equation" display-mode />
+  <AssetFormula name="equation" display-mode class="w-fit max-w-full min-h-14 rounded-lg border border-border bg-transparent p-0 text-primary" />
 </template>
 ```
 
@@ -167,7 +168,9 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.
 
 - `name`：公式文本资源逻辑名。
 - `fallback`：未命中时的兜底 URL。
-- KaTeX/viewer 属性可透传。
+- `fit`：公式整体适配模式，默认 `contain`，会把公式组等比放大或缩小到容器内；需要旧的自然尺寸和滚动行为时传 `fit="none"`。
+- `class`：容器样式、公式颜色和字号，例如 `w-fit max-w-full min-h-14 text-primary text-5xl`。
+- `displayMode`：块级公式模式。
 
 失败表现：资源请求失败时内容为空；LaTeX 解析失败由内部公式渲染器处理。
 

@@ -10,8 +10,10 @@ const PUBLIC_CATEGORIES = ['asset', 'page', 'runtime']
 
 interface PreviewField {
   type?: string
+  description?: string
   default?: unknown
   options?: Array<{ value: unknown }>
+  agent_visible?: boolean
 }
 
 interface PreviewSchema {
@@ -168,10 +170,12 @@ describe('runtime kit manifest', () => {
   })
 
   it('可预览组件 schema 应覆盖真实可调字段和首屏示例输入', () => {
-    const assetImageProps = getPreviewProps('AssetImage')
-    expect(Object.keys(assetImageProps)).toEqual(expect.arrayContaining([
-      'name',
-      'fallback',
+    const assetImageClass = 'w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetVideoClass = 'w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetDiagramClass = 'w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetChartClass = 'w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetFormulaClass = 'w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary'
+    const hiddenSurfaceProps = [
       'width',
       'height',
       'minHeight',
@@ -179,66 +183,106 @@ describe('runtime kit manifest', () => {
       'showBorder',
       'borderRadius',
       'padding',
+      'textColor',
+      'highlightColor',
+    ]
+
+    const assetImageProps = getPreviewProps('AssetImage')
+    expect(Object.keys(assetImageProps)).toEqual(expect.arrayContaining([
+      'name',
+      'fallback',
+      'alt',
+      'class',
       'fit',
       'position',
-      'showFallbackPlaceholder',
     ]))
-    expect(assetImageProps.fallback.default).toEqual(expect.stringMatching(/^data:image\/svg\+xml,/))
+    expect(assetImageProps.fallback.default).toBe('图片资源无法渲染，请检查资源名称或资源内容。')
+    expect(assetImageProps.fallback.agent_visible).toBe(false)
+    expect(assetImageProps.class.default).toBe(assetImageClass)
+    expect(assetImageProps.class.description).toContain('完整静态 Tailwind 类')
+    expect(assetImageProps).not.toHaveProperty('showFallbackPlaceholder')
     expect(getPresetKeys('AssetImage')).toEqual(expect.arrayContaining(['contain-preview', 'cover-banner']))
 
     const assetVideoProps = getPreviewProps('AssetVideo')
     expect(Object.keys(assetVideoProps)).toEqual(expect.arrayContaining([
       'posterFallback',
       'playsInline',
-      'width',
-      'minHeight',
-      'backgroundColor',
-      'borderRadius',
+      'class',
       'fit',
       'position',
     ]))
+    expect(assetVideoProps.fallback.default).toBe('视频资源无法渲染，请检查资源名称或资源内容。')
+    expect(assetVideoProps.fallback.agent_visible).toBe(false)
+    expect(assetVideoProps.posterFallback.agent_visible).toBe(false)
+    expect(assetVideoProps.class.default).toBe(assetVideoClass)
 
     const assetDrawioProps = getPreviewProps('AssetDrawio')
-    expect(assetDrawioProps.fallback.default).toEqual(expect.stringMatching(/^data:text\/xml,/))
     expect(Object.keys(assetDrawioProps)).toEqual(expect.arrayContaining([
-      'minHeight',
-      'backgroundColor',
-      'borderRadius',
-      'padding',
+      'name',
+      'content',
+      'fallback',
+      'class',
     ]))
+    expect(assetDrawioProps.content.type).toBe('textarea')
+    expect(assetDrawioProps.fallback.default).toBe('Draw.io 资源无法渲染，请检查资源名称或 XML 内容。')
+    expect(assetDrawioProps.fallback.agent_visible).toBe(false)
+    expect(assetDrawioProps.class.default).toBe(assetDiagramClass)
 
     const assetMermaidProps = getPreviewProps('AssetMermaid')
-    expect(assetMermaidProps.fallback.default).toEqual(expect.stringMatching(/^data:text\/plain,/))
     expect(Object.keys(assetMermaidProps)).toEqual(expect.arrayContaining([
-      'minHeight',
-      'backgroundColor',
-      'borderRadius',
-      'padding',
+      'content',
+      'class',
+      'theme',
+      'previewEnabled',
     ]))
+    expect(assetMermaidProps.content.type).toBe('textarea')
+    expect(assetMermaidProps.fallback.default).toBe('Mermaid 资源无法渲染，请检查资源名称或图表源码。')
+    expect(assetMermaidProps.fallback.agent_visible).toBe(false)
+    expect(assetMermaidProps.class.default).toBe(assetDiagramClass)
 
     const assetChartProps = getPreviewProps('AssetChart')
-    expect(assetChartProps.fallback.default).toEqual(expect.stringMatching(/^data:application\/json,/))
     expect(Object.keys(assetChartProps)).toEqual(expect.arrayContaining([
-      'minHeight',
-      'backgroundColor',
+      'content',
+      'class',
       'theme',
-      'borderRadius',
-      'padding',
-      'notMerge',
-      'lazyUpdate',
+      'renderer',
     ]))
+    expect(assetChartProps.content.type).toBe('textarea')
+    expect(assetChartProps.fallback.default).toBe('Chart 资源无法渲染，请检查资源名称或 ECharts option 内容。')
+    expect(assetChartProps.fallback.agent_visible).toBe(false)
+    expect(assetChartProps.class.default).toBe(assetChartClass)
+    expect(assetChartProps).not.toHaveProperty('notMerge')
+    expect(assetChartProps).not.toHaveProperty('lazyUpdate')
 
     const assetFormulaProps = getPreviewProps('AssetFormula')
-    expect(assetFormulaProps.fallback.default).toEqual(expect.stringMatching(/^data:text\/plain,/))
     expect(Object.keys(assetFormulaProps)).toEqual(expect.arrayContaining([
-      'height',
-      'minHeight',
-      'backgroundColor',
-      'borderRadius',
-      'throwOnError',
-      'strict',
-      'trust',
+      'content',
+      'displayMode',
+      'fit',
+      'class',
     ]))
+    expect(assetFormulaProps.content.type).toBe('textarea')
+    expect(assetFormulaProps.fallback.default).toBe('Formula 资源无法渲染，请检查资源名称或 LaTeX 内容。')
+    expect(assetFormulaProps.fallback.agent_visible).toBe(false)
+    expect(assetFormulaProps.fit.default).toBe('contain')
+    expect(assetFormulaProps.fit.options?.map(option => option.value)).toEqual(['contain', 'none'])
+    expect(assetFormulaProps.class.default).toBe(assetFormulaClass)
+    expect(assetFormulaProps.class.description).toContain('公式颜色和字号')
+    expect(assetFormulaProps).not.toHaveProperty('throwOnError')
+    expect(assetFormulaProps).not.toHaveProperty('strict')
+    expect(assetFormulaProps).not.toHaveProperty('trust')
+    ;[
+      assetImageProps,
+      assetVideoProps,
+      assetDrawioProps,
+      assetMermaidProps,
+      assetChartProps,
+      assetFormulaProps,
+    ].forEach((props) => {
+      hiddenSurfaceProps.forEach((propName) => {
+        expect(props).not.toHaveProperty(propName)
+      })
+    })
 
     const iconProps = getPreviewProps('Icon')
     expect(iconProps.class.default).toBe('size-16')

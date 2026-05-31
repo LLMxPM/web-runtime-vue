@@ -72,7 +72,7 @@ const effectiveDesignHeight = computed(() => props.designHeight || appPageConfig
  * @returns 与整项目预览一致的字号和间距变量
  */
 const previewContentStyles = computed(() => (
-  buildPageContentScaleStyles(effectiveDesignWidth.value, effectiveDesignHeight.value)
+  buildPageContentScaleStyles()
 ))
 
 /**

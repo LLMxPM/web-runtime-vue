@@ -302,7 +302,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
 --tw-font-size-base
 ```
 
-`--tw-font-size-base` 在 `:root` 中固定为 Runtime shell 基准 `16px`；页面内容容器会按 `app.page.baseFontSize` 与页面设计尺寸重新覆写该变量。
+`--tw-font-size-base` 在 `:root` 中固定为 Runtime shell 基准 `16px`；页面内容容器会按 `app.page.baseFontSize` 覆写为页面基础字号，不再根据页面宽高做额外缩放。
 
 ### 在样式中使用变量
 ```vue

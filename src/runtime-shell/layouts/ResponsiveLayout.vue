@@ -401,7 +401,7 @@ const pageViewport = computed(() => appPageConfig.value)
  * 关键约束：覆盖页面内 Tailwind 字号基准，不影响运行时侧栏、弹窗等外壳 UI。
  */
 const runtimePageStyles = computed((): CSSProperties => (
-  buildPageContentScaleStyles(pageViewport.value.width, pageViewport.value.height)
+  buildPageContentScaleStyles()
 ))
 
 /**

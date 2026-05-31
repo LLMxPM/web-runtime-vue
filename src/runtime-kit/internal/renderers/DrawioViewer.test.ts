@@ -27,6 +27,48 @@ afterEach(() => {
 })
 
 describe('DrawioViewer', () => {
+  it('传入 content 时应直接渲染 XML 而不请求 src', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    ;(window as any).GraphViewer = {
+      processElements: vi.fn(() => {
+        document.querySelectorAll('.mxgraph').forEach(element => {
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+          svg.appendChild(group)
+          element.appendChild(svg)
+        })
+      }),
+    }
+    Object.defineProperty(SVGElement.prototype, 'getBBox', {
+      value: vi.fn(() => ({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 200,
+      }) as DOMRect),
+      configurable: true,
+    })
+
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(DrawioViewer, {
+      src: '/should-not-fetch.drawio',
+      content: DRAWIO_XML,
+      height: 240,
+    })
+    app.mount(host)
+
+    await waitForDrawioRender()
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(host.querySelector<SVGSVGElement>('.drawio-viewer svg')).not.toBeNull()
+
+    app.unmount()
+    host.remove()
+    fetchSpy.mockRestore()
+  })
+
   it('父级没有明确高度且使用百分比高度时，应按图表比例补充可渲染高度', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(DRAWIO_XML, { status: 200 }),

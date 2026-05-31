@@ -4,14 +4,17 @@
 
 <template>
   <div
-ref="viewerRoot" class="drawio-viewer" :class="[
-    props.class,
-    {
-      'drawio-viewer--loading': loading,
-      'drawio-viewer--error': error,
-      'drawio-viewer--no-border': !props.showBorder
-    }
-  ]" :style="containerStyle">
+    ref="viewerRoot"
+    class="drawio-viewer"
+    :class="[
+      props.class,
+      {
+        'drawio-viewer--loading': loading,
+        'drawio-viewer--error': error,
+      },
+    ]"
+    :style="containerStyle"
+  >
     <!-- 加载状态 -->
     <div v-if="loading" class="drawio-viewer__loading layout-center">
       <div class="animate-spin">
@@ -51,24 +54,16 @@ import { buildViewerSurfaceStyle, type ViewerSurfaceProps } from '@runtime-kit/i
 
 interface Props extends ViewerSurfaceProps {
   src?: string
+  content?: string
   class?: string
   highlightColor?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   src: '',
+  content: '',
   class: '',
-  width: '100%',
-  height: '400px',
-  minHeight: '200px',
-  backgroundColor: '#ffffff',
-  showBorder: true,
-  borderColor: 'rgb(229, 231, 235)',
-  borderWidth: '1px',
-  borderStyle: 'solid',
-  borderRadius: 0,
-  padding: 0,
-  highlightColor: '#0000ff',
+  highlightColor: 'var(--tw-color-accent1)',
 })
 
 // 响应式状态
@@ -313,11 +308,12 @@ const handleResize = () => {
 }
 
 /**
- * 加载图表
+ * 渲染 Draw.io XML 内容。
+ *
+ * @param xmlContent Draw.io XML 源码
  */
-const loadDiagram = async (src: string) => {
-  if (!src) return
-
+const renderDiagramContent = async (xmlContent: string) => {
+  if (!xmlContent.trim()) return
   loading.value = true
   error.value = null
 
@@ -337,17 +333,7 @@ const loadDiagram = async (src: string) => {
     }
 
     diagramContainer.value.innerHTML = ''
-    const processedSrc = processImagePath(src)
-
-    const response = await fetch(processedSrc)
-    if (!response.ok) {
-      throw new Error(`Failed to load diagram: ${response.status} ${response.statusText}`)
-    }
-
-    let xml = await response.text()
-
-    // 预处理 XML：确保有正确的 XML 声明头
-    xml = preprocessDrawioXml(xml)
+    const xml = preprocessDrawioXml(xmlContent)
 
     // 配置：禁用工具栏，不依赖 viewer 的 zoom
     const data: Record<string, any> = {
@@ -380,20 +366,63 @@ const loadDiagram = async (src: string) => {
   }
 }
 
-// 监听 src 变化
-watch(() => props.src, async (newSrc) => {
-  if (newSrc) {
-    await nextTick()
-    loadDiagram(newSrc)
+/**
+ * 从 URL 加载图表内容。
+ *
+ * @param src Draw.io XML 文件地址
+ */
+const loadDiagram = async (src: string) => {
+  if (!src) return
+
+  loading.value = true
+  error.value = null
+  try {
+    const processedSrc = processImagePath(src)
+    const response = await fetch(processedSrc)
+    if (!response.ok) {
+      throw new Error(`Failed to load diagram: ${response.status} ${response.statusText}`)
+    }
+    await renderDiagramContent(await response.text())
+  } catch (err) {
+    loading.value = false
+    error.value = err instanceof Error ? err.message : 'Unknown error'
+    console.error('DrawioViewer: Failed to load diagram', err)
   }
-}, { immediate: false })
+}
+
+/**
+ * 按 content 优先、src 兜底的顺序刷新图表。
+ */
+const reloadDiagram = async () => {
+  const directContent = props.content.trim()
+  if (directContent) {
+    await nextTick()
+    await renderDiagramContent(directContent)
+    return
+  }
+  if (props.src) {
+    await nextTick()
+    await loadDiagram(props.src)
+    return
+  }
+  clearDiagram()
+}
+
+/**
+ * 清空当前图表 DOM 和状态。
+ */
+const clearDiagram = () => {
+  if (diagramContainer.value) diagramContainer.value.innerHTML = ''
+  error.value = null
+  loading.value = false
+}
+
+// 监听内容来源变化
+watch(() => [props.src, props.content], reloadDiagram, { immediate: false })
 
 // 监听其他配置变化
 watch(() => [props.highlightColor], async () => {
-  if (props.src) {
-    await nextTick()
-    loadDiagram(props.src)
-  }
+  await reloadDiagram()
 })
 
 // 组件挂载
@@ -413,10 +442,7 @@ onMounted(async () => {
     error.value = e instanceof Error ? e.message : 'CDN viewer.min.js 加载失败'
   }
 
-  if (props.src) {
-    await nextTick()
-    loadDiagram(props.src)
-  }
+  await reloadDiagram()
 })
 
 // 组件卸载前清理
@@ -434,11 +460,8 @@ onBeforeUnmount(() => {
 
 // 暴露方法
 defineExpose({
-  reload: () => props.src && loadDiagram(props.src),
-  clear: () => {
-    if (diagramContainer.value) diagramContainer.value.innerHTML = ''
-    error.value = null
-  }
+  reload: reloadDiagram,
+  clear: clearDiagram,
 })
 
 // 全局类型声明

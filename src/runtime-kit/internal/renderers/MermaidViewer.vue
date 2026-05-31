@@ -4,8 +4,12 @@
 
 <template>
   <div
-class="mermaid-viewer" :style="surfaceStyle" :class="{ 'cursor-zoom-in group': previewEnabled }"
-    @click="handleViewerClick">
+    class="mermaid-viewer"
+    :style="surfaceStyle"
+    :class="{ 'cursor-zoom-in group': previewEnabled }"
+    v-bind="$attrs"
+    @click="handleViewerClick"
+  >
     <!-- 加载状态 -->
     <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
       <div class="flex items-center space-x-2 text-gray-600">
@@ -74,16 +78,6 @@ const props = withDefaults(defineProps<Props>(), {
   content: '',
   src: '',
   theme: 'default',
-  width: '100%',
-  height: '400px',
-  minHeight: '200px',
-  backgroundColor: '',
-  showBorder: false,
-  borderColor: '#e5e7eb',
-  borderWidth: '1px',
-  borderStyle: 'solid',
-  borderRadius: 0,
-  padding: 0,
   config: () => ({}),
   previewEnabled: false
 })
@@ -117,13 +111,10 @@ const themeBackground = computed(() => {
   }
 })
 
-const surfaceStyle = computed(() => buildViewerSurfaceStyle({
-  ...props,
-  backgroundColor: props.backgroundColor || themeBackground.value,
-}))
+const surfaceStyle = computed(() => buildViewerSurfaceStyle(props))
 
 const diagramStyle = computed(() => ({
-  backgroundColor: props.backgroundColor || themeBackground.value,
+  ...(props.backgroundColor ? { backgroundColor: props.backgroundColor } : {}),
   overflow: 'hidden',
   alignItems: 'center',
   justifyContent: 'center'
@@ -624,16 +615,17 @@ defineExpose({
 <style scoped>
 .mermaid-viewer {
   position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 200px;
+  box-sizing: border-box;
+  display: flex;
   overflow: hidden;
 }
 
 .mermaid-diagram-container {
   position: relative;
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   align-items: center;

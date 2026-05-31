@@ -507,7 +507,7 @@ describe('ResponsiveLayout', () => {
     app.unmount()
   })
 
-  it('应在页面内容作用域注入页面设计字号缩放变量', async () => {
+  it('应在页面内容作用域注入基础字号与间距变量', async () => {
     mockPageConfig.value = {
       width: 1280,
       height: 720,
@@ -544,16 +544,16 @@ describe('ResponsiveLayout', () => {
 
     const pageSource = host.querySelector('.runtime-page-print-source') as HTMLElement | null
     expect(pageSource).not.toBeNull()
-    expect(pageSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('0.666667')
+    expect(pageSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('')
     expect(pageSource?.style.getPropertyValue('--tw-font-size-base')).toBe(
-      'calc(var(--theme-font-size-base, 20px) * 0.666667)',
+      'var(--theme-font-size-base, 20px)',
     )
     expect(pageSource?.style.getPropertyValue('--tw-spacing-unit')).toBe('calc(var(--tw-font-size-base) * 0.25)')
 
     app.unmount()
   })
 
-  it('页面基础字号变化时不应把页面字号缩放变量注入 Runtime shell 容器', async () => {
+  it('页面基础字号变化时不应把页面字号变量注入 Runtime shell 容器', async () => {
     mockPageConfig.value = {
       width: 1280,
       height: 720,
@@ -596,9 +596,9 @@ describe('ResponsiveLayout', () => {
     expect(shellRoot?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('')
     expect(shellRoot?.style.getPropertyValue('--tw-font-size-base')).toBe('')
     expect(shellRoot?.style.getPropertyValue('--tw-spacing-unit')).toBe('')
-    expect(pageSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('0.666667')
+    expect(pageSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('')
     expect(pageSource?.style.getPropertyValue('--tw-font-size-base')).toBe(
-      'calc(var(--theme-font-size-base, 20px) * 0.666667)',
+      'var(--theme-font-size-base, 20px)',
     )
 
     app.unmount()

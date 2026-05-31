@@ -20,6 +20,7 @@ describe('runtime tailwind safelist', () => {
         'bg-center',
         'bg-no-repeat',
         'text-primary',
+        'text-5xl',
         'text-secondary',
         'text-invert',
         'bg-background',
@@ -28,6 +29,12 @@ describe('runtime tailwind safelist', () => {
         'border-border',
         'from-background-invert/80',
         'bg-accent1-100',
+        'text-red-300',
+        'text-red-900',
+        'bg-slate-100',
+        'border-blue-600',
+        'from-emerald-400',
+        'text-red-300/80',
       ]),
     )
   })

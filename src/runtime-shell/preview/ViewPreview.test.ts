@@ -62,6 +62,8 @@ describe('ViewPreview screenshot state marker', () => {
     expect(marker?.dataset.runtimeViewPreviewState).toBe('ready')
     expect(marker?.dataset.runtimeViewPreviewMessage).toBe('')
     const previewSource = host.querySelector<HTMLElement>('.runtime-view-preview-source')
+    expect(previewSource?.style.getPropertyValue('--runtime-page-typography-scale')).toBe('')
+    expect(previewSource?.style.getPropertyValue('--tw-font-size-base')).toBe('var(--theme-font-size-base, 20px)')
     expect(previewSource?.style.getPropertyValue('--tw-spacing-unit')).toBe('calc(var(--tw-font-size-base) * 0.25)')
     app.unmount()
   })

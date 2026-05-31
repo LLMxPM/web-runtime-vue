@@ -30,15 +30,6 @@ interface Props extends ViewerSurfaceProps {
 const props = withDefaults(defineProps<Props>(), {
   src: '',
   alt: '',
-  width: '100%',
-  height: 'auto',
-  backgroundColor: 'transparent',
-  showBorder: false,
-  borderColor: '#e5e7eb',
-  borderWidth: '1px',
-  borderStyle: 'solid',
-  borderRadius: 0,
-  padding: 0,
   fit: 'contain',
   position: 'center',
   showFallbackPlaceholder: true,
@@ -47,7 +38,7 @@ const props = withDefaults(defineProps<Props>(), {
 const surfaceStyle = useViewerSurfaceStyle(props)
 const imageStyle = computed<CSSProperties>(() => ({
   width: '100%',
-  height: props.height && props.height !== 'auto' ? '100%' : 'auto',
+  height: '100%',
   objectFit: props.fit,
   objectPosition: props.position,
 }))

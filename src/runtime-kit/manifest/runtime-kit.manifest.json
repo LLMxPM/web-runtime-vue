@@ -21,7 +21,7 @@
         ],
         "usage": [
           "import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'",
-          "<AssetImage name=\"product-hero\" alt=\"产品主图\" class=\"w-full\" />"
+          "<AssetImage name=\"product-hero\" alt=\"产品主图\" class=\"w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 img 或图片占位内容。",
         "return_example": [
@@ -30,7 +30,7 @@
         "constraints": [
           "适用于 asset_metadata.render_type=image 的资源。",
           "Backend/Agent 应根据资源元数据显式选择该组件，不再通过 AssetRenderer 自动分发。",
-          "资源名应为 manifest.assets 中的逻辑名；未命中时使用 fallback 或占位内容。"
+          "资源名应为 manifest.assets 中的逻辑名；无法渲染时展示兜底文案。"
         ],
         "audiences": [
           "backend",
@@ -41,57 +41,28 @@
             "name": {
               "type": "string",
               "label": "资源名",
-              "description": "工作空间图片资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
+              "description": "工作空间图片资源的逻辑名 asset.name。",
               "required": true,
               "default": "",
               "placeholder": "product-hero"
             },
             "fallback": {
               "type": "string",
-              "label": "兜底 URL",
-              "description": "资源名为空或未命中时使用的图片 URL，可填临时远程地址或 data URL。",
-              "default": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20640%20360'%3E%3Crect%20width='640'%20height='360'%20fill='%23eef2ff'/%3E%3Ccircle%20cx='320'%20cy='170'%20r='72'%20fill='%2399f6e4'/%3E%3Ctext%20x='320'%20y='292'%20text-anchor='middle'%20font-size='32'%20font-family='Arial'%20fill='%230f172a'%3EImage%20Preview%3C/text%3E%3C/svg%3E",
-              "placeholder": "https://example.com/image.png"
+              "label": "兜底文案",
+              "description": "图片资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "图片资源无法渲染，请检查资源名称或资源内容。",
+              "agent_visible": false
             },
             "alt": {
               "type": "string",
               "label": "替代文本",
               "default": "图片资源预览"
             },
-            "width": {
+            "class": {
               "type": "string",
-              "label": "宽度",
-              "default": "100%"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "260px"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "160px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#f8fafc"
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": true
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "0"
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "default": "w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "fit": {
               "type": "select",
@@ -120,11 +91,6 @@
               "type": "string",
               "label": "图片位置",
               "default": "center"
-            },
-            "showFallbackPlaceholder": {
-              "type": "boolean",
-              "label": "显示占位",
-              "default": true
             }
           },
           "presets": [
@@ -132,18 +98,16 @@
               "key": "contain-preview",
               "label": "完整图片",
               "props": {
-                "fit": "contain",
-                "height": "260px",
-                "showBorder": true
+                "class": "w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
+                "fit": "contain"
               }
             },
             {
               "key": "cover-banner",
               "label": "封面裁切",
               "props": {
-                "fit": "cover",
-                "height": "320px",
-                "borderRadius": "12px"
+                "class": "w-full h-80 min-h-40 rounded-xl border border-border p-0 bg-transparent overflow-hidden",
+                "fit": "cover"
               }
             }
           ]
@@ -184,7 +148,7 @@
         ],
         "usage": [
           "import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'",
-          "<AssetVideo name=\"demo-video\" poster-name=\"demo-poster\" controls height=\"360px\" />"
+          "<AssetVideo name=\"demo-video\" poster-name=\"demo-poster\" controls class=\"w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 video 播放区域。",
         "return_example": [
@@ -204,16 +168,17 @@
             "name": {
               "type": "string",
               "label": "视频资源名",
-              "description": "工作空间视频资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
+              "description": "工作空间视频资源的逻辑名 asset.name。",
               "required": true,
               "default": "",
               "placeholder": "demo-video"
             },
             "fallback": {
               "type": "string",
-              "label": "视频兜底 URL",
-              "default": "",
-              "placeholder": "https://example.com/video.mp4"
+              "label": "视频兜底文案",
+              "description": "视频资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "视频资源无法渲染，请检查资源名称或资源内容。",
+              "agent_visible": false
             },
             "posterName": {
               "type": "string",
@@ -230,9 +195,10 @@
             },
             "posterFallback": {
               "type": "string",
-              "label": "封面备用 URL",
-              "description": "posterName 未命中且 poster 为空时使用的封面地址。",
-              "default": ""
+              "label": "封面备用文案",
+              "description": "封面资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "视频封面无法渲染，请检查封面资源名称或资源内容。",
+              "agent_visible": false
             },
             "controls": {
               "type": "boolean",
@@ -278,40 +244,11 @@
                 }
               ]
             },
-            "width": {
+            "class": {
               "type": "string",
-              "label": "宽度",
-              "default": "100%"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "320px"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "180px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#000000"
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": false
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "0"
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "default": "w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "fit": {
               "type": "select",
@@ -343,9 +280,8 @@
               "key": "empty-player",
               "label": "空播放器",
               "props": {
-                "controls": true,
-                "height": "320px",
-                "backgroundColor": "#000000"
+                "class": "w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
+                "controls": true
               }
             },
             {
@@ -397,7 +333,9 @@
         ],
         "usage": [
           "import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vue'",
-          "<AssetDrawio name=\"architecture\" height=\"420px\" />"
+          "<AssetDrawio name=\"architecture\" class=\"w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
+          "const drawioXml = '<mxfile>...</mxfile>'",
+          "<AssetDrawio :content=\"drawioXml\" class=\"w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 Draw.io 图表视图。",
         "return_example": [
@@ -405,6 +343,7 @@
         ],
         "constraints": [
           "适用于 asset_metadata.render_type=drawio 的资源。",
+          "name 与 content 二选一；两者同时传入时 content 优先。",
           "Backend 不应把 Draw.io XML 预转成页面结构；Runtime 负责浏览器端图表渲染。",
           "资源缺失时不渲染图表内容。"
         ],
@@ -417,56 +356,29 @@
             "name": {
               "type": "string",
               "label": "Draw.io 资源名",
-              "description": "工作空间 Draw.io XML 资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
-              "required": true,
+              "description": "工作空间 Draw.io XML 资源的逻辑名 asset.name；与 content 二选一。",
               "default": "",
               "placeholder": "architecture"
             },
+            "content": {
+              "type": "textarea",
+              "label": "Draw.io XML 内容",
+              "description": "可直接渲染的 Draw.io XML 内容；与 name 二选一。",
+              "default": "<mxfile><diagram name=\"Preview\"><mxGraphModel><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/><mxCell id=\"2\" value=\"Runtime Kit\" style=\"rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"120\" y=\"80\" width=\"160\" height=\"60\" as=\"geometry\"/></mxCell></root></mxGraphModel></diagram></mxfile>",
+              "placeholder": "<mxfile>...</mxfile>"
+            },
             "fallback": {
               "type": "string",
-              "label": "兜底 URL",
-              "default": "data:text/xml,%3Cmxfile%3E%3Cdiagram%20name='Preview'%3E%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id='0'/%3E%3CmxCell%20id='1'%20parent='0'/%3E%3CmxCell%20id='2'%20value='Runtime%20Kit'%20style='rounded=1;whiteSpace=wrap;html=1;fillColor=%23dae8fc;strokeColor=%236c8ebf;'%20vertex='1'%20parent='1'%3E%3CmxGeometry%20x='120'%20y='80'%20width='160'%20height='60'%20as='geometry'/%3E%3C/mxCell%3E%3C/root%3E%3C/mxGraphModel%3E%3C/diagram%3E%3C/mxfile%3E",
-              "placeholder": "https://example.com/diagram.drawio"
+              "label": "兜底文案",
+              "description": "Draw.io 资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "Draw.io 资源无法渲染，请检查资源名称或 XML 内容。",
+              "agent_visible": false
             },
-            "width": {
+            "class": {
               "type": "string",
-              "label": "宽度",
-              "default": "100%"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "360px"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "220px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#ffffff"
-            },
-            "highlightColor": {
-              "type": "string",
-              "label": "高亮颜色",
-              "default": "#2563eb"
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": true
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "0"
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "default": "w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             }
           },
           "presets": [
@@ -474,9 +386,8 @@
               "key": "architecture-box",
               "label": "架构示例",
               "props": {
-                "height": "360px",
-                "showBorder": true,
-                "highlightColor": "#2563eb"
+                "content": "<mxfile><diagram name=\"Preview\"><mxGraphModel><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/><mxCell id=\"2\" value=\"Runtime Kit\" style=\"rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"120\" y=\"80\" width=\"160\" height=\"60\" as=\"geometry\"/></mxCell></root></mxGraphModel></diagram></mxfile>",
+                "class": "w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
               }
             }
           ]
@@ -518,7 +429,9 @@
         ],
         "usage": [
           "import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'",
-          "<AssetMermaid name=\"process-flow\" height=\"360px\" />"
+          "<AssetMermaid name=\"process-flow\" class=\"w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
+          "const mermaidSource = `flowchart TD\\n  A --> B`",
+          "<AssetMermaid :content=\"mermaidSource\" class=\"w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 Mermaid 图表视图。",
         "return_example": [
@@ -526,6 +439,7 @@
         ],
         "constraints": [
           "适用于 asset_metadata.render_type=mermaid 的资源。",
+          "name 与 content 二选一；两者同时传入时 content 优先。",
           "Backend/Agent 只选择组件和传入资源名，不直接依赖 Mermaid 初始化细节。",
           "Mermaid 语法错误会由内部渲染器展示失败状态。"
         ],
@@ -538,36 +452,29 @@
             "name": {
               "type": "string",
               "label": "Mermaid 资源名",
-              "description": "工作空间 Mermaid 文本资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
-              "required": true,
+              "description": "工作空间 Mermaid 文本资源的逻辑名 asset.name；与 content 二选一。",
               "default": "",
               "placeholder": "process-flow"
             },
+            "content": {
+              "type": "textarea",
+              "label": "Mermaid 源码",
+              "description": "可直接渲染的 Mermaid 图表源码；与 name 二选一。",
+              "default": "flowchart TD\n  A[Input] --> B{Check}\n  B --> C[Output]",
+              "placeholder": "flowchart TD\n  A --> B"
+            },
             "fallback": {
               "type": "string",
-              "label": "兜底 URL",
-              "default": "data:text/plain,flowchart%20TD%0A%20%20A%5BInput%5D%20--%3E%20B%7BCheck%7D%0A%20%20B%20--%3E%20C%5BOutput%5D",
-              "placeholder": "https://example.com/diagram.mmd"
+              "label": "兜底文案",
+              "description": "Mermaid 资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "Mermaid 资源无法渲染，请检查资源名称或图表源码。",
+              "agent_visible": false
             },
-            "width": {
+            "class": {
               "type": "string",
-              "label": "宽度",
-              "default": "100%"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "360px"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "220px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#ffffff"
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "default": "w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "theme": {
               "type": "select",
@@ -596,21 +503,6 @@
               "type": "boolean",
               "label": "点击放大",
               "default": false
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": true
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "16px"
             }
           },
           "presets": [
@@ -618,6 +510,8 @@
               "key": "flowchart",
               "label": "流程图",
               "props": {
+                "content": "flowchart TD\n  A[Input] --> B{Check}\n  B --> C[Output]",
+                "class": "w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
                 "theme": "default",
                 "previewEnabled": false
               }
@@ -626,9 +520,10 @@
               "key": "dark-preview",
               "label": "深色预览",
               "props": {
+                "content": "flowchart TD\n  A[Input] --> B{Check}\n  B --> C[Output]",
+                "class": "w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-background-invert overflow-hidden",
                 "theme": "dark",
-                "backgroundColor": "#0f172a",
-                "showBorder": false
+                "previewEnabled": false
               }
             }
           ]
@@ -670,14 +565,17 @@
         ],
         "usage": [
           "import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'",
-          "<AssetChart name=\"sales-chart\" height=\"360px\" />"
+          "<AssetChart name=\"sales-chart\" class=\"w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
+          "const chartOptionJson = JSON.stringify({ xAxis: { type: 'category', data: ['Q1', 'Q2'] }, yAxis: { type: 'value' }, series: [{ type: 'bar', data: [120, 200] }] })",
+          "<AssetChart :content='chartOptionJson' class=\"w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 ECharts 图表。",
         "return_example": [
-          "<AssetChart name=\"sales-chart\" height=\"360px\" />"
+          "<AssetChart name=\"sales-chart\" class=\"w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "constraints": [
           "适用于 asset_metadata.render_type=chart 的资源。",
+          "name 与 content 二选一；两者同时传入时 content 优先。",
           "资源内容应为 ECharts option JSON 或内部渲染器可解析的 option 文本。",
           "Backend/Agent 不应把该能力当作通用图表样式组件，只负责绑定资源。"
         ],
@@ -690,36 +588,29 @@
             "name": {
               "type": "string",
               "label": "图表资源名",
-              "description": "工作空间 ECharts option 资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
-              "required": true,
+              "description": "工作空间 ECharts option 资源的逻辑名 asset.name；与 content 二选一。",
               "default": "",
               "placeholder": "sales-chart"
             },
+            "content": {
+              "type": "textarea",
+              "label": "ECharts option 内容",
+              "description": "可直接渲染的 ECharts option JSON 或 JS 对象表达式；与 name 二选一。",
+              "default": "{\"xAxis\":{\"type\":\"category\",\"data\":[\"Q1\",\"Q2\",\"Q3\",\"Q4\"]},\"yAxis\":{\"type\":\"value\"},\"series\":[{\"type\":\"bar\",\"data\":[120,200,150,80]}],\"grid\":{\"left\":32,\"right\":16,\"top\":24,\"bottom\":32}}",
+              "placeholder": "{\"xAxis\":{},\"yAxis\":{},\"series\":[]}"
+            },
             "fallback": {
               "type": "string",
-              "label": "兜底 URL",
-              "default": "data:application/json,%7B%22xAxis%22%3A%7B%22type%22%3A%22category%22%2C%22data%22%3A%5B%22Q1%22%2C%22Q2%22%2C%22Q3%22%2C%22Q4%22%5D%7D%2C%22yAxis%22%3A%7B%22type%22%3A%22value%22%7D%2C%22series%22%3A%5B%7B%22type%22%3A%22bar%22%2C%22data%22%3A%5B120%2C200%2C150%2C80%5D%7D%5D%2C%22grid%22%3A%7B%22left%22%3A32%2C%22right%22%3A16%2C%22top%22%3A24%2C%22bottom%22%3A32%7D%7D",
-              "placeholder": "https://example.com/chart-option.json"
+              "label": "兜底文案",
+              "description": "Chart 资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "Chart 资源无法渲染，请检查资源名称或 ECharts option 内容。",
+              "agent_visible": false
             },
-            "width": {
+            "class": {
               "type": "string",
-              "label": "宽度",
-              "default": "100%"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "360px"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "240px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#ffffff"
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "default": "w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "theme": {
               "type": "string",
@@ -740,31 +631,6 @@
                   "value": "svg"
                 }
               ]
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": true
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "0"
-            },
-            "notMerge": {
-              "type": "boolean",
-              "label": "不合并旧配置",
-              "default": true
-            },
-            "lazyUpdate": {
-              "type": "boolean",
-              "label": "延迟更新",
-              "default": false
             }
           },
           "presets": [
@@ -772,16 +638,18 @@
               "key": "bar-chart",
               "label": "柱状图",
               "props": {
-                "renderer": "canvas",
-                "height": "360px"
+                "content": "{\"xAxis\":{\"type\":\"category\",\"data\":[\"Q1\",\"Q2\",\"Q3\",\"Q4\"]},\"yAxis\":{\"type\":\"value\"},\"series\":[{\"type\":\"bar\",\"data\":[120,200,150,80]}],\"grid\":{\"left\":32,\"right\":16,\"top\":24,\"bottom\":32}}",
+                "class": "w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
+                "renderer": "canvas"
               }
             },
             {
               "key": "svg-renderer",
               "label": "SVG 渲染",
               "props": {
-                "renderer": "svg",
-                "showBorder": true
+                "content": "{\"xAxis\":{\"type\":\"category\",\"data\":[\"Q1\",\"Q2\",\"Q3\",\"Q4\"]},\"yAxis\":{\"type\":\"value\"},\"series\":[{\"type\":\"bar\",\"data\":[120,200,150,80]}],\"grid\":{\"left\":32,\"right\":16,\"top\":24,\"bottom\":32}}",
+                "class": "w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
+                "renderer": "svg"
               }
             }
           ]
@@ -823,7 +691,8 @@
         ],
         "usage": [
           "import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.vue'",
-          "<AssetFormula name=\"equation\" display-mode />"
+          "<AssetFormula name=\"equation\" display-mode class=\"w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary\" />",
+          "<AssetFormula content=\"\\\\frac{a^2 + b^2}{c}\" display-mode class=\"w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary\" />"
         ],
         "returns": "Vue 组件；渲染 LaTeX 公式。",
         "return_example": [
@@ -831,6 +700,7 @@
         ],
         "constraints": [
           "适用于 asset_metadata.render_type=formula 的资源。",
+          "name 与 content 二选一；两者同时传入时 content 优先。",
           "资源内容应为 LaTeX 文本。",
           "Backend/Agent 不应直接生成 KaTeX DOM，Runtime 负责浏览器端公式渲染。"
         ],
@@ -843,85 +713,49 @@
             "name": {
               "type": "string",
               "label": "公式资源名",
-              "description": "工作空间 LaTeX 文本资源的逻辑名 asset.name；留空时可通过 fallback 临时验证 URL。",
-              "required": true,
+              "description": "工作空间 LaTeX 文本资源的逻辑名 asset.name；与 content 二选一。",
               "default": "",
               "placeholder": "equation"
             },
+            "content": {
+              "type": "textarea",
+              "label": "LaTeX 内容",
+              "description": "可直接渲染的 LaTeX 公式源码；与 name 二选一。",
+              "default": "\\frac{a^2 + b^2}{c}",
+              "placeholder": "\\frac{a^2 + b^2}{c}"
+            },
             "fallback": {
               "type": "string",
-              "label": "兜底 URL",
-              "default": "data:text/plain,%5Cfrac%7Ba%5E2%20%2B%20b%5E2%7D%7Bc%7D",
-              "placeholder": "https://example.com/formula.tex"
+              "label": "兜底文案",
+              "description": "Formula 资源无法渲染时展示的兜底文案；该字段不向 Agent 暴露。",
+              "default": "Formula 资源无法渲染，请检查资源名称或 LaTeX 内容。",
+              "agent_visible": false
             },
             "displayMode": {
               "type": "boolean",
               "label": "块级公式",
               "default": true
             },
-            "width": {
-              "type": "string",
-              "label": "宽度",
-              "default": "fit-content"
-            },
-            "height": {
-              "type": "string",
-              "label": "高度",
-              "default": "auto"
-            },
-            "minHeight": {
-              "type": "string",
-              "label": "最小高度",
-              "default": "56px"
-            },
-            "backgroundColor": {
-              "type": "string",
-              "label": "背景色",
-              "default": "#ffffff"
-            },
-            "padding": {
-              "type": "string",
-              "label": "内边距",
-              "default": "12px 16px"
-            },
-            "showBorder": {
-              "type": "boolean",
-              "label": "显示边框",
-              "default": true
-            },
-            "borderRadius": {
-              "type": "string",
-              "label": "圆角",
-              "default": "8px"
-            },
-            "throwOnError": {
-              "type": "boolean",
-              "label": "错误时抛出",
-              "default": false
-            },
-            "strict": {
+            "fit": {
               "type": "select",
-              "label": "严格模式",
-              "default": "warn",
+              "label": "适配模式",
+              "default": "contain",
               "options": [
                 {
-                  "label": "warn",
-                  "value": "warn"
+                  "label": "整体适配",
+                  "value": "contain"
                 },
                 {
-                  "label": "ignore",
-                  "value": "ignore"
-                },
-                {
-                  "label": "throw",
-                  "value": "throw"
+                  "label": "自然尺寸",
+                  "value": "none"
                 }
               ]
             },
-            "trust": {
-              "type": "boolean",
-              "label": "信任命令",
-              "default": false
+            "class": {
+              "type": "string",
+              "label": "Tailwind 类",
+              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景、裁剪、公式颜色和字号，例如：w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary text-5xl。",
+              "default": "w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary"
             }
           },
           "presets": [
@@ -929,16 +763,18 @@
               "key": "block-formula",
               "label": "块级公式",
               "props": {
-                "displayMode": true,
-                "width": "fit-content"
+                "content": "\\frac{a^2 + b^2}{c}",
+                "class": "w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary",
+                "displayMode": true
               }
             },
             {
               "key": "inline-formula",
               "label": "行内公式",
               "props": {
-                "displayMode": false,
-                "padding": "6px 8px"
+                "content": "E = mc^2",
+                "class": "inline-flex max-w-full rounded border border-border px-2 py-1.5 bg-transparent text-primary",
+                "displayMode": false
               }
             }
           ]

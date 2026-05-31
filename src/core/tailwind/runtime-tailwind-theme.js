@@ -58,7 +58,7 @@ export const createDynamicSpacingScale = () => {
 
 /**
  * 生成基于 CSS 变量的 Tailwind 字号刻度，并保留 Tailwind 默认行高比例。
- * @returns Tailwind fontSize 配置，字号与行高都跟随页面基础字号缩放
+ * @returns Tailwind fontSize 配置，字号与行高都跟随页面基础字号变化
  */
 export const createDynamicFontSizeScale = () => ({
   xs: ['calc(var(--tw-font-size-base) * 0.75)', { lineHeight: 'calc(var(--tw-font-size-base) * 1)' }],

@@ -89,7 +89,7 @@ function normalizeLogoSize(value: number | string | undefined): string {
 }
 
 /**
- * 按 Runtime Tailwind spacing 语义构造高度，保证跟随页面基础字号缩放。
+ * 按 Runtime Tailwind spacing 语义构造高度，保证跟随页面基础字号变化。
  * @param scale Tailwind spacing 刻度，4 等于一个页面基础字号
  * @returns CSS calc 表达式
  */

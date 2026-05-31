@@ -42,6 +42,32 @@ const spacingKeys = [
 const opacityKeys = ['0', '5', '10', '15', '20', '25', '30', '40', '50', '60', '70', '75', '80', '90', '95', '100']
 const accentKeys = ['accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6']
 const accentScaleKeys = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900']
+const tailwindDefaultColorKeys = [
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
+]
+const tailwindDefaultScaleKeys = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
+const tailwindStaticColorKeys = ['transparent', 'current', 'black', 'white']
 const semanticColorKeys = [
   'primary',
   'secondary',
@@ -62,6 +88,8 @@ function spacingUtilities(prefixes) {
 
 function colorUtilities(prefixes) {
   const colors = [
+    ...tailwindStaticColorKeys,
+    ...tailwindDefaultColorKeys.flatMap(color => tailwindDefaultScaleKeys.map(scale => `${color}-${scale}`)),
     ...semanticColorKeys,
     ...accentKeys,
     ...accentKeys.flatMap(accent => accentScaleKeys.map(scale => `${accent}-${scale}`)),

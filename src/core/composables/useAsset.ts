@@ -23,7 +23,7 @@ import { resolveAssetFontFamily } from '@/core/utils/font-registry'
  * 将资源逻辑名解析为响应式完整 URL。
  *
  * @param name 资源的逻辑名 `asset.name`（如 "background"）
- * @param fallback name 未命中时的兜底 URL，默认空串
+ * @param fallback name 未命中时的兜底 URL，默认空串；支持响应式输入
  * @returns 响应式 URL ComputedRef
  *
  * @example
@@ -32,13 +32,14 @@ import { resolveAssetFontFamily } from '@/core/utils/font-registry'
  */
 export function useAssetSrc(
   name: MaybeRefOrGetter<string | null | undefined>,
-  fallback: string = '',
+  fallback: MaybeRefOrGetter<string | null | undefined> = '',
 ): ComputedRef<string> {
   return computed(() => {
+    const fallbackSrc = String(toValue(fallback) || '')
     const n = toValue(name)
-    if (!n) return fallback
+    if (!n) return fallbackSrc
     const resolved = resolveResourcePath(n)
-    return resolved || fallback
+    return resolved || fallbackSrc
   })
 }
 
@@ -46,7 +47,7 @@ export function useAssetSrc(
  * 将资源逻辑名解析为响应式 CSS background-image 样式对象。
  *
  * @param name 资源的逻辑名 `asset.name`（如 "background"）
- * @param fallback name 未命中时的兜底 URL
+ * @param fallback name 未命中时的兜底 URL；支持响应式输入
  * @returns 响应式 { backgroundImage: string } CSSProperties
  *
  * @example
@@ -55,13 +56,14 @@ export function useAssetSrc(
  */
 export function useAssetBackground(
   name: MaybeRefOrGetter<string | null | undefined>,
-  fallback: string = '',
+  fallback: MaybeRefOrGetter<string | null | undefined> = '',
 ): ComputedRef<{ backgroundImage: string }> {
   return computed(() => {
+    const fallbackSrc = String(toValue(fallback) || '')
     const n = toValue(name)
-    if (!n) return { backgroundImage: fallback ? `url(${fallback})` : '' }
+    if (!n) return { backgroundImage: fallbackSrc ? `url(${fallbackSrc})` : '' }
     const resolved = resolveResourcePath(n)
-    const url = resolved || fallback
+    const url = resolved || fallbackSrc
     return { backgroundImage: url ? `url(${url})` : '' }
   })
 }
@@ -70,7 +72,7 @@ export function useAssetBackground(
  * 将字体资源逻辑名解析为响应式 font-family。
  *
  * @param name 字体资源的逻辑名 `asset.name`
- * @param fallback name 未命中字体注册时的兜底 font-family
+ * @param fallback name 未命中字体注册时的兜底 font-family；支持响应式输入
  * @returns 响应式 font-family 字符串
  *
  * @example
@@ -79,9 +81,9 @@ export function useAssetBackground(
  */
 export function useAssetFontFamily(
   name: MaybeRefOrGetter<string | null | undefined>,
-  fallback: string = '',
+  fallback: MaybeRefOrGetter<string | null | undefined> = '',
 ): ComputedRef<string> {
-  return computed(() => resolveAssetFontFamily(toValue(name), fallback))
+  return computed(() => resolveAssetFontFamily(toValue(name), String(toValue(fallback) || '')))
 }
 
 /**

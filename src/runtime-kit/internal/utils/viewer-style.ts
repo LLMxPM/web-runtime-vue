@@ -56,17 +56,19 @@ export function buildViewerSurfaceStyle(props: ViewerSurfaceProps): CSSPropertie
   const padding = normalizeViewerSize(props.padding)
   const borderWidth = normalizeViewerSize(props.borderWidth)
 
-  return {
+  const style: CSSProperties = {
     ...(width ? { width } : {}),
     ...(height ? { height } : {}),
     ...(minHeight ? { minHeight } : {}),
     ...(props.backgroundColor ? { backgroundColor: props.backgroundColor } : {}),
     ...(borderRadius ? { borderRadius } : {}),
     ...(padding ? { padding } : {}),
-    border: props.showBorder
-      ? `${borderWidth || '1px'} ${props.borderStyle || 'solid'} ${props.borderColor || '#e5e7eb'}`
-      : 'none',
   }
+  if (props.showBorder === true) {
+    style.border = `${borderWidth || '1px'} ${props.borderStyle || 'solid'} ${props.borderColor || '#e5e7eb'}`
+  }
+
+  return style
 }
 
 /**

@@ -44,7 +44,7 @@ import {
   type ComponentPreviewUpdateStateMessage,
 } from '@/core/shared/component-preview'
 import type { ComponentPreviewSchema, RuntimeComponentPreviewPlacementOptions } from '@/core/shared/runtime-preview'
-import { buildPageSpacingScaleStyles } from '@/core/utils/page-scale'
+import { buildPageContentScaleStyles } from '@/core/utils/page-scale'
 import { getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
 import { importPreviewModule } from '@/core/utils/preview-module'
 import {
@@ -69,7 +69,7 @@ const parentOrigin = resolveParentOrigin()
 const placementOptions = ref<Required<RuntimeComponentPreviewPlacementOptions>>(
   normalizeComponentPreviewPlacement(componentPreviewConfig.value?.placement),
 )
-const previewContentStyles = computed(() => buildPageSpacingScaleStyles())
+const previewContentStyles = computed(() => buildPageContentScaleStyles())
 const placementContainerStyle = computed(() => buildPlacementContainerStyle(placementOptions.value))
 const placementFrameStyle = computed(() => buildPlacementFrameStyle(placementOptions.value))
 
