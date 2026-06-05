@@ -73,4 +73,33 @@ describe('createProjectRouter', () => {
     await router.push('/second')
     expect(document.title).toBe('测试项目')
   })
+
+  it('应注册演讲模式控制台与观众窗口内部路由', async () => {
+    const router = await createProjectRouter()
+    const routePaths = router.getRoutes().map(route => route.path)
+
+    expect(routePaths).toContain('/__presenter')
+    expect(routePaths).toContain('/__presenter-display')
+  })
+
+  it('默认 404 路由存在时演讲模式内部路由不应被吞掉', async () => {
+    getDefaultRouteConfigAsyncMock.mockResolvedValue([
+      {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: PageStub,
+      },
+    ])
+    const router = await createProjectRouter()
+
+    const presenterMatch = router.resolve('/__presenter').matched
+    const displayMatch = router.resolve('/__presenter-display').matched
+
+    expect(presenterMatch).toHaveLength(1)
+    expect(presenterMatch.map(route => route.name)).toEqual(['RuntimePresenterConsole'])
+    expect(presenterMatch.map(route => route.name)).not.toContain('NotFound')
+    expect(displayMatch).toHaveLength(1)
+    expect(displayMatch.map(route => route.name)).toEqual(['RuntimePresenterDisplay'])
+    expect(displayMatch.map(route => route.name)).not.toContain('NotFound')
+  })
 })

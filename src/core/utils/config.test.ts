@@ -15,6 +15,7 @@ function buildPreloadedConfig(routes: Array<{
     title: string
     order: number
     hidden?: boolean
+    speakerNotes?: string | null
   }
 }>) {
   return {
@@ -123,5 +124,25 @@ describe('runtime config default routes', () => {
       baseFontSize: '18px',
       iconDefaultStrokeWidth: 3,
     })
+  })
+
+  it('应在路由配置转换时保留演讲者备注', async () => {
+    setRuntimePreloadedConfig(buildPreloadedConfig([
+      {
+        route: 'speaker-page',
+        component: '@/views/PG20260605001.vue',
+        meta: {
+          title: '备注页面',
+          order: 10,
+          speakerNotes: '演讲模式备注',
+        },
+      },
+    ]))
+
+    const { getRouteConfigsAsync, reloadAllConfigs } = await import('./config')
+    await reloadAllConfigs()
+    const routeConfigs = await getRouteConfigsAsync()
+
+    expect(routeConfigs[0].meta.speakerNotes).toBe('演讲模式备注')
   })
 })

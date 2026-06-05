@@ -77,6 +77,17 @@ v-if="shouldShowPdfExportButton" class="nav-button nav-button--export" :class="{
           <FileDown :size="16" />
         </button>
 
+        <!-- 演讲模式按钮 -->
+        <button
+          v-if="shouldShowPresenterButton"
+          class="nav-button nav-button--presenter"
+          :class="{ 'nav-button--fullscreen': isFullscreen }"
+          title="演讲模式 (Shift+P)"
+          @click.stop="openPresenterMode"
+        >
+          <Monitor :size="16" />
+        </button>
+
         <template v-if="!isBottomPreviewMode">
           <!-- 上一页按钮 -->
           <button
@@ -179,6 +190,7 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   FileDown,
+  Monitor,
   PanelLeft,
   PanelBottom
 } from '@lucide/vue'
@@ -194,6 +206,13 @@ import { PDFExportService } from '@/core/services/PDFExportService'
 import { appConfig as runtimeAppConfig, appPageConfig, type RuntimeMenuMode } from '@/core/utils/config'
 import { buildPageContentScaleStyles } from '@/core/utils/page-scale'
 import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
+import {
+  createPresenterChannelId,
+  normalizePresenterRoutePath,
+  PRESENTER_CONSOLE_ROUTE,
+} from '@/runtime-shell/presenter/presenter-url'
+import { writePresenterInitialNavigateMessage } from '@/runtime-shell/presenter/usePresenterController'
+import { openPresenterDisplayWindow } from '@/runtime-shell/presenter/presenter-window'
 
 // 应用配置已迁移到 @/config/app.config.ts
 
@@ -248,7 +267,8 @@ const {
   canGoNext,
   goToPreviousPage,
   goToNextPage,
-  getPageTitle
+  getPageTitle,
+  getAllNavigableRoutes
 } = usePageNavigation()
 
 /**
@@ -378,10 +398,18 @@ const shouldShowPdfExportButton = computed(() => {
 })
 
 /**
+ * 是否显示演讲模式入口。
+ * @returns 当前项目存在可导航页面时允许进入演讲模式
+ */
+const shouldShowPresenterButton = computed(() => {
+  return getAllNavigableRoutes().length > 0
+})
+
+/**
  * 是否显示右上角的二级操作区。
  */
 const shouldShowTopRightPageControls = computed(() => {
-  return shouldShowPdfExportButton.value || !isBottomPreviewMode.value
+  return shouldShowPdfExportButton.value || shouldShowPresenterButton.value || !isBottomPreviewMode.value
 })
 
 /**
@@ -625,14 +653,20 @@ const handleKeydown = (event: KeyboardEvent): void => {
     return
   }
 
-  // 只在全屏模式下处理其他键盘事件
-  if (!isFullscreen.value) return
-
   // 防止在输入框等元素中触发
   const target = event.target as HTMLElement
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
     return
   }
+
+  if (event.shiftKey && event.key.toLowerCase() === 'p') {
+    event.preventDefault()
+    openPresenterMode()
+    return
+  }
+
+  // 只在全屏模式下处理其他键盘事件
+  if (!isFullscreen.value) return
 
   switch (event.key) {
     case 'PageDown':
@@ -668,6 +702,34 @@ const handleFullscreenChange = (): void => {
  */
 const showPDFExportDialog = (): void => {
   isPDFExportDialogVisible.value = true
+}
+
+/**
+ * 打开演讲模式；同步打开观众窗口，同时当前窗口进入演讲者控制台。
+ */
+const openPresenterMode = (): void => {
+  if (!shouldShowPresenterButton.value) {
+    showPageBoundaryMessage('当前项目没有可演讲页面')
+    return
+  }
+
+  const currentPath = normalizePresenterRoutePath(router.currentRoute.value.path)
+  const channelId = createPresenterChannelId()
+  const displayWindow = openPresenterDisplayWindow(channelId, currentPath)
+  writePresenterInitialNavigateMessage(channelId, currentPath)
+
+  const presenterQuery: Record<string, string> = {
+    channel: channelId,
+    route: currentPath,
+  }
+  if (!displayWindow) {
+    presenterQuery.displayBlocked = '1'
+  }
+
+  void router.push({
+    path: PRESENTER_CONSOLE_ROUTE,
+    query: presenterQuery,
+  })
 }
 
 /**

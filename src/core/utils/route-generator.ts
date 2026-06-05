@@ -68,6 +68,7 @@ export interface RouteInfo {
   parentPath?: string   // 父路由路径
   hidden?: boolean      // 是否隐藏
   component?: string    // 组件路径
+  speakerNotes?: string | null // 演讲者备注
 }
 
 
@@ -398,7 +399,8 @@ export function getAllRouteInfos(): RouteInfo[] {
         order: parentConfig.order || parentConfig.meta?.order || 0,
         pageNumber: parentConfig.pageNumber || parentConfig.meta?.pageNumber,
         hidden: parentConfig.meta?.hidden || false,
-        component: parentConfig.component ? 'parent-component' : undefined
+        component: parentConfig.component ? 'parent-component' : undefined,
+        speakerNotes: typeof parentConfig.meta?.speakerNotes === 'string' ? parentConfig.meta.speakerNotes : null
       })
     }
     // 有子路由的父路由只是分组，不作为独立页面加入路由信息
@@ -417,7 +419,8 @@ export function getAllRouteInfos(): RouteInfo[] {
           pageNumber: childConfig.pageNumber || childConfig.meta?.pageNumber,
           parentPath: `/${parentConfig.path}`,
           hidden: childConfig.meta?.hidden || false,
-          component: childConfig.component ? 'child-component' : 'unknown'
+          component: childConfig.component ? 'child-component' : 'unknown',
+          speakerNotes: typeof childConfig.meta?.speakerNotes === 'string' ? childConfig.meta.speakerNotes : null
         })
       })
     }

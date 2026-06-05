@@ -56,6 +56,7 @@ export interface RouteConfigYaml {
       order: number
       pageNumber?: number
       hidden?: boolean
+      speakerNotes?: string | null
     }
     children?: Array<{
       route: string
@@ -65,6 +66,7 @@ export interface RouteConfigYaml {
         order: number
         pageNumber?: number
         hidden?: boolean
+        speakerNotes?: string | null
       }
     }>
   }>

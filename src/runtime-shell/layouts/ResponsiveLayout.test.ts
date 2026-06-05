@@ -8,7 +8,7 @@ import { createApp, nextTick } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { sidebarPropSpy, sidePreviewPropSpy, bottomStripPropSpy, mockMenuMode, mockPageConfig } = vi.hoisted(() => ({
+const { sidebarPropSpy, sidePreviewPropSpy, bottomStripPropSpy, mockMenuMode, mockPageConfig, mockNavigableRoutes } = vi.hoisted(() => ({
   sidebarPropSpy: vi.fn(),
   sidePreviewPropSpy: vi.fn(),
   bottomStripPropSpy: vi.fn(),
@@ -22,6 +22,9 @@ const { sidebarPropSpy, sidePreviewPropSpy, bottomStripPropSpy, mockMenuMode, mo
       baseFontSize: '20px',
       iconDefaultStrokeWidth: 2,
     },
+  },
+  mockNavigableRoutes: {
+    value: [] as Array<{ path: string; name: string; pageNumber: number }>,
   },
 }))
 
@@ -235,6 +238,7 @@ vi.mock('@/core/composables/usePageNavigation', async () => {
       goToPreviousPage: vi.fn(),
       goToNextPage: vi.fn(),
       getPageTitle: vi.fn(() => '测试页面'),
+      getAllNavigableRoutes: vi.fn(() => mockNavigableRoutes.value),
     }),
   }
 })
@@ -277,6 +281,7 @@ vi.mock('@lucide/vue', async () => {
     ChevronLeft: createIconStub('ChevronLeftStub'),
     ChevronRight: createIconStub('ChevronRightStub'),
     FileDown: createIconStub('FileDownStub'),
+    Monitor: createIconStub('MonitorStub'),
     PanelLeft: createIconStub('PanelLeftStub'),
     PanelBottom: createIconStub('PanelBottomStub'),
   }
@@ -299,6 +304,8 @@ afterEach(() => {
   sidebarPropSpy.mockReset()
   sidePreviewPropSpy.mockReset()
   bottomStripPropSpy.mockReset()
+  mockNavigableRoutes.value = []
+  localStorage.clear()
   document.body.innerHTML = ''
 })
 
@@ -454,6 +461,62 @@ describe('ResponsiveLayout', () => {
     }))
 
     app.unmount()
+  })
+
+  it('点击演讲模式应打开观众窗口并进入演讲者控制台', async () => {
+    mockMenuMode.value = 'preview'
+    mockNavigableRoutes.value = [{ path: '/', name: '首页', pageNumber: 1 }]
+    const openMock = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/',
+          component: {
+            template: '<div>route content</div>',
+          },
+        },
+        {
+          path: '/__presenter',
+          component: {
+            template: '<div>presenter console</div>',
+          },
+        },
+      ],
+    })
+
+    await router.push('/')
+    await router.isReady()
+
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(ResponsiveLayout)
+    app.use(router)
+    app.config.errorHandler = (error) => {
+      throw error
+    }
+
+    app.mount(host)
+    await nextTick()
+
+    const presenterButton = host.querySelector('button[title="演讲模式 (Shift+P)"]') as HTMLButtonElement | null
+    expect(presenterButton).not.toBeNull()
+
+    presenterButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await new Promise(resolve => window.setTimeout(resolve, 0))
+    await nextTick()
+
+    expect(openMock).toHaveBeenCalledTimes(1)
+    expect(String(openMock.mock.calls[0][0])).toContain('/__presenter-display?')
+    expect(router.currentRoute.value.path).toBe('/__presenter')
+    expect(router.currentRoute.value.query.route).toBe('/')
+    expect(router.currentRoute.value.query.channel).toBeTypeOf('string')
+    expect(router.currentRoute.value.query.displayBlocked).toBeUndefined()
+
+    app.unmount()
+    openMock.mockRestore()
   })
 
   it('翻页到首页或末页边界时应展示提示', async () => {

@@ -46,7 +46,24 @@ export async function createProjectRouter(options: ProjectRouterOptions = {}) {
   const browserTitle = resolveBrowserTitle(projectAppConfig.app.title)
   const generatedRoutes = generateRoutes(routeConfigs)
 
+  const internalPresenterRoutes: RouteRecordRaw[] = [
+    {
+      path: '/__presenter',
+      name: 'RuntimePresenterConsole',
+      component: () => import('@/runtime-shell/presenter/PresenterConsoleView.vue'),
+      meta: { title: '演讲者控制台', hidden: true },
+    },
+    {
+      path: '/__presenter-display',
+      name: 'RuntimePresenterDisplay',
+      component: () => import('@/runtime-shell/presenter/PresenterDisplayView.vue'),
+      meta: { title: '演讲展示窗口', hidden: true },
+    },
+  ]
+
   const routes: RouteRecordRaw[] = [
+    ...internalPresenterRoutes,
+    ...(options.extraRoutes || []),
     {
       path: '/',
       component: () => import('@/runtime-shell/layouts/ResponsiveLayout.vue'),
@@ -55,7 +72,6 @@ export async function createProjectRouter(options: ProjectRouterOptions = {}) {
         ...generatedRoutes,
       ],
     },
-    ...(options.extraRoutes || []),
   ]
 
   const router = createRouter({

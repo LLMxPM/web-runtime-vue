@@ -23,6 +23,7 @@ export interface BaseRouteMeta {
   parent?: string
   order?: number
   pageNumber?: number // 页码，表示在所有显示页面中的顺序
+  speakerNotes?: string | null
   isIndex?: boolean
   hiddenInMenu?: boolean
   disabled?: boolean
