@@ -12,10 +12,10 @@ v-if="isVisible"
       <header class="flex items-center justify-between border-b border-slate-200 px-7 py-5">
         <div class="min-w-0">
           <h3 id="pdf-export-title" class="text-xl font-semibold tracking-tight text-slate-950">
-            导出 PDF
+            导出
           </h3>
           <p class="mt-1 text-sm text-slate-500">
-            选择生成方式和页面范围
+            选择文件格式和页面范围
           </p>
         </div>
         <button
@@ -33,9 +33,9 @@ type="button"
               <h4 class="text-sm font-semibold text-slate-800">
                 生成方式
               </h4>
-              <span class="text-xs text-slate-400">默认使用当前导出</span>
+              <span class="text-xs text-slate-400">默认使用 PDF 截图</span>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid gap-3 sm:grid-cols-3">
               <label
 v-for="option in methodOptions" :key="option.value"
                 class="group cursor-pointer rounded-lg border p-4 transition-all hover:border-blue-300 hover:bg-blue-50/40"
@@ -154,6 +154,46 @@ v-if="exportResult.success"
             <p>页面数：{{ exportResult.pageCount || 0 }}</p>
             <p>耗时：{{ Math.round((exportResult.duration || 0) / 1000) }} 秒</p>
           </div>
+
+          <div
+v-if="pptxReport"
+            class="mt-4 rounded-lg border border-slate-200 bg-white text-left text-xs leading-6 text-slate-600">
+            <div class="border-b border-slate-100 px-4 py-3">
+              <p class="text-sm font-semibold text-slate-900">
+                PPTX 导出报告
+              </p>
+              <p class="mt-1 text-xs text-slate-500">
+                可编辑对象与降级对象统计
+              </p>
+            </div>
+            <div class="grid grid-cols-2 gap-2 px-4 py-3 sm:grid-cols-3">
+              <div
+v-for="item in pptxReportSummaryItems"
+                :key="item.label"
+                class="rounded-md bg-slate-50 px-3 py-2">
+                <p class="text-[11px] text-slate-500">
+                  {{ item.label }}
+                </p>
+                <p class="mt-1 text-base font-semibold text-slate-900">
+                  {{ item.value }}
+                </p>
+              </div>
+            </div>
+            <div v-if="pptxReportDetailItems.length" class="border-t border-slate-100 px-4 py-3">
+              <p class="mb-2 text-xs font-semibold text-slate-800">
+                降级 / 跳过明细
+              </p>
+              <div class="max-h-40 space-y-2 overflow-y-auto pr-1">
+                <p
+v-for="(item, index) in pptxReportDetailItems"
+                  :key="`${item.pageRoute}-${index}-${item.label}`"
+                  class="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
+                  {{ item.pageTitle }} · {{ getPptxSourceLabel(item.sourceType) }} →
+                  {{ getPptxResultLabel(item.result) }}：{{ item.reason || '已按降级规则处理' }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -207,11 +247,22 @@ import {
 } from '@lucide/vue'
 import { pdfExportService } from '@/core/services/PDFExportService'
 import { browserPrintService } from '@/core/services/BrowserPrintService'
+import { pptxExportService } from '@/core/services/PPTXExportService'
 import type {
   ExportMethod,
   ExportProgress,
   ExportResult,
 } from '@/core/types/pdf-export'
+import type {
+  PptxExportReport,
+  PptxExportReportItem,
+  PptxExportResult,
+  PptxReportItemResult,
+  PptxReportSourceType,
+} from '@/core/types/pptx-export'
+
+type DialogExportMethod = ExportMethod | 'pptx-editable'
+type DialogExportResult = ExportResult | PptxExportResult
 
 // Props
 interface Props {
@@ -226,7 +277,7 @@ const props = withDefaults(defineProps<Props>(), {
 interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'export-start'): void
-  (e: 'export-complete', result: ExportResult): void
+  (e: 'export-complete', result: DialogExportResult): void
   (e: 'export-error', error: Error): void
 }
 
@@ -244,6 +295,12 @@ const methodOptions = [
     label: '浏览器打印',
     description: '通过打印对话框保存为 PDF',
     icon: Printer,
+  },
+  {
+    value: 'pptx-editable' as DialogExportMethod,
+    label: '可编辑 PPTX',
+    description: '文本和简单形状可编辑，复杂内容转图片块',
+    icon: FileText,
   },
 ]
 
@@ -264,10 +321,10 @@ const rangeOptions = [
 const router = useRouter()
 const isVisible = ref(props.visible)
 const exportMode = ref<'current' | 'all'>('current')
-const exportMethod = ref<ExportMethod>('canvas-pdf')
+const exportMethod = ref<DialogExportMethod>('canvas-pdf')
 const filename = ref('')
 const isExporting = ref(false)
-const exportResult = ref<ExportResult | null>(null)
+const exportResult = ref<DialogExportResult | null>(null)
 const progress = ref<ExportProgress>({
   current: 0,
   total: 0,
@@ -278,22 +335,44 @@ const progress = ref<ExportProgress>({
 
 // 计算属性
 const isBrowserPrint = computed(() => exportMethod.value === 'browser-print')
+const isPptxEditable = computed(() => exportMethod.value === 'pptx-editable')
 
 const primaryActionLabel = computed(() => {
   return isBrowserPrint.value ? '打开打印' : '开始导出'
 })
 
 const filenamePlaceholder = computed(() => {
+  if (isPptxEditable.value) {
+    return exportMode.value === 'all'
+      ? '留空使用项目标题 + 本地时间，扩展名 .pptx'
+      : '留空使用页面标题 + 本地时间，扩展名 .pptx'
+  }
+
   return exportMode.value === 'all'
     ? '留空使用项目标题 + 本地时间'
     : '留空使用页面标题 + 本地时间'
 })
 
 const exportingTitle = computed(() => {
+  if (isPptxEditable.value) {
+    return '正在导出 PPTX'
+  }
   return isBrowserPrint.value ? '正在准备打印' : '正在导出 PDF'
 })
 
 const progressText = computed(() => {
+  if (isPptxEditable.value) {
+    if (exportMode.value === 'current') {
+      return '正在转换当前页面...'
+    }
+
+    if (progress.value.currentPageTitle) {
+      return `正在转换: ${progress.value.currentPageTitle}`
+    }
+
+    return '正在准备 PPTX 导出...'
+  }
+
   if (isBrowserPrint.value) {
     if (exportMode.value === 'current') {
       return '正在准备当前页面打印...'
@@ -330,7 +409,41 @@ const successMessage = computed(() => {
     return exportResult.value.message || `已准备 ${exportResult.value.pageCount || 0} 个页面`
   }
 
+  if (isPptxExportResult(exportResult.value)) {
+    return `已成功导出 ${exportResult.value.pageCount || 0} 个页面，报告见下方明细`
+  }
+
   return `已成功导出 ${exportResult.value.pageCount || 0} 个页面`
+})
+
+const pptxReport = computed<PptxExportReport | null>(() => {
+  return isPptxExportResult(exportResult.value) ? exportResult.value.report || null : null
+})
+
+const pptxReportSummaryItems = computed(() => {
+  const summary = pptxReport.value?.summary
+  if (!summary) {
+    return []
+  }
+
+  return [
+    { label: '可编辑文本', value: summary.editableText },
+    { label: '可编辑形状', value: summary.editableShape },
+    { label: '图片块', value: summary.imageBlock },
+    { label: 'SVG块', value: summary.svgBlock },
+    { label: '截图降级', value: summary.screenshotBlock },
+    { label: '跳过对象', value: summary.skipped },
+  ]
+})
+
+const pptxReportDetailItems = computed<PptxExportReportItem[]>(() => {
+  if (!pptxReport.value) {
+    return []
+  }
+
+  return pptxReport.value.pages
+    .flatMap(page => page.items)
+    .filter(item => !item.editable || item.result === 'screenshot' || item.result === 'skipped')
 })
 
 // 监听 props 变化
@@ -384,24 +497,39 @@ async function startExport(): Promise<void> {
     const options = {
       filename: filename.value.trim() || undefined,
       mode: exportMode.value,
-      method: exportMethod.value
     }
 
-    let result: ExportResult
+    let result: DialogExportResult
 
-    if (isBrowserPrint.value) {
+    if (isPptxEditable.value) {
       if (exportMode.value === 'current') {
-        result = await browserPrintService.printCurrentPage(options)
+        result = await pptxExportService.exportCurrentPage(options)
       } else {
-        result = await browserPrintService.printAllPages(options, (progressData) => {
+        result = await pptxExportService.exportAllPages(options, (progressData) => {
+          progress.value = progressData
+        })
+      }
+    } else if (isBrowserPrint.value) {
+      const printOptions = {
+        ...options,
+        method: 'browser-print' as ExportMethod,
+      }
+      if (exportMode.value === 'current') {
+        result = await browserPrintService.printCurrentPage(printOptions)
+      } else {
+        result = await browserPrintService.printAllPages(printOptions, (progressData) => {
           progress.value = progressData
         })
       }
     } else {
+      const pdfOptions = {
+        ...options,
+        method: 'canvas-pdf' as ExportMethod,
+      }
       if (exportMode.value === 'current') {
-        result = await pdfExportService.exportCurrentPage(options)
+        result = await pdfExportService.exportCurrentPage(pdfOptions)
       } else {
-        result = await pdfExportService.exportAllPages(options, (progressData) => {
+        result = await pdfExportService.exportAllPages(pdfOptions, (progressData) => {
           progress.value = progressData
         })
       }
@@ -410,10 +538,18 @@ async function startExport(): Promise<void> {
     exportResult.value = result
     emit('export-complete', result)
   } catch (error) {
-    const errorResult: ExportResult = {
+    const errorResult: DialogExportResult = isPptxEditable.value ? {
       success: false,
       taskId: '',
-      method: exportMethod.value,
+      method: 'pptx-editable',
+      filename: '',
+      pageCount: 0,
+      duration: 0,
+      error: error instanceof Error ? error.message : '导出失败',
+    } : {
+      success: false,
+      taskId: '',
+      method: exportMethod.value as ExportMethod,
       filename: '',
       pageCount: 0,
       duration: 0,
@@ -432,17 +568,27 @@ async function startExport(): Promise<void> {
  */
 function cancelExport(): void {
   if (isExporting.value) {
-    if (isBrowserPrint.value) {
+    if (isPptxEditable.value) {
+      pptxExportService.cancelExport()
+    } else if (isBrowserPrint.value) {
       browserPrintService.cancelPrint()
     } else {
       pdfExportService.cancelExport()
     }
     isExporting.value = false
 
-    const cancelResult: ExportResult = {
+    const cancelResult: DialogExportResult = isPptxEditable.value ? {
       success: false,
       taskId: '',
-      method: exportMethod.value,
+      method: 'pptx-editable',
+      filename: '',
+      pageCount: 0,
+      duration: 0,
+      error: '用户取消导出',
+    } : {
+      success: false,
+      taskId: '',
+      method: exportMethod.value as ExportMethod,
       filename: '',
       pageCount: 0,
       duration: 0,
@@ -467,6 +613,7 @@ onMounted(() => {
   // 设置路由实例
   pdfExportService.setRouter(router)
   browserPrintService.setRouter(router)
+  pptxExportService.setRouter(router)
 
   document.addEventListener('keydown', handleKeydown)
 })
@@ -487,4 +634,52 @@ defineExpose({
     resetDialog()
   }
 })
+
+/**
+ * 判断导出结果是否为 PPTX。
+ * @param result 导出结果
+ */
+function isPptxExportResult(result: DialogExportResult | null): result is PptxExportResult {
+  return result?.method === 'pptx-editable'
+}
+
+/**
+ * 获取报告源类型展示文案。
+ * @param sourceType 源类型
+ */
+function getPptxSourceLabel(sourceType: PptxReportSourceType): string {
+  const labels: Record<PptxReportSourceType, string> = {
+    title: '标题',
+    body: '正文',
+    number: '关键数字',
+    shape: '形状',
+    image: '图片',
+    svg: 'SVG',
+    mermaid: 'Mermaid',
+    drawio: 'Draw.io',
+    formula: '公式',
+    chart: '图表',
+    canvas: 'Canvas',
+    video: '视频',
+    'complex-css': '复杂容器',
+    unknown: '未知对象',
+  }
+  return labels[sourceType]
+}
+
+/**
+ * 获取报告结果展示文案。
+ * @param result 导出结果类型
+ */
+function getPptxResultLabel(result: PptxReportItemResult): string {
+  const labels: Record<PptxReportItemResult, string> = {
+    'editable-text': '可编辑文本',
+    'editable-shape': '可编辑形状',
+    image: '图片块',
+    svg: 'SVG块',
+    screenshot: '截图块',
+    skipped: '跳过',
+  }
+  return labels[result]
+}
 </script>

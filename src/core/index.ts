@@ -48,6 +48,7 @@ export {
 export { pdfExportService } from './services/PDFExportService'
 export { browserPrintService } from './services/BrowserPrintService'
 export { pageCaptureService } from './services/PageCaptureService'
+export { pptxExportService } from './services/PPTXExportService'
 
 // 图标系统
 export { iconRegistry, getIcon, hasIcon } from './utils/icon-registry'

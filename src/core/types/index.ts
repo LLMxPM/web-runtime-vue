@@ -18,6 +18,9 @@ export * from './menu'
 // 导出PDF导出相关类型
 export * from './pdf-export'
 
+// 导出可编辑 PPTX 导出相关类型
+export * from './pptx-export'
+
 // 导出全局类型
 export * from './global'
 

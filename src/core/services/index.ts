@@ -11,3 +11,6 @@ export * from './BrowserPrintService'
 
 // 页面捕获服务
 export * from './PageCaptureService'
+
+// 可编辑 PPTX 导出服务
+export * from './PPTXExportService'

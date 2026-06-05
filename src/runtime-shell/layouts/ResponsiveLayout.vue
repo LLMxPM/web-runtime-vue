@@ -73,7 +73,7 @@ v-if="canTogglePreviewMenuMode" class="nav-button nav-button--mode"
         <button
 v-if="shouldShowPdfExportButton" class="nav-button nav-button--export" :class="{
           'nav-button--fullscreen': isFullscreen
-        }" title="导出PDF" @click.stop="showPDFExportDialog">
+        }" title="导出" @click.stop="showPDFExportDialog">
           <FileDown :size="16" />
         </button>
 
