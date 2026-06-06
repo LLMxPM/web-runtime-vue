@@ -12,20 +12,6 @@
         </h1>
       </div>
 
-      <nav v-if="currentPage" class="presenter-console__page-controls" aria-label="演讲翻页">
-        <button type="button" class="presenter-console__page-button" :disabled="!canGoPrevious" @click="goPrevious">
-          <ChevronLeft class="h-5 w-5" />
-          <span>上一页</span>
-        </button>
-        <div class="presenter-console__page-indicator">
-          {{ currentPage.pageNumber }} / {{ pages.length }}
-        </div>
-        <button type="button" class="presenter-console__page-button presenter-console__page-button--primary" :disabled="!canGoNext" @click="goNext">
-          <span>下一页</span>
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </nav>
-
       <div class="presenter-console__header-actions">
         <span class="presenter-console__display-status" :class="displayStatusClass">
           观众窗口：{{ displayStatusLabel }}
@@ -96,6 +82,32 @@
             <div class="presenter-console__notes">
               {{ currentPage.speakerNotes || '当前页面没有填写演讲者备注。' }}
             </div>
+            <div class="presenter-console__notes-footer">
+              <PresenterTimerPanel :current-path="currentPath" />
+              <nav class="presenter-console__page-controls" aria-label="演讲翻页">
+                <button
+                  type="button"
+                  class="presenter-console__page-button"
+                  :disabled="!canGoPrevious"
+                  @click="goPrevious"
+                >
+                  <ChevronLeft class="h-4 w-4" />
+                  <span>上一页</span>
+                </button>
+                <div class="presenter-console__page-indicator">
+                  {{ currentPage.pageNumber }} / {{ pages.length }}
+                </div>
+                <button
+                  type="button"
+                  class="presenter-console__page-button presenter-console__page-button--primary"
+                  :disabled="!canGoNext"
+                  @click="goNext"
+                >
+                  <span>下一页</span>
+                  <ChevronRight class="h-4 w-4" />
+                </button>
+              </nav>
+            </div>
           </section>
         </aside>
       </section>
@@ -145,6 +157,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChevronLeft, ChevronRight, LogOut, Monitor } from '@lucide/vue'
 
 import ViewPreview from '@/runtime-shell/preview/ViewPreview.vue'
+import PresenterTimerPanel from '@/runtime-shell/presenter/PresenterTimerPanel.vue'
 import { usePresenterController } from '@/runtime-shell/presenter/usePresenterController'
 import { openPresenterDisplayWindow } from '@/runtime-shell/presenter/presenter-window'
 
@@ -276,9 +289,10 @@ onUnmounted(() => {
 }
 
 .presenter-console__header {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(12rem, 1fr);
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   min-height: 4.5rem;
   padding: 0.875rem 1.25rem;
@@ -293,7 +307,8 @@ onUnmounted(() => {
 .presenter-console__header-actions {
   display: flex;
   align-items: center;
-  justify-self: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
   min-width: 0;
 }
@@ -346,7 +361,7 @@ onUnmounted(() => {
 .presenter-console__side {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(220px, 2fr) minmax(0, 3fr);
   min-width: 0;
   min-height: 0;
   gap: 1rem;
@@ -370,6 +385,13 @@ onUnmounted(() => {
   color: #334155;
   font-size: 0.9375rem;
   line-height: 1.65;
+}
+
+.presenter-console__notes-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .presenter-console__next {
@@ -534,27 +556,24 @@ onUnmounted(() => {
 .presenter-console__page-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  justify-self: center;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 0.5rem;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  justify-content: space-between;
+  gap: 0.625rem;
+  width: 100%;
+  padding-top: 0.125rem;
 }
 
 .presenter-console__page-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  min-width: 6.75rem;
-  height: 2.5rem;
+  gap: 0.375rem;
+  min-width: 6rem;
+  height: 2.25rem;
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   background: white;
   color: #334155;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -571,9 +590,9 @@ onUnmounted(() => {
 }
 
 .presenter-console__page-indicator {
-  min-width: 4.75rem;
+  min-width: 4rem;
   color: #475569;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 800;
   text-align: center;
 }

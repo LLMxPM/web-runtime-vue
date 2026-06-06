@@ -112,6 +112,7 @@ describe('PresenterConsoleView', () => {
     const { app, host } = mountPresenterConsoleView()
     await nextTick()
 
+    expect(host.querySelector('[data-testid="presenter-timer-panel"]')).not.toBeNull()
     expect(host.querySelectorAll('.presenter-console__preview-shield')).toHaveLength(2)
     expect(host.querySelectorAll('.presenter-console__preview-content[inert][aria-hidden="true"]')).toHaveLength(2)
     expect(host.querySelectorAll('[data-testid="view-preview-inner-button"]')).toHaveLength(2)
