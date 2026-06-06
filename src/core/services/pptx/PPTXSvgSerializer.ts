@@ -25,6 +25,19 @@ const SVG_STYLE_PROPERTIES = [
 
 type MeasureElementPixels = (element: Element) => { width: number; height: number }
 
+interface SvgSerializeViewBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface SvgSerializeOptions {
+  measured?: { width: number; height: number }
+  viewBox?: SvgSerializeViewBox
+  removeResponsiveSizing?: boolean
+}
+
 /**
  * SVG 序列化器，负责把内联 SVG 序列化，并把外部 SVG 源文件原样封装为 data URL。
  */
@@ -37,9 +50,10 @@ export class PPTXSvgSerializer {
   /**
    * 将 SVG 序列化为 data URL。
    * @param svg SVG 元素
+   * @param options 导出期覆盖参数
    */
-  svgToDataUrl(svg: SVGSVGElement): string {
-    const clone = this.prepareSvgClone(svg)
+  svgToDataUrl(svg: SVGSVGElement, options?: SvgSerializeOptions): string {
+    const clone = this.prepareSvgClone(svg, options)
     const serialized = new XMLSerializer().serializeToString(clone)
     return `data:image/svg+xml;base64,${this.toBase64(serialized)}`
   }
@@ -85,13 +99,37 @@ export class PPTXSvgSerializer {
   }
 
   /**
+   * 判断内联 SVG 是否包含 PowerPoint 不兼容的结构。
+   * 说明：Mermaid 的 htmlLabels 和 Draw.io 的富文本标签通常会落在 foreignObject 中，
+   * PowerPoint 导入 SVG 后会直接忽略这部分内容，表现为“图形存在但文字消失”。
+   * @param svg SVG 元素
+   * @returns 需要改走位图降级时返回 true
+   */
+  shouldRasterizeForPpt(svg: SVGSVGElement): boolean {
+    return Boolean(svg.querySelector('foreignObject'))
+  }
+
+  /**
+   * 判断 SVG XML 源码是否包含 PowerPoint 不兼容的结构。
+   * @param svgSource SVG XML 文本
+   * @returns 需要改走位图降级时返回 true
+   */
+  shouldRasterizeSourceForPpt(svgSource: string): boolean {
+    return /<\s*foreignObject[\s>]/i.test(String(svgSource || ''))
+  }
+
+  /**
    * 克隆 SVG 并内联关键计算样式。
    * @param svg 原始 SVG 元素
+   * @param options 导出期覆盖参数
    */
-  private prepareSvgClone(svg: SVGSVGElement): SVGSVGElement {
+  private prepareSvgClone(svg: SVGSVGElement, options?: SvgSerializeOptions): SVGSVGElement {
     const clone = svg.cloneNode(true) as SVGSVGElement
-    this.prepareSvgRootAttributes(clone, this.measureElementPixels(svg))
+    this.prepareSvgRootAttributes(clone, options?.measured ?? this.measureElementPixels(svg), options)
     this.inlineSvgComputedStyles(svg, clone)
+    if (options?.removeResponsiveSizing) {
+      this.removeResponsiveRootSizing(clone)
+    }
     return clone
   }
 
@@ -99,10 +137,12 @@ export class PPTXSvgSerializer {
    * 补齐 PowerPoint 识别 SVG 所需的根属性。
    * @param svg SVG 根节点
    * @param measured 外部测量尺寸
+   * @param options 导出期覆盖参数
    */
   private prepareSvgRootAttributes(
     svg: SVGSVGElement,
     measured: { width: number; height: number },
+    options?: SvgSerializeOptions,
   ): void {
     if (!svg.getAttribute('xmlns') && svg.namespaceURI !== 'http://www.w3.org/2000/svg') {
       svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -111,20 +151,39 @@ export class PPTXSvgSerializer {
       svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
     }
 
-    const width = Math.round(measured.width)
-    const height = Math.round(measured.height)
-    if (!svg.getAttribute('viewBox') && width > 0 && height > 0) {
+    const viewBox = options?.viewBox
+    const width = Math.round(viewBox?.width ?? measured.width)
+    const height = Math.round(viewBox?.height ?? measured.height)
+    if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+      svg.setAttribute(
+        'viewBox',
+        `${this.formatSvgViewBoxValue(viewBox.x)} ${this.formatSvgViewBoxValue(viewBox.y)} ${this.formatSvgViewBoxValue(viewBox.width)} ${this.formatSvgViewBoxValue(viewBox.height)}`,
+      )
+    } else if (!svg.getAttribute('viewBox') && width > 0 && height > 0) {
       svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
     }
-    if (!svg.getAttribute('width') && width > 0) {
+    if ((viewBox || options?.removeResponsiveSizing || !svg.getAttribute('width')) && width > 0) {
       svg.setAttribute('width', String(width))
     }
-    if (!svg.getAttribute('height') && height > 0) {
+    if ((viewBox || options?.removeResponsiveSizing || !svg.getAttribute('height')) && height > 0) {
       svg.setAttribute('height', String(height))
     }
     if (!svg.getAttribute('preserveAspectRatio')) {
       svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
     }
+  }
+
+  /**
+   * 移除根 SVG 上依赖父容器的 100%/auto 尺寸样式，避免离开页面后重新解释布局。
+   * @param svg 克隆后的 SVG 根节点
+   */
+  private removeResponsiveRootSizing(svg: SVGSVGElement): void {
+    svg.style.removeProperty('width')
+    svg.style.removeProperty('height')
+    svg.style.removeProperty('max-width')
+    svg.style.removeProperty('max-height')
+    svg.style.removeProperty('left')
+    svg.style.removeProperty('top')
   }
 
   /**
@@ -219,6 +278,14 @@ export class PPTXSvgSerializer {
    * @param value 原始数值
    */
   private formatCssNumber(value: number): string {
+    return String(Math.round(value * 1000) / 1000)
+  }
+
+  /**
+   * 格式化 viewBox 数值，避免 SVG 属性出现过长浮点。
+   * @param value 原始数值
+   */
+  private formatSvgViewBoxValue(value: number): string {
     return String(Math.round(value * 1000) / 1000)
   }
 

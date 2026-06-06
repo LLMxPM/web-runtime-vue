@@ -842,6 +842,177 @@ describe('PPTXDomConverter', () => {
     }))
   })
 
+  it('应将含 foreignObject 的 Mermaid 图表降级为局部截图，避免 PowerPoint 丢字', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div class="mermaid-viewer" style="width: 640px; height: 360px;">
+          <svg viewBox="0 0 100 50">
+            <foreignObject x="0" y="0" width="100" height="50">
+              <div xmlns="http://www.w3.org/1999/xhtml">流程标题</div>
+            </foreignObject>
+          </svg>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+    const addImageCall = slide.addImage.mock.calls[0]?.[0] as Record<string, string>
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(addImageCall.data).toBe('data:image/png;base64,capture')
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'mermaid',
+      result: 'screenshot',
+      reason: 'SVG 含 PowerPoint 不兼容的 foreignObject 文本，降级为局部截图',
+    }))
+  })
+
+  it('应将含 foreignObject 的 Draw.io 图表降级为局部截图，避免 PowerPoint 丢字', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div class="drawio-viewer" style="width: 640px; height: 360px;">
+          <svg viewBox="0 0 100 50">
+            <foreignObject x="0" y="0" width="100" height="50">
+              <div xmlns="http://www.w3.org/1999/xhtml">节点标签</div>
+            </foreignObject>
+          </svg>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+    const addImageCall = slide.addImage.mock.calls[0]?.[0] as Record<string, string>
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(addImageCall.data).toBe('data:image/png;base64,capture')
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'drawio',
+      result: 'screenshot',
+      reason: 'SVG 含 PowerPoint 不兼容的 foreignObject 文本，降级为局部截图',
+    }))
+  })
+
+  it('应按 LaTeX 实际 SVG 盒子导出，避免被外层 viewer 拉伸', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section class="latex-viewer" style="width: 420px; height: 180px; display: flex; align-items: center; justify-content: center;">
+          <div class="latex-viewer__content">
+            <mjx-container>
+              <svg viewBox="0 0 160 40"></svg>
+            </mjx-container>
+          </div>
+        </section>
+      </div>
+    `
+
+    const pageElement = document.getElementById('page') as HTMLElement
+    const viewerElement = document.querySelector('.latex-viewer') as HTMLElement
+    const svgElement = viewerElement.querySelector('svg') as SVGSVGElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(pageElement, 'getBoundingClientRect').mockReturnValue(createRect(0, 0, 1920, 1080))
+    vi.spyOn(viewerElement, 'getBoundingClientRect').mockReturnValue(createRect(120, 160, 420, 180))
+    vi.spyOn(svgElement, 'getBoundingClientRect').mockReturnValue(createRect(250, 230, 160, 40))
+
+    await convert(slide)
+    const imageOptions = slide.addImage.mock.calls[0]?.[0] as {
+      x: number
+      y: number
+      w: number
+      h: number
+      data: string
+    }
+    const inchPerPx = 13.333 / 1920
+
+    expect(imageOptions.data).toMatch(/^data:image\/svg\+xml;base64,/)
+    expect(imageOptions.x).toBeCloseTo(250 * inchPerPx, 4)
+    expect(imageOptions.y).toBeCloseTo(230 * (7.5 / 1080), 4)
+    expect(imageOptions.w).toBeCloseTo(160 * inchPerPx, 4)
+    expect(imageOptions.h).toBeCloseTo(40 * (7.5 / 1080), 4)
+  })
+
+  it('应跳过 Connector 的 marker path，并按真实连线路径紧边界导出', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section style="position: relative; width: 600px; height: 300px;">
+          <svg class="connector-svg" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible;">
+            <defs>
+              <marker id="arrow-end-test">
+                <path d="M0,0 L0,6 L9,3 z" fill="#2563eb"></path>
+              </marker>
+            </defs>
+            <path d="M 300 50 L 300 250" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#arrow-end-test)"></path>
+          </svg>
+        </section>
+      </div>
+    `
+
+    const pageElement = document.getElementById('page') as HTMLElement
+    const containerElement = document.querySelector('section') as HTMLElement
+    const svgElement = document.querySelector('.connector-svg') as SVGSVGElement
+    const pathElement = svgElement.querySelectorAll('path')[1] as SVGPathElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(pageElement, 'getBoundingClientRect').mockReturnValue(createRect(0, 0, 192, 108))
+    vi.spyOn(containerElement, 'getBoundingClientRect').mockReturnValue(createRect(10, 12, 60, 30))
+    vi.spyOn(svgElement, 'getBoundingClientRect').mockReturnValue(createRect(10, 12, 60, 30))
+    vi.spyOn(pathElement, 'getBoundingClientRect').mockReturnValue(createRect(40, 17, 0, 0))
+    Object.defineProperty(pathElement, 'getBBox', {
+      value: vi.fn(() => ({
+        x: 300,
+        y: 50,
+        width: 0,
+        height: 200,
+      })),
+      configurable: true,
+    })
+
+    await convert(slide)
+    const imageOptions = slide.addImage.mock.calls[0]?.[0] as {
+      x: number
+      y: number
+      w: number
+      h: number
+      data: string
+    }
+    const serializedSvg = decodeSvgDataUrl(imageOptions.data)
+    const inchPerPx = 13.333 / 192
+
+    expect(imageOptions.x).toBeCloseTo(38.8 * inchPerPx, 4)
+    expect(imageOptions.y).toBeCloseTo(15.8 * (7.5 / 108), 4)
+    expect(imageOptions.w).toBeCloseTo(2.4 * inchPerPx, 4)
+    expect(imageOptions.h).toBeCloseTo(22.4 * (7.5 / 108), 3)
+    expect(serializedSvg).toContain('viewBox="288 38 24 224"')
+    expect(serializedSvg).toContain('width="24"')
+    expect(serializedSvg).toContain('height="224"')
+  })
+
   it('应读取外部 SVG 源文件并作为 SVG 源嵌入', async () => {
     const slide = createSlideMock()
     const svgSource = '<svg viewBox="0 0 120 60"><rect width="120" height="60" fill="#2563eb"/></svg>'
