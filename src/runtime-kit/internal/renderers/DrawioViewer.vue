@@ -14,6 +14,10 @@
       },
     ]"
     :style="containerStyle"
+    @pointerdown.capture="suppressGraphViewerNativeEvent"
+    @mousedown.capture="suppressGraphViewerNativeEvent"
+    @touchstart.capture="suppressGraphViewerNativeEvent"
+    @click.capture="handleViewerClick"
   >
     <!-- 加载状态 -->
     <div v-if="loading" class="drawio-viewer__loading layout-center">
@@ -45,6 +49,18 @@ attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.41
     <!-- Draw.io 图表容器 -->
     <div ref="diagramContainer" class="drawio-viewer__container" :class="{ 'hidden': loading || error }"></div>
   </div>
+
+  <teleport to="body">
+    <div v-if="isPreviewOpen" class="drawio-viewer__preview" @click.self="closePreview">
+      <div class="drawio-viewer__preview-panel">
+        <div class="drawio-viewer__preview-actions">
+          <button type="button" class="drawio-viewer__preview-button" @click="downloadPreviewSvg">下载图片</button>
+          <button type="button" class="drawio-viewer__preview-button" @click="closePreview">关闭</button>
+        </div>
+        <div ref="previewContainer" class="drawio-viewer__preview-container"></div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script setup lang="ts">
@@ -59,6 +75,13 @@ interface Props extends ViewerSurfaceProps {
   highlightColor?: string
 }
 
+interface DiagramBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 const props = withDefaults(defineProps<Props>(), {
   src: '',
   content: '',
@@ -71,13 +94,18 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const viewerRoot = ref<HTMLElement | null>(null)
 const diagramContainer = ref<HTMLElement | null>(null)
+const previewContainer = ref<HTMLElement | null>(null)
 const intrinsicHeight = ref<string | null>(null)
+const sourceContentBounds = ref<DiagramBounds | null>(null)
+const isPreviewOpen = ref(false)
+const hasPreviewContent = ref(false)
 
 // 引用当前 SVG 和 G 元素
 let currentSvg: SVGSVGElement | null = null
 let currentG: SVGGElement | null = null
 let resizeObserver: ResizeObserver | null = null
 let zoomTimer: number | null = null
+let previewEscHandler: ((event: KeyboardEvent) => void) | null = null
 
 // CDN 配置
 const GRAPH_VIEWER_CDN = 'https://viewer.diagrams.net/js/viewer.min.js'
@@ -149,6 +177,88 @@ const preprocessDrawioXml = (xmlContent: string): string => {
 }
 
 /**
+ * 从 Draw.io XML 中提取真实图形内容边界，避免 pageWidth/pageHeight 空白影响居中。
+ *
+ * @param xmlContent 预处理后的 Draw.io XML
+ * @returns 内容边界；无法解析时返回 null
+ */
+const extractDrawioContentBounds = (xmlContent: string): DiagramBounds | null => {
+  if (typeof DOMParser === 'undefined') return null
+
+  try {
+    const documentXml = new DOMParser().parseFromString(xmlContent, 'text/xml')
+    if (documentXml.querySelector('parsererror')) return null
+
+    const rects: DiagramBounds[] = []
+    documentXml.querySelectorAll('mxCell').forEach((cell) => {
+      const geometry = Array.from(cell.children).find(child => child.nodeName === 'mxGeometry')
+      if (!geometry) return
+
+      if (cell.getAttribute('vertex') === '1') {
+        const x = parseFiniteNumber(geometry.getAttribute('x'), 0)
+        const y = parseFiniteNumber(geometry.getAttribute('y'), 0)
+        const width = parseFiniteNumber(geometry.getAttribute('width'), 0)
+        const height = parseFiniteNumber(geometry.getAttribute('height'), 0)
+        if (width > 0 && height > 0) rects.push({ x, y, width, height })
+        return
+      }
+
+      if (cell.getAttribute('edge') === '1') {
+        const points = Array.from(geometry.querySelectorAll('mxPoint'))
+          .map(point => ({
+            x: parseFiniteNumber(point.getAttribute('x'), NaN),
+            y: parseFiniteNumber(point.getAttribute('y'), NaN),
+          }))
+          .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+        if (points.length > 0) {
+          const minX = Math.min(...points.map(point => point.x))
+          const minY = Math.min(...points.map(point => point.y))
+          const maxX = Math.max(...points.map(point => point.x))
+          const maxY = Math.max(...points.map(point => point.y))
+          rects.push({ x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) })
+        }
+      }
+    })
+
+    return mergeDiagramBounds(rects)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 将字符串数值解析为有限数字。
+ *
+ * @param value 原始字符串
+ * @param fallback 解析失败时的兜底值
+ * @returns 有限数字
+ */
+const parseFiniteNumber = (value: string | null, fallback: number): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+/**
+ * 合并多个图形边界。
+ *
+ * @param rects 图形边界列表
+ * @returns 合并后的边界
+ */
+const mergeDiagramBounds = (rects: DiagramBounds[]): DiagramBounds | null => {
+  if (rects.length === 0) return null
+
+  const minX = Math.min(...rects.map(rect => rect.x))
+  const minY = Math.min(...rects.map(rect => rect.y))
+  const maxX = Math.max(...rects.map(rect => rect.x + rect.width))
+  const maxY = Math.max(...rects.map(rect => rect.y + rect.height))
+  const width = maxX - minX
+  const height = maxY - minY
+  if (width <= 0 || height <= 0) return null
+
+  return { x: minX, y: minY, width, height }
+}
+
+/**
  * 处理图片路径
  */
 const processImagePath = (src: string): string => {
@@ -178,7 +288,7 @@ const shouldUseIntrinsicHeight = (): boolean => {
  * @param bbox 图表内容原始边界
  * @returns 是否更新了兜底高度
  */
-const updateIntrinsicHeight = (bbox: DOMRect): boolean => {
+const updateIntrinsicHeight = (bbox: DiagramBounds): boolean => {
   if (!shouldUseIntrinsicHeight()) {
     if (intrinsicHeight.value) intrinsicHeight.value = null
     return false
@@ -221,6 +331,39 @@ const updateIntrinsicHeight = (bbox: DOMRect): boolean => {
 }
 
 /**
+ * 将 diagrams.net 输出的 SVG 坐标系重置为当前容器坐标系。
+ *
+ * @param svgElement GraphViewer 生成的 SVG 节点
+ * @param containerWidth 当前容器宽度
+ * @param containerHeight 当前容器高度
+ */
+const normalizeSvgViewport = (
+  svgElement: SVGSVGElement,
+  containerWidth: number,
+  containerHeight: number,
+): void => {
+  svgElement.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`)
+  svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+  svgElement.removeAttribute('width')
+  svgElement.removeAttribute('height')
+  svgElement.style.width = '100%'
+  svgElement.style.height = '100%'
+  svgElement.style.overflow = 'visible'
+}
+
+/**
+ * 清理 GraphViewer 注入的外链入口，避免触发 diagrams.net 自带 lightbox。
+ */
+const disableGraphViewerInteractions = (): void => {
+  diagramContainer.value?.querySelectorAll('a').forEach((link) => {
+    link.removeAttribute('href')
+    link.removeAttribute('target')
+    link.removeAttribute('xlink:href')
+    link.removeAttribute('onclick')
+  })
+}
+
+/**
  * 手动应用缩放和居中，兼容父级未显式声明高度的场景。
  *
  * @returns 是否已成功完成缩放
@@ -235,8 +378,8 @@ const applyManualZoom = (): boolean => {
   currentSvg = svgElement
   currentG = gElement
 
-  // 获取 g 元素的原始边界框（SVG 逻辑坐标）
-  const bbox = gElement.getBBox()
+  // 优先使用 XML 中真实内容边界，避免 Draw.io 页面空白参与居中。
+  const bbox = sourceContentBounds.value || gElement.getBBox()
   if (!bbox.width || !bbox.height) return false
 
   if (updateIntrinsicHeight(bbox)) {
@@ -250,6 +393,8 @@ const applyManualZoom = (): boolean => {
   const containerHeight = container.clientHeight
 
   if (containerWidth < MIN_RENDER_SIZE || containerHeight < MIN_RENDER_SIZE) return false
+
+  normalizeSvgViewport(svgElement, containerWidth, containerHeight)
 
   // 计算缩放比例（保持宽高比，完整显示）
   const scaleX = containerWidth / bbox.width
@@ -270,12 +415,8 @@ const applyManualZoom = (): boolean => {
     'transform',
     `translate(${offsetX - bbox.x * scale}, ${offsetY - bbox.y * scale}) scale(${scale})`
   )
-
-  // 设置 SVG 基础样式
-  svgElement.style.width = '100%'
-  svgElement.style.height = '100%'
-  svgElement.style.overflow = 'visible'
-  svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+  disableGraphViewerInteractions()
+  hasPreviewContent.value = true
   return true
 }
 
@@ -308,6 +449,130 @@ const handleResize = () => {
 }
 
 /**
+ * 判断事件是否来自 Draw.io 图表 DOM。
+ *
+ * @param event 用户交互事件
+ * @returns 是否应由 DrawioViewer 接管
+ */
+const shouldHandleViewerEvent = (event: Event): boolean => {
+  if (!diagramContainer.value || !currentSvg || !hasPreviewContent.value) return false
+  const target = event.target instanceof Node ? event.target : null
+  return Boolean(target && diagramContainer.value.contains(target))
+}
+
+/**
+ * 阻止 GraphViewer 自带点击链路继续触发。
+ *
+ * @param event 用户交互事件
+ */
+const suppressGraphViewerNativeEvent = (event: Event): void => {
+  if (!shouldHandleViewerEvent(event)) return
+
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+/**
+ * 点击图表时打开 Runtime 内部预览层。
+ *
+ * @param event 鼠标点击事件
+ */
+const handleViewerClick = async (event: MouseEvent) => {
+  if (!shouldHandleViewerEvent(event)) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  await openPreview()
+}
+
+/**
+ * 克隆当前 SVG，放入全屏预览层。
+ */
+const openPreview = async () => {
+  if (!currentSvg) return
+
+  isPreviewOpen.value = true
+  await nextTick()
+  if (!previewContainer.value || !currentSvg) return
+
+  previewContainer.value.innerHTML = ''
+  const previewSvg = currentSvg.cloneNode(true) as SVGSVGElement
+  normalizePreviewSvg(previewSvg)
+  previewContainer.value.appendChild(previewSvg)
+  bindPreviewEscHandler()
+}
+
+/**
+ * 规范化预览层 SVG 样式，避免主视图 absolute 样式影响弹窗布局。
+ *
+ * @param svgElement 克隆后的 SVG 节点
+ */
+const normalizePreviewSvg = (svgElement: SVGSVGElement): void => {
+  svgElement.style.position = 'static'
+  svgElement.style.display = 'block'
+  svgElement.style.width = '100%'
+  svgElement.style.height = '100%'
+  svgElement.style.maxWidth = '100%'
+  svgElement.style.maxHeight = '100%'
+  svgElement.style.margin = '0'
+  svgElement.style.padding = '0'
+  svgElement.style.overflow = 'visible'
+}
+
+/**
+ * 为预览层绑定 ESC 关闭事件。
+ */
+const bindPreviewEscHandler = (): void => {
+  if (previewEscHandler) return
+
+  previewEscHandler = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') closePreview()
+  }
+  document.addEventListener('keydown', previewEscHandler)
+}
+
+/**
+ * 下载预览层中的 SVG 图片。
+ */
+const downloadPreviewSvg = (): void => {
+  const svg = previewContainer.value?.querySelector('svg')
+  if (!svg) return
+
+  const svgData = new XMLSerializer().serializeToString(svg)
+  const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = resolveDownloadFileName()
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * 解析下载文件名。
+ *
+ * @returns SVG 文件名
+ */
+const resolveDownloadFileName = (): string => {
+  const name = props.src.split('/').pop()?.replace(/\.(drawio|xml)$/i, '') || 'drawio-diagram'
+  return `${name}.svg`
+}
+
+/**
+ * 关闭预览层并清理临时 DOM。
+ */
+const closePreview = (): void => {
+  isPreviewOpen.value = false
+  if (previewContainer.value) previewContainer.value.innerHTML = ''
+  if (previewEscHandler) {
+    document.removeEventListener('keydown', previewEscHandler)
+    previewEscHandler = null
+  }
+}
+
+/**
  * 渲染 Draw.io XML 内容。
  *
  * @param xmlContent Draw.io XML 源码
@@ -333,7 +598,9 @@ const renderDiagramContent = async (xmlContent: string) => {
     }
 
     diagramContainer.value.innerHTML = ''
+    hasPreviewContent.value = false
     const xml = preprocessDrawioXml(xmlContent)
+    sourceContentBounds.value = extractDrawioContentBounds(xml)
 
     // 配置：禁用工具栏，不依赖 viewer 的 zoom
     const data: Record<string, string> = {
@@ -413,6 +680,9 @@ const reloadDiagram = async () => {
  */
 const clearDiagram = () => {
   if (diagramContainer.value) diagramContainer.value.innerHTML = ''
+  sourceContentBounds.value = null
+  hasPreviewContent.value = false
+  closePreview()
   error.value = null
   loading.value = false
 }
@@ -456,12 +726,15 @@ onBeforeUnmount(() => {
     window.clearTimeout(zoomTimer)
     zoomTimer = null
   }
+  closePreview()
 })
 
 // 暴露方法
 defineExpose({
   reload: reloadDiagram,
   clear: clearDiagram,
+  openPreview,
+  closePreview,
 })
 
 // 全局类型声明
@@ -479,19 +752,31 @@ declare global {
   position: relative;
   box-sizing: border-box;
   display: flex;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  cursor: zoom-in;
 }
 
 .drawio-viewer__container {
-  flex: 1;
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* 确保没有 padding/border 干扰 */
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+}
+
+.drawio-viewer__container :deep(a) {
+  pointer-events: none;
 }
 
 .drawio-viewer__loading {
@@ -509,6 +794,55 @@ declare global {
 
 .hidden {
   display: none !important;
+}
+
+.drawio-viewer__preview {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.76);
+}
+
+.drawio-viewer__preview-panel {
+  position: relative;
+  width: calc(100vw - 24px);
+  height: calc(100vh - 24px);
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.36);
+}
+
+.drawio-viewer__preview-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+
+.drawio-viewer__preview-button {
+  height: 32px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  padding: 0 12px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.72);
+  cursor: pointer;
+}
+
+.drawio-viewer__preview-button:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.drawio-viewer__preview-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 </style>
 

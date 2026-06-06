@@ -71,6 +71,30 @@ describe('buildPresenterPages', () => {
     ])
   })
 
+  it('不应因缺失缩略预览组件路径而丢弃可导航页面', () => {
+    const configs: RouteConfig[] = [
+      buildRoute({
+        path: 'summary',
+        title: '总结页',
+        pageNumber: 1,
+        componentPath: '',
+        speakerNotes: '总结页备注',
+      }),
+    ]
+
+    const pages = buildPresenterPages(configs)
+
+    expect(pages).toEqual([
+      {
+        path: '/summary',
+        title: '总结页',
+        pageNumber: 1,
+        componentPath: '',
+        speakerNotes: '总结页备注',
+      },
+    ])
+  })
+
   it('应解析 localStorage 兜底同步消息', () => {
     const storageKey = buildPresenterStorageKey('channel-a')
     const parsed = parseStoredSyncMessage(JSON.stringify({

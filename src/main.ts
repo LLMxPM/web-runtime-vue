@@ -10,7 +10,7 @@ import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFaviconSync } from './core/utils/favicon'
 import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
-import { getPreviewEntryNavigationPath } from './core/utils/path'
+import { getPreviewEntryNavigationPath, shouldNavigateToPreviewEntryPath } from './core/utils/path'
 import { registerEditorVisualAssetProbe } from './core/utils/visual-assets'
 import { installRuntimeClientLogger, reportRuntimeClientError } from './core/utils/client-logger'
 
@@ -67,7 +67,7 @@ async function initializeApp(): Promise<void> {
     app.use(router)
 
     const previewEntryPath = getPreviewEntryNavigationPath()
-    if (previewEntryPath) {
+    if (shouldNavigateToPreviewEntryPath(previewEntryPath)) {
       const targetPath = previewEntryPath.startsWith('/') ? previewEntryPath : `/${previewEntryPath}`
       await router.replace(targetPath)
     }

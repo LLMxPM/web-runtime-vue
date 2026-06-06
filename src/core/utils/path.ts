@@ -326,6 +326,48 @@ export function getPreviewEntryNavigationPath(): string {
 }
 
 /**
+ * 判断是否需要把当前页面导航到预览入口。
+ * @param entryPath 预览上下文声明的入口路径
+ * @param currentHash 当前浏览器 hash；不传时读取 window.location.hash
+ * @returns 当前没有显式 hash 路由时才需要主动导航
+ */
+export function shouldNavigateToPreviewEntryPath(entryPath: string, currentHash = readCurrentLocationHash()): boolean {
+  const normalizedEntryPath = normalizeHashNavigationPath(entryPath)
+  if (!normalizedEntryPath) {
+    return false
+  }
+
+  const currentHashPath = normalizeHashNavigationPath(currentHash)
+  return !currentHashPath || currentHashPath === '/'
+}
+
+/**
+ * 读取当前浏览器 hash，供预览入口导航判定使用。
+ * @returns 当前 hash；非浏览器环境返回空串
+ */
+function readCurrentLocationHash(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return String(window.location?.hash || '')
+}
+
+/**
+ * 将 hash 或路径规整为 Vue Router hash history 使用的路径。
+ * @param value hash 或路径
+ * @returns 去掉 query/fragment 后的路径；无有效路径时返回空串
+ */
+function normalizeHashNavigationPath(value: string): string {
+  const normalizedValue = String(value || '').trim().replace(/^#/, '')
+  const pathWithoutQuery = normalizedValue.split(/[?#]/)[0]?.trim() || ''
+  if (!pathWithoutQuery) {
+    return ''
+  }
+  const path = pathWithoutQuery.startsWith('/') ? pathWithoutQuery : `/${pathWithoutQuery}`
+  return normalizePath(path)
+}
+
+/**
  * 规范化路径
  * @param path 路径
  * @returns 规范化后的路径

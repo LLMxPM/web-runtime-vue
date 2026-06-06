@@ -63,7 +63,12 @@
     <main v-if="currentPage" class="presenter-console__body">
       <section v-if="viewMode === 'focus'" class="presenter-console__focus">
         <div class="presenter-console__current">
-          <ViewPreview :file-path="currentPage.componentPath" />
+          <div class="presenter-console__preview-shell">
+            <div class="presenter-console__preview-content" inert aria-hidden="true">
+              <ViewPreview :file-path="currentPage.componentPath" />
+            </div>
+            <div class="presenter-console__preview-shield" aria-hidden="true"></div>
+          </div>
         </div>
 
         <aside class="presenter-console__side">
@@ -73,7 +78,12 @@
               <span v-if="nextPage" class="text-xs text-slate-400">{{ nextPage.pageNumber }}</span>
             </div>
             <button v-if="nextPage" type="button" class="presenter-console__next-frame" @click="navigateTo(nextPage.path)">
-              <ViewPreview :file-path="nextPage.componentPath" />
+              <div class="presenter-console__preview-shell">
+                <div class="presenter-console__preview-content" inert aria-hidden="true">
+                  <ViewPreview :file-path="nextPage.componentPath" />
+                </div>
+                <div class="presenter-console__preview-shield" aria-hidden="true"></div>
+              </div>
             </button>
             <div v-else class="presenter-console__empty">已经是最后一页</div>
           </section>
@@ -100,7 +110,12 @@
           @click="navigateTo(page.path)"
         >
           <div class="presenter-console__tile-preview">
-            <ViewPreview :file-path="page.componentPath" />
+            <div class="presenter-console__preview-shell">
+              <div class="presenter-console__preview-content" inert aria-hidden="true">
+                <ViewPreview :file-path="page.componentPath" />
+              </div>
+              <div class="presenter-console__preview-shield" aria-hidden="true"></div>
+            </div>
           </div>
           <div class="presenter-console__tile-caption">
             <span>{{ page.pageNumber }}</span>
@@ -307,6 +322,25 @@ onUnmounted(() => {
 .presenter-console__current {
   min-height: 0;
   overflow: hidden;
+}
+
+.presenter-console__preview-shell,
+.presenter-console__preview-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.presenter-console__preview-content {
+  pointer-events: none;
+}
+
+.presenter-console__preview-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: transparent;
+  cursor: inherit;
 }
 
 .presenter-console__side {

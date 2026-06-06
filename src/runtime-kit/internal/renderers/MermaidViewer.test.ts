@@ -30,4 +30,27 @@ describe('MermaidViewer', () => {
     app.unmount()
     host.remove()
   })
+
+  it('放大预览尺寸应与 DrawioViewer 保持一致', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(MermaidViewer, {
+      previewEnabled: true,
+    })
+    app.mount(host)
+    await nextTick()
+
+    host.querySelector<HTMLElement>('.mermaid-viewer')?.click()
+    await nextTick()
+    await nextTick()
+
+    const previewPanel = document.body.querySelector<HTMLElement>('.cursor-zoom-out')
+    expect(previewPanel?.style.width).toBe('calc(100vw - 24px)')
+    expect(previewPanel?.style.height).toBe('calc(100vh - 24px)')
+
+    app.unmount()
+    host.remove()
+    document.body.querySelector('.fixed.inset-0')?.remove()
+  })
 })

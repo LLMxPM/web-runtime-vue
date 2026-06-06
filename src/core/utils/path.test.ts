@@ -12,6 +12,7 @@ import {
   setRuntimePreloadedConfig,
   setRuntimePreviewContext,
   setRuntimePreviewToken,
+  shouldNavigateToPreviewEntryPath,
 } from './path'
 
 beforeEach(() => {
@@ -40,6 +41,19 @@ describe('runtime path helpers', () => {
 
   it('未注入配置根地址时应回退到本地相对路径', () => {
     expect(buildConfigUrl('themes')).toBe('./config/themes.config.yaml')
+  })
+
+  it('已有显式 hash 路由时不应再覆盖到预览入口', () => {
+    expect(shouldNavigateToPreviewEntryPath('/cover', '#/__presenter-display?channel=demo&route=%2Fcover')).toBe(false)
+    expect(shouldNavigateToPreviewEntryPath('/cover', '#/__presenter?channel=demo&route=%2Fcover')).toBe(false)
+    expect(shouldNavigateToPreviewEntryPath('/cover', '#/chapter')).toBe(false)
+  })
+
+  it('缺少显式 hash 路由时应导航到预览入口', () => {
+    expect(shouldNavigateToPreviewEntryPath('/cover', '')).toBe(true)
+    expect(shouldNavigateToPreviewEntryPath('/cover', '#')).toBe(true)
+    expect(shouldNavigateToPreviewEntryPath('/cover', '#/')).toBe(true)
+    expect(shouldNavigateToPreviewEntryPath('', '')).toBe(false)
   })
 
   it('应优先使用 manifest 资源映射解析资源路径', () => {

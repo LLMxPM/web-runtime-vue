@@ -419,9 +419,6 @@ function appendPresenterPage(target: PresenterPage[], route: RouteConfig, path: 
     return
   }
   const componentPath = typeof route.meta?.componentPath === 'string' ? route.meta.componentPath : ''
-  if (!componentPath) {
-    return
-  }
   const speakerNotes = typeof route.meta?.speakerNotes === 'string' ? route.meta.speakerNotes : ''
   target.push({
     path: normalizePresenterRoutePath(path.replace(/\/+/g, '/')),

@@ -118,8 +118,8 @@ let resizeObserver: ResizeObserver | null = null
 const isPreviewOpen = ref(false)
 
 // 预览尺寸（基于窗口自适应）
-const previewWidth = '90vw'
-const previewHeight = '90vh'
+const previewWidth = 'calc(100vw - 24px)'
+const previewHeight = 'calc(100vh - 24px)'
 
 // 计算属性
 // 图表容器背景色，随主题变化
