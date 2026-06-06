@@ -76,6 +76,7 @@ describe('runtime standalone preview gate', () => {
     const allowedUrls = [
       '/__preview',
       '/__preview-tailwind.css',
+      '/__runtime-snapdom-resource-proxy?artifactId=artifact-1&token=token&url=https%3A%2F%2Fexample.com%2Fasset.png',
       '/__runtime_internal/v1/builds/project',
       '/__runtime_internal/v1/diagnostics/artifact',
       '/@vite/client',
@@ -100,6 +101,7 @@ describe('runtime standalone preview gate', () => {
     const allowedUrls = [
       '/runtime/__preview',
       '/runtime/__preview-tailwind.css',
+      '/runtime/__runtime-snapdom-resource-proxy?artifactId=artifact-1&token=token&url=https%3A%2F%2Fexample.com%2Fasset.png',
       '/runtime/__runtime_internal/v1/builds/project',
       '/runtime/@vite/client',
       '/runtime/@runtime-preview/artifact-1/src/views/Cover.vue?ctx=token',

@@ -5,6 +5,8 @@
 import type { ServerResponse } from 'http'
 import type { Plugin, ViteDevServer } from 'vite'
 
+import { RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH } from '../shared/runtime-preview'
+
 interface RuntimeStandalonePreviewGateOptions {
   enabled?: boolean
 }
@@ -21,6 +23,7 @@ const DISABLED_VALUES = new Set(['false', '0', 'off', 'no', 'disabled'])
 const RUNTIME_PLATFORM_EXACT_PATHS = new Set([
   '/__preview',
   '/__preview-tailwind.css',
+  RUNTIME_SNAPDOM_RESOURCE_PROXY_PATH,
 ])
 const RUNTIME_PLATFORM_PATH_PREFIXES = [
   '/__runtime_internal/',
