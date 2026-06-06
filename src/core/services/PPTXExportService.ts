@@ -290,6 +290,7 @@ export class PPTXExportService {
       shapeTypes: {
         rect: pptx.ShapeType.rect,
         roundRect: pptx.ShapeType.roundRect,
+        ellipse: pptx.ShapeType.ellipse,
         line: pptx.ShapeType.line,
       },
       captureElementAsPng: element => this.captureElementAsPng(element),
@@ -447,12 +448,13 @@ export class PPTXExportService {
 
   /**
    * 局部截图并返回 PNG data URL。
+   * 说明：PPTX 局部截图需要保留透明区域，避免圆角、阴影和叠层被白底污染。
    * @param element 目标元素
    */
   private async captureElementAsPng(element: HTMLElement): Promise<string> {
     const canvas = await pageCaptureService.captureElement(element, {
       scale: DEFAULT_CAPTURE_SCALE,
-      backgroundColor: '#ffffff',
+      backgroundColor: 'transparent',
       timeout: DEFAULT_CAPTURE_TIMEOUT,
     })
     return canvas.toDataURL('image/png')

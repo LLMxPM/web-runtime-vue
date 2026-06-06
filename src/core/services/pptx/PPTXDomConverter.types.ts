@@ -12,6 +12,7 @@ export type PptxSlideLike = {
 export interface PptxShapeTypes {
   rect: string
   roundRect: string
+  ellipse: string
   line: string
 }
 

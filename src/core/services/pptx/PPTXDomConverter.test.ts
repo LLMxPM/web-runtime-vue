@@ -10,6 +10,7 @@ import { PPTXDomConverter, type PptxGradientFillInstruction } from './PPTXDomCon
 const shapeTypes = {
   rect: 'rect',
   roundRect: 'roundRect',
+  ellipse: 'ellipse',
   line: 'line',
 }
 
@@ -486,6 +487,68 @@ describe('PPTXDomConverter', () => {
 
     expect(Number(cardShapeOptions.rectRadius)).toBeCloseTo(expectedRadiusIn, 4)
     expect(Number(badgeTextOptions.rectRadius)).toBeCloseTo(expectedRadiusIn, 4)
+  })
+
+  it('应将 rounded-full 正圆导出为原生 ellipse', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div
+          class="rounded-full"
+          style="width: 96px; height: 96px; background: #2563eb; border-radius: 9999px;"
+        ></div>
+        <span
+          class="rounded-full px-3 py-1"
+          style="display: inline-block; width: 96px; height: 24px; padding: 4px 12px; background: #bfdbfe; border-radius: 9999px; font-size: 12px;"
+        >徽标</span>
+      </div>
+    `
+
+    await convert(slide)
+
+    expect(slide.addShape).toHaveBeenCalledWith('ellipse', expect.objectContaining({
+      fill: expect.objectContaining({ color: '2563EB' }),
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('徽标', expect.objectContaining({
+      shape: 'roundRect',
+    }))
+  })
+
+  it('应将纯 translate 定位的环形节点保持为可编辑对象', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div style="position: relative; width: 420px; height: 420px;">
+          <div
+            class="absolute flex flex-col items-center gap-1"
+            style="position: absolute; left: 50%; top: 8%; transform: translate(-50%, -50%); width: 180px; height: 86px; display: flex; flex-direction: column; align-items: center;"
+          >
+            <div
+              class="rounded-full"
+              style="width: 56px; height: 56px; background: rgba(124, 58, 237, 0.1); border: 2px solid rgba(124, 58, 237, 0.3); border-radius: 9999px; display: flex; align-items: center; justify-content: center;"
+            >
+              <span style="display: inline-block; width: 36px; height: 22px; color: #7c3aed; font-size: 16px; font-weight: 700;">创作</span>
+            </div>
+            <span style="display: block; width: 120px; height: 22px; color: #64748b; font-size: 14px;">AI 生成和改写</span>
+          </div>
+        </div>
+      </div>
+    `
+
+    await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(slide.addImage).not.toHaveBeenCalled()
+    expect(slide.addShape).toHaveBeenCalledWith('ellipse', expect.objectContaining({
+      fill: expect.objectContaining({ color: '7C3AED' }),
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('创作', expect.objectContaining({
+      color: '7C3AED',
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('AI 生成和改写', expect.objectContaining({
+      color: '64748B',
+    }))
   })
 
   it('应对内容宽度驱动的反色 inline 文本追加更积极的宽度保护', async () => {
@@ -1398,7 +1461,7 @@ describe('PPTXDomConverter', () => {
     const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
     document.body.innerHTML = `
       <div id="page" style="width: 1920px; height: 1080px;">
-        <section style="width: 420px; height: 220px; background-image: radial-gradient(circle, #111827, #2563eb);">
+        <section style="width: 420px; height: 220px; background-image: radial-gradient(circle, #111827, #2563eb); background-size: cover;">
           <span style="display: block; width: 200px; height: 32px;">复杂背景</span>
         </section>
       </div>
@@ -1410,6 +1473,7 @@ describe('PPTXDomConverter', () => {
     expect(slide.addImage).toHaveBeenCalledWith(expect.objectContaining({
       data: 'data:image/png;base64,capture',
     }))
+    expect((slide.addImage.mock.calls[0]?.[0] as Record<string, unknown>).sizing).toBeUndefined()
     expect(report.items[0]).toEqual(expect.objectContaining({
       sourceType: 'complex-css',
       result: 'screenshot',

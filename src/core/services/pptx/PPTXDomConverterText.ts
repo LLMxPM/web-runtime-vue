@@ -100,14 +100,14 @@ export class PPTXDomConverterText {
       return
     }
 
-    const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
+    const shapeGeometry = this.resolveShapeGeometry(host, element, style, box)
     host.options.slide.addShape(
-      radiusIn > 0 ? host.options.shapeTypes.roundRect : host.options.shapeTypes.rect,
+      shapeGeometry.shape,
       {
         ...box,
         fill: this.buildFillOptions(fillColor),
         line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
-        ...(radiusIn > 0 ? { rectRadius: radiusIn } : {}),
+        ...shapeGeometry.options,
         ...host.buildPptObjectMeta(context, 'shape', label),
       },
     )
@@ -685,13 +685,61 @@ export class PPTXDomConverterText {
       return null
     }
 
+    const shapeGeometry = this.resolveShapeGeometry(host, element, style, box)
+    return {
+      shape: shapeGeometry.shape,
+      fill: this.buildFillOptions(fillColor),
+      line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
+      ...shapeGeometry.options,
+    }
+  }
+
+  /**
+   * 解析 PPT 形状类型和圆角参数，正圆优先使用原生 ellipse。
+   * @param host 导出宿主能力
+   * @param element 源元素
+   * @param style 计算样式
+   * @param box PPT 坐标盒
+   */
+  private resolveShapeGeometry(
+    host: PptxDomTextExportHost,
+    element: HTMLElement,
+    style: CSSStyleDeclaration,
+    box: ElementBox,
+  ): { shape: string; options: Record<string, unknown> } {
+    if (this.shouldUseEllipseShape(element, style, box)) {
+      return {
+        shape: host.options.shapeTypes.ellipse,
+        options: {},
+      }
+    }
+
     const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
     return {
       shape: radiusIn > 0 ? host.options.shapeTypes.roundRect : host.options.shapeTypes.rect,
-      fill: this.buildFillOptions(fillColor),
-      line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
-      ...(radiusIn > 0 ? { rectRadius: radiusIn } : {}),
+      options: radiusIn > 0 ? { rectRadius: radiusIn } : {},
     }
+  }
+
+  /**
+   * 判断 full-radius 的近似正方形是否应导出为 PPT 原生椭圆。
+   * @param element 源元素
+   * @param style 计算样式
+   * @param box PPT 坐标盒
+   */
+  private shouldUseEllipseShape(element: HTMLElement, style: CSSStyleDeclaration, box: ElementBox): boolean {
+    const minSide = Math.min(box.w, box.h)
+    const maxSide = Math.max(box.w, box.h)
+    if (minSide <= 0 || Math.abs(maxSide - minSide) > Math.max(0.01, minSide * 0.04)) {
+      return false
+    }
+
+    const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
+    if (radiusIn <= 0) {
+      return false
+    }
+
+    return element.classList.contains('rounded-full') || radiusIn >= (minSide / 2) - 0.0001
   }
 
   /**

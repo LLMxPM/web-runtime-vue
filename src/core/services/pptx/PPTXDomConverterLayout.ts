@@ -94,7 +94,85 @@ export class PPTXDomConverterLayout {
    * @param value transform 值
    */
   isComplexTransform(value: string): boolean {
-    return Boolean(value && value !== 'none')
+    const normalizedValue = String(value || '').trim()
+    if (!normalizedValue || normalizedValue === 'none') {
+      return false
+    }
+
+    if (this.isPureTranslateMatrix(normalizedValue) || this.isPureTranslateFunctionList(normalizedValue)) {
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * 判断 CSS matrix/matrix3d 是否只包含位移，纯位移已经体现在浏览器测量坐标里。
+   * @param value transform 计算值
+   */
+  private isPureTranslateMatrix(value: string): boolean {
+    const matrix = /^matrix\(([^)]+)\)$/.exec(value)
+    if (matrix) {
+      const values = this.parseTransformNumberList(matrix[1])
+      return values.length === 6 &&
+        this.isNearlyEqual(values[0], 1) &&
+        this.isNearlyEqual(values[1], 0) &&
+        this.isNearlyEqual(values[2], 0) &&
+        this.isNearlyEqual(values[3], 1)
+    }
+
+    const matrix3d = /^matrix3d\(([^)]+)\)$/.exec(value)
+    if (!matrix3d) {
+      return false
+    }
+
+    const values = this.parseTransformNumberList(matrix3d[1])
+    if (values.length !== 16) {
+      return false
+    }
+
+    return values.every((item, index) => {
+      if ([12, 13, 14].includes(index)) {
+        return true
+      }
+      return this.isNearlyEqual(item, [0, 5, 10, 15].includes(index) ? 1 : 0)
+    })
+  }
+
+  /**
+   * 判断原始 transform 函数列表是否只由 translate 系列组成。
+   * @param value transform 声明值
+   */
+  private isPureTranslateFunctionList(value: string): boolean {
+    const functions = Array.from(value.matchAll(/([a-zA-Z0-9-]+)\(([^)]*)\)/g))
+    if (functions.length === 0) {
+      return false
+    }
+
+    return functions.every(match => {
+      const name = match[1].toLowerCase()
+      return ['translate', 'translate3d', 'translatex', 'translatey', 'translatez'].includes(name)
+    })
+  }
+
+  /**
+   * 解析 transform 矩阵数字列表。
+   * @param value 逗号或空格分隔的矩阵参数
+   */
+  private parseTransformNumberList(value: string): number[] {
+    return value
+      .split(/[,\s]+/)
+      .map(item => Number.parseFloat(item))
+      .filter(item => Number.isFinite(item))
+  }
+
+  /**
+   * 浮点近似比较，避免浏览器矩阵小数误差导致误判。
+   * @param actual 实际值
+   * @param expected 期望值
+   */
+  private isNearlyEqual(actual: number, expected: number): boolean {
+    return Math.abs(actual - expected) <= 0.0001
   }
 
   /**

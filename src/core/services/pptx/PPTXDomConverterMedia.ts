@@ -428,7 +428,6 @@ export class PPTXDomConverterMedia {
       host.options.slide.addImage({
         data,
         ...box,
-        ...(await this.buildImageSizing(element, box)),
         ...host.buildPptObjectMeta(context, 'screenshot', label, true),
       })
       host.addReportItem(sourceType, 'screenshot', false, label, reason, context)
