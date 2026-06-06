@@ -26,6 +26,10 @@
         <span>{{ item.title }}</span>
       </div>
       <div
+        class="absolute inset-0 z-20 bg-transparent"
+        aria-hidden="true"
+      ></div>
+      <div
         class="absolute inset-0 z-10 bg-gradient-to-b from-transparent to-slate-900/5 pointer-events-none transition-colors group-hover:bg-black/5"
       ></div>
     </div>

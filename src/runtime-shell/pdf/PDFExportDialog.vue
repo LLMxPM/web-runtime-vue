@@ -8,7 +8,7 @@ v-if="isVisible"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm"
     role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" @click.self="closeDialog">
     <div
-      class="flex max-h-[min(760px,calc(100vh-48px))] w-full max-w-[560px] flex-col overflow-hidden rounded-[10px] bg-white shadow-2xl ring-1 ring-slate-900/10">
+      class="flex max-h-[min(760px,calc(100vh-48px))] w-full max-w-[700px] flex-col overflow-hidden rounded-[10px] bg-white shadow-2xl ring-1 ring-slate-900/10">
       <header class="flex items-center justify-between border-b border-slate-200 px-7 py-5">
         <div class="min-w-0">
           <h3 id="pdf-export-title" class="text-xl font-semibold tracking-tight text-slate-950">
@@ -33,7 +33,7 @@ type="button"
               <h4 class="text-sm font-semibold text-slate-800">
                 生成方式
               </h4>
-              <span class="text-xs text-slate-400">默认使用 PDF 截图</span>
+              <span class="text-xs text-slate-400">选择合适的导出格式</span>
             </div>
             <div class="grid gap-3 sm:grid-cols-3">
               <label
@@ -49,7 +49,9 @@ class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-m
                   </span>
                   <span class="min-w-0">
                     <span class="block text-sm font-semibold text-slate-900">{{ option.label }}</span>
-                    <span class="mt-1 block text-xs leading-5 text-slate-500">{{ option.description }}</span>
+                    <span class="mt-1 block w-full truncate text-xs leading-5 text-slate-500" :title="option.description">
+                      {{ option.description }}
+                    </span>
                   </span>
                 </span>
               </label>
@@ -188,8 +190,9 @@ v-for="item in pptxReportSummaryItems"
 v-for="(item, index) in pptxReportDetailItems"
                   :key="`${item.pageRoute}-${index}-${item.label}`"
                   class="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
-                  {{ item.pageTitle }} · {{ getPptxSourceLabel(item.sourceType) }} →
-                  {{ getPptxResultLabel(item.result) }}：{{ item.reason || '已按降级规则处理' }}
+                  <span class="block w-full truncate" :title="buildPptxReportDetailText(item)">
+                    {{ buildPptxReportDetailText(item) }}
+                  </span>
                 </p>
               </div>
             </div>
@@ -286,20 +289,20 @@ const emit = defineEmits<Emits>()
 const methodOptions = [
   {
     value: 'canvas-pdf' as ExportMethod,
-    label: '截图拼接',
-    description: '使用截图生成 PDF 文件',
+    label: '截图PDF',
+    description: '截图拼接文件',
     icon: FileText,
   },
   {
     value: 'browser-print' as ExportMethod,
-    label: '浏览器打印',
-    description: '通过打印对话框保存为 PDF',
+    label: '打印PDF',
+    description: '浏览器打印生成PDF',
     icon: Printer,
   },
   {
     value: 'pptx-editable' as DialogExportMethod,
-    label: '可编辑 PPTX',
-    description: '文本和简单形状可编辑，复杂内容转图片块',
+    label: 'HTML转PPTX',
+    description: '可编辑的PPTX文件',
     icon: FileText,
   },
 ]
@@ -681,5 +684,15 @@ function getPptxResultLabel(result: PptxReportItemResult): string {
     skipped: '跳过',
   }
   return labels[result]
+}
+
+/**
+ * 组装明细文案并统一展示。
+ * @param item 降级对象明细
+ * @returns 列表和 tooltip 使用的完整文本
+ */
+function buildPptxReportDetailText(item: PptxExportReportItem): string {
+  const reason = item.reason || '已按降级规则处理'
+  return `${item.pageTitle} · ${getPptxSourceLabel(item.sourceType)} → ${getPptxResultLabel(item.result)}：${reason}`
 }
 </script>
