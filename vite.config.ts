@@ -3,7 +3,7 @@
  */
 
 import { resolve } from 'path'
-import { defineConfig, loadEnv, type Logger, type LogErrorOptions, type LogOptions, type LogType } from 'vite'
+import { defineConfig, loadEnv, type Logger, type LogErrorOptions } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 import runtimeHealth from './src/core/plugins/runtime-health'
@@ -228,10 +228,10 @@ export function createRuntimeViteLogger(): Logger {
   const loggedErrors = new WeakSet<Error>()
   const logger: Logger = {
     hasWarned: false,
-    info(message: string, _options?: LogOptions) {
+    info(message: string) {
       emitViteLog('info', 'vite.info', message)
     },
-    warn(message: string, _options?: LogOptions) {
+    warn(message: string) {
       logger.hasWarned = true
       emitViteLog('warn', 'vite.warn', message)
     },
@@ -249,7 +249,7 @@ export function createRuntimeViteLogger(): Logger {
       }
       emitViteLog('error', 'vite.error', message, error ? { error } : {})
     },
-    clearScreen(_type: LogType) {
+    clearScreen() {
       // 容器日志不清屏，避免破坏 JSON Lines 可读性。
     },
     hasErrorLogged(error: Error) {

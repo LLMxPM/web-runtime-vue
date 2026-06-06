@@ -11,7 +11,7 @@ const LEVEL_ORDER: Record<RuntimeLogLevel, number> = {
   error: 40,
 }
 const MAX_TEXT_LENGTH = 4096
-const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;]*m/g
+const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
 /**
  * 输出 Runtime 服务端日志；容器模式下默认使用单行 JSON。

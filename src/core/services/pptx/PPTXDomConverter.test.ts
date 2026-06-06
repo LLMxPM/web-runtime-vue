@@ -168,7 +168,85 @@ describe('PPTXDomConverter', () => {
       shape: 'roundRect',
       align: 'center',
     }))
-    expect(badgeCall?.w as number).toBeCloseTo(originalBadgeWidth, 3)
+    expect(badgeCall?.w as number).toBeGreaterThan(originalBadgeWidth)
+    expect((badgeCall?.x as number) + (badgeCall?.w as number) / 2).toBeCloseTo(originalX + originalBadgeWidth / 2, 3)
+  })
+
+  it('应按实际圆角半径导出 roundRect，避免普通圆角全部变成 full', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section style="width: 800px; height: 320px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;"></section>
+        <span style="display: inline-block; width: 96px; height: 24px; padding: 4px 12px; background: #bfdbfe; border-radius: 9999px; font-size: 12px;">徽标</span>
+      </div>
+    `
+
+    await convert(slide)
+
+    const cardShapeOptions = slide.addShape.mock.calls.find(([shapeName]) => shapeName === 'roundRect')?.[1] as Record<string, unknown>
+    const badgeTextOptions = slide.addText.mock.calls.find(([text]) => text === '徽标')?.[1] as Record<string, unknown>
+    const expectedRadiusIn = 12 * (13.333 / 1920)
+
+    expect(Number(cardShapeOptions.rectRadius)).toBeCloseTo(expectedRadiusIn, 4)
+    expect(Number(badgeTextOptions.rectRadius)).toBeCloseTo(expectedRadiusIn, 4)
+  })
+
+  it('应对内容宽度驱动的反色 inline 文本追加更积极的宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="card" class="bg-background-invert-100 border border-border p-4 rounded" style="width: 420px; height: 56px; padding: 16px; background: #1e293b; border: 1px solid #334155; border-radius: 4px;">
+          <span id="label" class="text-invert-100" style="color: #f8fafc;">反色背景 100 (bg-background-invert-100)</span>
+        </div>
+      </div>
+    `
+
+    const pageElement = document.getElementById('page') as HTMLElement
+    const cardElement = document.getElementById('card') as HTMLElement
+    const labelElement = document.getElementById('label') as HTMLElement
+    vi.spyOn(pageElement, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 1920,
+      bottom: 1080,
+      width: 1920,
+      height: 1080,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(cardElement, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 80,
+      top: 80,
+      left: 100,
+      right: 520,
+      bottom: 136,
+      width: 420,
+      height: 56,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(labelElement, 'getBoundingClientRect').mockReturnValue({
+      x: 116,
+      y: 96,
+      top: 96,
+      left: 116,
+      right: 356,
+      bottom: 120,
+      width: 240,
+      height: 24,
+      toJSON: () => ({}),
+    })
+
+    await convert(slide)
+
+    const labelOptions = slide.addText.mock.calls.find(([text]) => text === '反色背景 100 (bg-background-invert-100)')?.[1] as Record<string, unknown>
+    const inchPerPx = 13.333 / 1920
+    const originalX = 116 * inchPerPx
+    const originalWidth = 240 * inchPerPx
+
+    expect(labelOptions?.w as number).toBeGreaterThan(originalWidth + 0.17)
+    expect(labelOptions?.x as number).toBeCloseTo(originalX, 3)
   })
 
   it('应将 CSS 系统字体别名映射为 PPT 可识别字体', async () => {
@@ -271,7 +349,7 @@ describe('PPTXDomConverter', () => {
       shape: 'rect',
       align: 'center',
       valign: 'middle',
-      margin: [4, 4, 2, 2],
+      margin: [3, 3, 1.5, 1.5],
     }))
     expect(codeOptions.isTextBox).toBeUndefined()
     expect(slide.addText).not.toHaveBeenCalledWith('Invert 默认 text-invert', expect.any(Object))
@@ -297,7 +375,7 @@ describe('PPTXDomConverter', () => {
     expect(badgeCall).toEqual(expect.objectContaining({
       shape: 'roundRect',
       fill: expect.objectContaining({ color: 'BFDBFE' }),
-      margin: [6, 6, 2, 2],
+      margin: [4.5, 4.5, 1.5, 1.5],
       align: 'center',
       valign: 'middle',
     }))
@@ -343,6 +421,7 @@ describe('PPTXDomConverter', () => {
     await convert(slide)
     const descriptionCall = slide.addText.mock.calls.find(([text]) => text === '展示公式文本资源的块级和行内排版能力。')?.[1]
     const badgeCall = slide.addText.mock.calls.find(([text]) => text === '资源渲染')?.[1]
+    const originalBadgeWidth = (96 / 1920) * 13.333
 
     expect(descriptionCall).toEqual(expect.objectContaining({
       align: 'left',
@@ -352,6 +431,7 @@ describe('PPTXDomConverter', () => {
       align: 'center',
       valign: 'middle',
     }))
+    expect(badgeCall?.w as number).toBeGreaterThan(originalBadgeWidth)
   })
 
   it('应将 line-height 等于高度的单行文本识别为上下居中', async () => {
