@@ -75,7 +75,7 @@
           </section>
 
           <section class="presenter-console__panel presenter-console__notes-panel">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-2">
               <h2 class="text-sm font-bold text-slate-900">当前页备注</h2>
               <span class="text-xs text-slate-400">{{ currentPage.pageNumber }} / {{ pages.length }}</span>
             </div>
@@ -294,8 +294,8 @@ onUnmounted(() => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
-  min-height: 4.5rem;
-  padding: 0.875rem 1.25rem;
+  min-height: 3rem;
+  padding: 0.5rem 1.25rem;
   border-bottom: 1px solid #e2e8f0;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -316,22 +316,23 @@ onUnmounted(() => {
 .presenter-console__body {
   min-height: 0;
   flex: 1;
-  padding: 1rem;
+  padding: 0.5rem;
 }
 
 .presenter-console__focus {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 24vw);
-  gap: 1rem;
+  gap: 0.5rem;
   height: 100%;
 }
 
 .presenter-console__current,
 .presenter-console__panel {
   border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   background: white;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  padding: 0.5rem;
 }
 
 .presenter-console__current {
@@ -364,7 +365,7 @@ onUnmounted(() => {
   grid-template-rows: minmax(220px, 2fr) minmax(0, 3fr);
   min-width: 0;
   min-height: 0;
-  gap: 1rem;
+  gap: 0.5rem;
   overflow: hidden;
 }
 
@@ -373,25 +374,25 @@ onUnmounted(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 1rem;
+  padding: 0.875rem;
 }
 
 .presenter-console__notes {
   flex: 1;
   min-height: 0;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   overflow: auto;
   white-space: pre-wrap;
   color: #334155;
   font-size: 0.9375rem;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .presenter-console__notes-footer {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .presenter-console__next {
@@ -404,7 +405,7 @@ onUnmounted(() => {
   width: 100%;
   max-width: 100%;
   min-height: 0;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 0.625rem;
@@ -557,9 +558,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.625rem;
+  gap: 0.5rem;
   width: 100%;
-  padding-top: 0.125rem;
 }
 
 .presenter-console__page-button {
@@ -567,13 +567,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  min-width: 6rem;
-  height: 2.25rem;
+  min-width: 5.25rem;
+  height: 2rem;
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   background: white;
   color: #334155;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -590,9 +590,9 @@ onUnmounted(() => {
 }
 
 .presenter-console__page-indicator {
-  min-width: 4rem;
+  min-width: 3.25rem;
   color: #475569;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 800;
   text-align: center;
 }

@@ -6,7 +6,7 @@
   <section class="presenter-timer-panel" data-testid="presenter-timer-panel" aria-label="演讲计时">
     <div class="presenter-timer-panel__metrics">
       <div class="presenter-timer-panel__metric">
-        <span class="presenter-timer-panel__label">当前页</span>
+        <span class="presenter-timer-panel__label">当前</span>
         <strong class="presenter-timer-panel__value" data-testid="presenter-timer-current">
           {{ currentPageElapsedLabel }}
         </strong>
@@ -24,19 +24,21 @@
         type="button"
         class="presenter-timer-panel__button presenter-timer-panel__button--primary"
         data-testid="presenter-timer-toggle"
+        :aria-label="isRunning ? '暂停计时' : '开始计时'"
+        :title="isRunning ? '暂停计时' : '开始计时'"
         @click="toggleTimer"
       >
         <component :is="isRunning ? Pause : Play" class="h-3.5 w-3.5" />
-        {{ isRunning ? '暂停计时' : '开始计时' }}
       </button>
       <button
         type="button"
         class="presenter-timer-panel__button"
         data-testid="presenter-timer-reset"
+        aria-label="重置计时"
+        title="重置计时"
         @click="resetTimer"
       >
         <RotateCcw class="h-3.5 w-3.5" />
-        重置计时
       </button>
     </div>
   </section>
@@ -203,32 +205,33 @@ function formatElapsedTime(elapsedMs: number): string {
 .presenter-timer-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.375rem;
   width: 100%;
-  flex-wrap: wrap;
+  min-width: 0;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   background: white;
-  padding: 0.5rem 0.75rem;
+  padding: 0.375rem 0.5rem;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .presenter-timer-panel__metrics {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.875rem;
+  min-width: 0;
+  gap: 0.5rem;
 }
 
 .presenter-timer-panel__metric {
   display: flex;
-  min-width: 5.5rem;
-  flex-direction: column;
-  gap: 0.125rem;
+  align-items: baseline;
+  min-width: 0;
+  gap: 0.25rem;
 }
 
 .presenter-timer-panel__label {
+  flex: 0 0 auto;
   color: #64748b;
   font-size: 0.6875rem;
   font-weight: 700;
@@ -238,7 +241,7 @@ function formatElapsedTime(elapsedMs: number): string {
 .presenter-timer-panel__value {
   color: #0f172a;
   font-family: Monaco, 'Source Code Pro', monospace;
-  font-size: 1rem;
+  font-size: 1.0625rem;
   font-weight: 800;
   line-height: 1.1;
   white-space: nowrap;
@@ -246,25 +249,22 @@ function formatElapsedTime(elapsedMs: number): string {
 
 .presenter-timer-panel__actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .presenter-timer-panel__button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  height: 2rem;
+  width: 1.875rem;
+  height: 1.875rem;
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   background: white;
-  padding: 0 0.75rem;
+  padding: 0;
   color: #334155;
-  font-size: 0.75rem;
-  font-weight: 800;
-  white-space: nowrap;
   cursor: pointer;
 }
 
