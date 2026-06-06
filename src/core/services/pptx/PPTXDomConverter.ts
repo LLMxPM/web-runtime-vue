@@ -128,8 +128,14 @@ export class PPTXDomConverter {
       return
     }
 
-    for (const child of Array.from(element.children)) {
-      await this.visitElement(child, elementContext)
+    for (const childNode of Array.from(element.childNodes)) {
+      if (childNode instanceof Element) {
+        await this.visitElement(childNode, elementContext)
+        continue
+      }
+      if (element instanceof HTMLElement && childNode instanceof Text) {
+        this.text.addDirectTextNode(this.createTextExportHost(), element, childNode, elementContext)
+      }
     }
   }
 

@@ -118,6 +118,26 @@ export class PPTXDomConverterLayout {
   }
 
   /**
+   * 计算直属文本节点在 slide 中的位置。
+   * @param textNode 源文本节点
+   */
+  getPptxTextNodeBox(textNode: Text): ElementBox | null {
+    const rect = this.measureTextNodePixels(textNode)
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return null
+    }
+
+    const x = (rect.left - this.rootBox.left) * this.inchPerPxX()
+    const y = (rect.top - this.rootBox.top) * this.inchPerPxY()
+    return {
+      x: this.roundInch(Math.max(0, x)),
+      y: this.roundInch(Math.max(0, y)),
+      w: this.roundInch(Math.max(0.01, Math.min(rect.width, this.rootBox.width) * this.inchPerPxX())),
+      h: this.roundInch(Math.max(0.01, Math.min(rect.height, this.rootBox.height) * this.inchPerPxY())),
+    }
+  }
+
+  /**
    * 测量页面根节点。
    * @param element 页面根元素
    */
@@ -141,6 +161,42 @@ export class PPTXDomConverterLayout {
   }
 
   /**
+   * 测量直属文本节点的像素位置和尺寸，优先使用 Range 获取真实文本包围盒。
+   * @param textNode 源文本节点
+   */
+  measureTextNodePixels(textNode: Text): MeasuredElementBox | null {
+    if (!this.normalizeText(textNode.textContent || '') || typeof document.createRange !== 'function') {
+      return null
+    }
+
+    try {
+      const range = document.createRange()
+      range.selectNodeContents(textNode)
+
+      const clientRects = typeof range.getClientRects === 'function'
+        ? Array.from(range.getClientRects())
+            .map(rect => this.rectToMeasuredBox(rect))
+            .filter((rect): rect is MeasuredElementBox => rect.width > 0 && rect.height > 0)
+        : []
+      const mergedClientRect = this.mergeMeasuredBoxes(clientRects)
+      if (mergedClientRect) {
+        return mergedClientRect
+      }
+
+      if (typeof range.getBoundingClientRect === 'function') {
+        const rect = this.rectToMeasuredBox(range.getBoundingClientRect())
+        if (rect.width > 0 && rect.height > 0) {
+          return rect
+        }
+      }
+    } catch {
+      return null
+    }
+
+    return null
+  }
+
+  /**
    * 读取元素原始像素位置和尺寸，不做布局推断。
    * @param element 源元素
    */
@@ -153,6 +209,40 @@ export class PPTXDomConverterLayout {
     const top = rect.top || this.parseCssPixel(style.top)
 
     return { left, top, width, height }
+  }
+
+  /**
+   * 将 DOMRect/ClientRect 转为内部测量盒模型。
+   * @param rect 浏览器矩形
+   */
+  private rectToMeasuredBox(rect: Pick<DOMRectReadOnly, 'left' | 'top' | 'width' | 'height'>): MeasuredElementBox {
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+
+  /**
+   * 合并多个文本片段矩形为单个包围盒。
+   * @param boxes 文本片段矩形集合
+   */
+  private mergeMeasuredBoxes(boxes: MeasuredElementBox[]): MeasuredElementBox | null {
+    if (boxes.length === 0) {
+      return null
+    }
+
+    const left = Math.min(...boxes.map(box => box.left))
+    const top = Math.min(...boxes.map(box => box.top))
+    const right = Math.max(...boxes.map(box => box.left + box.width))
+    const bottom = Math.max(...boxes.map(box => box.top + box.height))
+    return {
+      left,
+      top,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top),
+    }
   }
 
   /**

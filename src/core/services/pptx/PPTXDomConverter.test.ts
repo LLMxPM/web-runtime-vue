@@ -90,6 +90,299 @@ describe('PPTXDomConverter', () => {
     expect(String((events[0].options as Record<string, unknown>).objectName)).toContain(cardShape?.groupId)
   })
 
+  it('应导出 flex 列表项中 span 后的直属文本节点', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <ul style="width: 720px; height: 120px;">
+          <li class="flex items-start text-secondary" style="width: 720px; height: 32px; font-size: 20px; color: #475569;">
+            <span class="text-primary mr-2" style="display: inline-block; width: 16px; height: 24px; color: #2563eb;">•</span>
+            多用户登录、会话和平台用户管理
+          </li>
+        </ul>
+      </div>
+    `
+
+    const listItem = document.querySelector('li') as HTMLElement
+    const bullet = listItem.querySelector('span') as HTMLElement
+    const bodyTextNode = Array.from(listItem.childNodes).find((node): node is Text => {
+      return node.nodeType === Node.TEXT_NODE && /多用户登录/.test(node.textContent || '')
+    }) as Text
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(listItem, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 720, 32))
+    vi.spyOn(bullet, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 16, 24))
+    vi.spyOn(document, 'createRange').mockImplementation(() => {
+      let currentNode: Node | null = null
+      const textRect = createRect(124, 120, 300, 24)
+      return {
+        selectNodeContents: (node: Node) => {
+          currentNode = node
+        },
+        getClientRects: () => currentNode === bodyTextNode ? [textRect] : [],
+        getBoundingClientRect: () => currentNode === bodyTextNode ? textRect : createRect(0, 0, 0, 0),
+      } as unknown as Range
+    })
+
+    const report = await convert(slide)
+
+    expect(slide.addText).toHaveBeenCalledWith('•', expect.objectContaining({
+      color: '2563EB',
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('多用户登录、会话和平台用户管理', expect.objectContaining({
+      color: '475569',
+    }))
+    expect(slide.addText).not.toHaveBeenCalledWith('• 多用户登录、会话和平台用户管理', expect.any(Object))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: '•',
+        result: 'editable-text',
+      }),
+      expect.objectContaining({
+        label: '多用户登录、会话和平台用户管理',
+        sourceType: 'body',
+        result: 'editable-text',
+        reason: '直属文本节点转为 PPT text',
+      }),
+    ]))
+  })
+
+  it('应对直属文本节点中的长英文 token 追加更积极的宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <ul style="width: 720px; height: 120px;">
+          <li class="flex items-start text-secondary" style="width: 720px; height: 32px; font-size: 20px; color: #475569;">
+            <span class="text-accent1 mr-2" style="display: inline-block; width: 16px; height: 24px; color: #0f766e;">•</span>
+            runtime-kit.manifest.json 是 Backend 校验的单一事实源
+          </li>
+        </ul>
+      </div>
+    `
+
+    const listItem = document.querySelector('li') as HTMLElement
+    const bullet = listItem.querySelector('span') as HTMLElement
+    const bodyTextNode = Array.from(listItem.childNodes).find((node): node is Text => {
+      return node.nodeType === Node.TEXT_NODE && /runtime-kit\.manifest\.json/.test(node.textContent || '')
+    }) as Text
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(listItem, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 720, 32))
+    vi.spyOn(bullet, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 16, 24))
+    vi.spyOn(document, 'createRange').mockImplementation(() => {
+      let currentNode: Node | null = null
+      const textRect = createRect(124, 120, 240, 24)
+      return {
+        selectNodeContents: (node: Node) => {
+          currentNode = node
+        },
+        getClientRects: () => currentNode === bodyTextNode ? [textRect] : [],
+        getBoundingClientRect: () => currentNode === bodyTextNode ? textRect : createRect(0, 0, 0, 0),
+      } as unknown as Range
+    })
+
+    await convert(slide)
+    const bodyTextCall = slide.addText.mock.calls.find(([text]) => text === 'runtime-kit.manifest.json 是 Backend 校验的单一事实源')?.[1] as Record<string, unknown>
+    const originalTextWidth = (240 / 1920) * 13.333
+
+    expect(bodyTextCall).toEqual(expect.objectContaining({
+      color: '475569',
+    }))
+    expect(bodyTextCall?.w as number).toBeGreaterThan(originalTextWidth + 0.15)
+  })
+
+  it('应对斜杠分隔的中英混排直属文本追加通用宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <ul style="width: 720px; height: 120px;">
+          <li class="flex items-start text-secondary" style="width: 720px; height: 32px; font-size: 20px; color: #475569;">
+            <span class="text-accent2 mr-2" style="display: inline-block; width: 16px; height: 24px; color: #7c3aed;">•</span>
+            通过 Docker / Docker Compose / GitHub Actions 负责服务编排
+          </li>
+        </ul>
+      </div>
+    `
+
+    const listItem = document.querySelector('li') as HTMLElement
+    const bullet = listItem.querySelector('span') as HTMLElement
+    const bodyTextNode = Array.from(listItem.childNodes).find((node): node is Text => {
+      return node.nodeType === Node.TEXT_NODE && /Docker Compose/.test(node.textContent || '')
+    }) as Text
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(listItem, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 720, 32))
+    vi.spyOn(bullet, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 16, 24))
+    vi.spyOn(document, 'createRange').mockImplementation(() => {
+      let currentNode: Node | null = null
+      const textRect = createRect(124, 120, 240, 24)
+      return {
+        selectNodeContents: (node: Node) => {
+          currentNode = node
+        },
+        getClientRects: () => currentNode === bodyTextNode ? [textRect] : [],
+        getBoundingClientRect: () => currentNode === bodyTextNode ? textRect : createRect(0, 0, 0, 0),
+      } as unknown as Range
+    })
+
+    await convert(slide)
+    const bodyTextCall = slide.addText.mock.calls.find(([text]) => text === '通过 Docker / Docker Compose / GitHub Actions 负责服务编排')?.[1] as Record<string, unknown>
+    const originalTextWidth = (240 / 1920) * 13.333
+
+    expect(bodyTextCall).toEqual(expect.objectContaining({
+      color: '475569',
+    }))
+    expect(bodyTextCall?.w as number).toBeGreaterThan(originalTextWidth + 0.14)
+  })
+
+  it('应对块级长英文 token 文本追加通用宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <p style="position: absolute; left: 120px; top: 80px; width: 240px; height: 24px; font-size: 20px; color: #475569;">
+          runtime-kit.manifest.json 是 Backend 校验的单一事实源
+        </p>
+      </div>
+    `
+
+    await convert(slide)
+    const textCall = slide.addText.mock.calls.find(([text]) => text === 'runtime-kit.manifest.json 是 Backend 校验的单一事实源')?.[1] as Record<string, unknown>
+    const originalTextWidth = (240 / 1920) * 13.333
+
+    expect(textCall).toEqual(expect.objectContaining({
+      color: '475569',
+    }))
+    expect(textCall?.w as number).toBeGreaterThan(originalTextWidth + 0.15)
+  })
+
+  it('应让 flex 图标卡片中的正文段落占用祖先剩余宽度', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <div class="flex items-start" style="width: 560px; height: 80px;">
+          <div class="w-8 h-8 bg-secondary/10 rounded-lg flex items-center justify-center mr-4 mt-1" style="width: 32px; height: 32px; margin-right: 16px; margin-top: 4px;">
+            <span class="text-secondary font-bold" style="display: inline-block; width: 12px; height: 20px; color: #475569; font-weight: 700;">2</span>
+          </div>
+          <div>
+            <p class="text-lg text-secondary" style="font-size: 20px; color: #475569;">
+              确认子仓库 Docker Release 已推送 web-runtime-vue:sha-12位提交
+            </p>
+          </div>
+        </div>
+      </div>
+    `
+
+    const row = document.querySelector('.flex.items-start') as HTMLElement
+    const iconBox = row.children[0] as HTMLElement
+    const textWrapper = row.children[1] as HTMLElement
+    const paragraph = textWrapper.querySelector('p') as HTMLElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(row, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 560, 80))
+    vi.spyOn(iconBox, 'getBoundingClientRect').mockReturnValue(createRect(100, 124, 32, 32))
+    vi.spyOn(textWrapper, 'getBoundingClientRect').mockReturnValue(createRect(148, 120, 240, 48))
+    vi.spyOn(paragraph, 'getBoundingClientRect').mockReturnValue(createRect(148, 120, 240, 24))
+
+    await convert(slide)
+    const textCall = slide.addText.mock.calls.find(([text]) => text === '确认子仓库 Docker Release 已推送 web-runtime-vue:sha-12位提交')?.[1] as Record<string, unknown>
+    const paragraphOriginalWidth = (240 / 1920) * 13.333
+    const rowRemainingWidth = ((100 + 560 - 148) / 1920) * 13.333
+
+    expect(textCall).toEqual(expect.objectContaining({
+      color: '475569',
+    }))
+    expect(textCall?.w as number).toBeGreaterThan(paragraphOriginalWidth + 0.6)
+    expect(textCall?.w as number).toBeGreaterThan(rowRemainingWidth - 0.05)
+  })
+
+  it('不应将显式宽度约束的段落错误扩展到祖先剩余宽度', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <div class="flex items-start" style="width: 560px; height: 80px;">
+          <div class="w-8 h-8 bg-secondary/10 rounded-lg flex items-center justify-center mr-4 mt-1" style="width: 32px; height: 32px; margin-right: 16px; margin-top: 4px;">
+            <span class="text-secondary font-bold" style="display: inline-block; width: 12px; height: 20px; color: #475569; font-weight: 700;">2</span>
+          </div>
+          <div style="width: 240px; height: 48px;">
+            <p class="text-lg text-secondary" style="width: 240px; height: 24px; font-size: 20px; color: #475569;">
+              确认子仓库 Docker Release 已推送 web-runtime-vue:sha-12位提交
+            </p>
+          </div>
+        </div>
+      </div>
+    `
+
+    const row = document.querySelector('.flex.items-start') as HTMLElement
+    const iconBox = row.children[0] as HTMLElement
+    const textWrapper = row.children[1] as HTMLElement
+    const paragraph = textWrapper.querySelector('p') as HTMLElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(row, 'getBoundingClientRect').mockReturnValue(createRect(100, 120, 560, 80))
+    vi.spyOn(iconBox, 'getBoundingClientRect').mockReturnValue(createRect(100, 124, 32, 32))
+    vi.spyOn(textWrapper, 'getBoundingClientRect').mockReturnValue(createRect(148, 120, 240, 48))
+    vi.spyOn(paragraph, 'getBoundingClientRect').mockReturnValue(createRect(148, 120, 240, 24))
+
+    await convert(slide)
+    const textCall = slide.addText.mock.calls.find(([text]) => text === '确认子仓库 Docker Release 已推送 web-runtime-vue:sha-12位提交')?.[1] as Record<string, unknown>
+    const rowRemainingWidth = ((100 + 560 - 148) / 1920) * 13.333
+
+    expect(textCall).toEqual(expect.objectContaining({
+      color: '475569',
+    }))
+    expect(textCall?.w as number).toBeLessThan(rowRemainingWidth - 0.2)
+  })
+
   it('应按设计画布计算字体大小，避免缩放预览导致字号放大', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `

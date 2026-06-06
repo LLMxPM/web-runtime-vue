@@ -159,12 +159,13 @@ export class PPTXDomConverterText {
    */
   addTextElement(host: PptxDomTextExportHost, element: HTMLElement, context: VisitContext): void {
     const text = this.layout.normalizeText(element.textContent || '')
-    const box = this.layout.getPptxBox(element)
-    if (!text || !box) {
+    const rawBox = this.layout.getPptxBox(element)
+    if (!text || !rawBox) {
       return
     }
 
     const style = window.getComputedStyle(element)
+    const box = this.expandTextBoxToAncestorRemainingWidth(rawBox, element, element, style, text, false)
     const sourceType = this.resolveTextSourceType(element, style, text)
     const shouldPreservePaddedBox = this.layout.shouldPreservePaddedInlineTextBox(element, style)
     const textOptions = this.buildTextRunOptions(element, style, text, context, shouldPreservePaddedBox)
@@ -222,6 +223,217 @@ export class PPTXDomConverterText {
     host.addReportItem(sourceType, 'editable-text', true, text.slice(0, 60), '带背景文本转为 PPT text shape', context)
     host.addReportItem('shape', 'editable-shape', true, label, '背景、边框和圆角由 PPT 文本形状绘制', context)
     return true
+  }
+
+  /**
+   * 添加直属文本节点为 PPT 可编辑文本框，保留 flex/grid 容器中的混合内容。
+   * @param host 导出宿主能力
+   * @param parentElement 文本节点父元素
+   * @param textNode 文本节点
+   * @param context 当前组合上下文
+   */
+  addDirectTextNode(
+    host: PptxDomTextExportHost,
+    parentElement: HTMLElement,
+    textNode: Text,
+    context: VisitContext,
+  ): boolean {
+    const text = this.layout.normalizeText(textNode.textContent || '')
+    const box = this.resolveDirectTextNodeBox(parentElement, textNode)
+    if (!text || !box) {
+      return false
+    }
+
+    const style = window.getComputedStyle(parentElement)
+    const sourceType = this.resolveTextSourceType(parentElement, style, text)
+    const textOptions = {
+      ...this.buildTextRunOptions(parentElement, style, text, context, false),
+      align: 'left',
+      valign: 'top',
+    }
+    const guardedBox = this.applyTextBoxWidthGuard(
+      host,
+      parentElement,
+      box,
+      style,
+      text,
+      'left',
+      false,
+      'fragment',
+    )
+
+    host.options.slide.addText(text, {
+      ...guardedBox,
+      margin: 0,
+      ...textOptions,
+      isTextBox: true,
+      ...host.buildPptObjectMeta(context, 'text', text),
+    })
+    host.addReportItem(sourceType, 'editable-text', true, text.slice(0, 60), '直属文本节点转为 PPT text', context)
+    return true
+  }
+
+  /**
+   * 解析直属文本节点的导出盒模型。
+   * 当文本位于布局容器末尾时，优先使用父容器剩余宽度，避免文本框过度贴字导致 PPT 中换行。
+   * @param parentElement 文本节点父元素
+   * @param textNode 文本节点
+   */
+  private resolveDirectTextNodeBox(parentElement: HTMLElement, textNode: Text): ElementBox | null {
+    const textBox = this.layout.getPptxTextNodeBox(textNode)
+    if (!textBox) {
+      return null
+    }
+
+    const style = window.getComputedStyle(parentElement)
+    const text = this.layout.normalizeText(textNode.textContent || '')
+    return this.expandTextBoxToAncestorRemainingWidth(textBox, textNode, parentElement, style, text, true)
+  }
+
+  /**
+   * 尝试将文本框扩展到祖先容器的剩余宽度，降低 flex/list 场景中因为内容贴边导致的 PPT 换行概率。
+   * 仅对没有显式宽度约束的单行复杂文本启用，并在首个可用祖先处停止，避免误伤本来就应换行的段落。
+   * @param box 当前文本框
+   * @param anchorNode 文本锚点，可为文本元素或直属文本节点
+   * @param styleSource 用于判断宽度约束和文本复杂度的元素
+   * @param style 计算样式
+   * @param text 文本内容
+   * @param isFragment 是否为直属文本节点
+   */
+  private expandTextBoxToAncestorRemainingWidth(
+    box: ElementBox,
+    anchorNode: Node,
+    styleSource: HTMLElement,
+    style: CSSStyleDeclaration,
+    text: string,
+    isFragment: boolean,
+  ): ElementBox {
+    if (!this.shouldExpandToAncestorRemainingWidth(box, styleSource, style, text, isFragment)) {
+      return box
+    }
+
+    let currentNode: Node | null = anchorNode
+
+    while (currentNode?.parentElement) {
+      if (currentNode instanceof HTMLElement && this.hasExplicitWidthConstraint(currentNode)) {
+        break
+      }
+
+      const parent = currentNode.parentElement
+      if (!this.isLastMeaningfulNodeBranch(parent, currentNode)) {
+        break
+      }
+
+      const style = window.getComputedStyle(parent)
+      if (!this.isEligibleRemainingWidthContainer(parent, style)) {
+        currentNode = parent
+        continue
+      }
+
+      const parentBox = this.layout.getPptxBox(parent)
+      if (!parentBox) {
+        break
+      }
+
+      const remainingWidth = this.layout.roundInch(Math.max(0.01, (parentBox.x + parentBox.w) - box.x))
+      return remainingWidth > box.w
+        ? {
+            ...box,
+            w: remainingWidth,
+          }
+        : box
+    }
+
+    return box
+  }
+
+  /**
+   * 判断当前文本是否值得尝试扩到祖先剩余宽度。
+   * @param box 当前文本框
+   * @param element 文本样式参考元素
+   * @param style 计算样式
+   * @param text 文本内容
+   * @param isFragment 是否为直属文本节点
+   */
+  private shouldExpandToAncestorRemainingWidth(
+    box: ElementBox,
+    element: HTMLElement,
+    style: CSSStyleDeclaration,
+    text: string,
+    isFragment: boolean,
+  ): boolean {
+    if (this.hasExplicitWidthConstraint(element)) {
+      return false
+    }
+    if (!this.isLikelySingleLineTextBox(box, style, text)) {
+      return false
+    }
+
+    const fontSizePt = Math.max(1, this.layout.cssPxToPt(this.layout.parseCssPixel(style.fontSize) || 16))
+    const fontSizeIn = fontSizePt / 72
+    return this.resolveContentComplexityWidthGuardIn(element, style, text, fontSizeIn, isFragment) > 0
+  }
+
+  /**
+   * 判断元素是否存在显式宽度约束。
+   * @param element 候选元素
+   */
+  private hasExplicitWidthConstraint(element: HTMLElement): boolean {
+    if (
+      element.style.getPropertyValue('width') ||
+      element.style.getPropertyValue('min-width') ||
+      element.style.getPropertyValue('max-width') ||
+      element.style.getPropertyValue('flex-basis')
+    ) {
+      return true
+    }
+
+    return Array.from(element.classList).some(className => {
+      return /^(?:min-|max-)?w-/.test(className) || /^basis-/.test(className)
+    })
+  }
+
+  /**
+   * 判断父容器是否适合作为剩余宽度来源。
+   * @param element 父容器
+   * @param style 父容器计算样式
+   */
+  private isEligibleRemainingWidthContainer(element: HTMLElement, style: CSSStyleDeclaration): boolean {
+    const display = this.layout.resolveLayoutDisplay(element, style)
+    if (display === 'flex' && !this.layout.resolveFlexDirection(element, style).startsWith('column')) {
+      return true
+    }
+    return element.tagName.toLowerCase() === 'li'
+  }
+
+  /**
+   * 判断当前节点分支是否为父容器中的最后有效分支。
+   * @param parent 父容器
+   * @param childNode 当前节点
+   */
+  private isLastMeaningfulNodeBranch(parent: HTMLElement, childNode: Node): boolean {
+    const childNodes = Array.from(parent.childNodes)
+    const currentIndex = childNodes.indexOf(childNode)
+    if (currentIndex < 0) {
+      return false
+    }
+
+    return childNodes.slice(currentIndex + 1).every(node => !this.isMeaningfulNode(node))
+  }
+
+  /**
+   * 判断节点是否会占据后续可用宽度。
+   * @param node 候选节点
+   */
+  private isMeaningfulNode(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return Boolean(this.layout.normalizeText(node.textContent || ''))
+    }
+    if (node instanceof HTMLElement) {
+      return this.layout.isVisibleElement(node) &&
+        (Boolean(this.layout.normalizeText(node.textContent || '')) || this.shouldAddShape(node))
+    }
+    return false
   }
 
   /**
@@ -499,7 +711,7 @@ export class PPTXDomConverterText {
     text: string,
     align: string,
     isTextShape: boolean,
-    guardProfile: 'default' | 'capsule' = 'default',
+    guardProfile: 'default' | 'capsule' | 'fragment' = 'default',
   ): ElementBox {
     const guardWidth = this.calculateTextWidthGuard(element, box, style, text, isTextShape, guardProfile)
     if (guardWidth <= 0) {
@@ -535,12 +747,13 @@ export class PPTXDomConverterText {
     style: CSSStyleDeclaration,
     text: string,
     isTextShape: boolean,
-    guardProfile: 'default' | 'capsule' = 'default',
+    guardProfile: 'default' | 'capsule' | 'fragment' = 'default',
   ): number {
     const fontSizePt = Math.max(1, this.layout.cssPxToPt(this.layout.parseCssPixel(style.fontSize) || 16))
     const fontSizeIn = fontSizePt / 72
     const isSingleLine = this.isLikelySingleLineTextBox(box, style, text)
     const isCapsule = guardProfile === 'capsule'
+    const isFragment = guardProfile === 'fragment'
     const ratioGuard = box.w * (
       isSingleLine
         ? (isCapsule ? 0.024 : (isTextShape ? 0.018 : 0.03))
@@ -551,14 +764,26 @@ export class PPTXDomConverterText {
         ? (this.layout.containsCjkText(text) ? (isCapsule ? 1 : 0.8) : (isCapsule ? 0.6 : 0.45))
         : (this.layout.containsCjkText(text) ? (isCapsule ? 0.45 : 0.35) : (isCapsule ? 0.28 : 0.2))
     )
-    const inlineContentGuard = isCapsule ? 0 : this.resolveInlineContentWidthGuardIn(element, style, text, fontSizeIn)
+    const contentComplexityGuard = isCapsule
+      ? 0
+      : this.resolveContentComplexityWidthGuardIn(
+          element,
+          style,
+          text,
+          fontSizeIn,
+          isFragment,
+        )
     const paddingGuard = isCapsule ? this.resolveCapsulePaddingGuardIn(element, style) : 0
     const minGuard = isCapsule ? 0.03 : (isTextShape ? 0.02 : 0.04)
+    const contentAwareMaxGuard = contentComplexityGuard > 0
+      ? contentComplexityGuard + (isFragment ? 0.03 : 0.02)
+      : 0
     const maxGuard = Math.max(
       isCapsule ? 0.09 : (isTextShape ? 0.04 : 0.08),
       box.w * (isCapsule ? 0.12 : (isTextShape ? 0.06 : 0.11)),
+      contentAwareMaxGuard,
     )
-    return Math.min(maxGuard, Math.max(minGuard, ratioGuard, emGuard, inlineContentGuard, paddingGuard))
+    return Math.min(maxGuard, Math.max(minGuard, ratioGuard, emGuard, contentComplexityGuard, paddingGuard))
   }
 
   /**
@@ -653,42 +878,78 @@ export class PPTXDomConverterText {
   }
 
   /**
-   * 读取内容宽度驱动的 inline 文本框额外 guard，补偿 PPT 对混合中英文与长 token 的字宽偏差。
+   * 读取通用文本复杂度额外 guard，补偿 PPT 对长 token 和中英混排的字宽偏差。
    * @param element 源元素
    * @param style 计算样式
    * @param text 文本内容
    * @param fontSizeIn 字号对应 inch
+   * @param isFragment 是否为直属文本节点这类紧贴内容的片段文本
    */
-  private resolveInlineContentWidthGuardIn(
+  private resolveContentComplexityWidthGuardIn(
     element: HTMLElement,
     style: CSSStyleDeclaration,
     text: string,
     fontSizeIn: number,
+    isFragment = false,
   ): number {
-    if (!this.isContentWidthDrivenInlineText(element, style)) {
-      return 0
-    }
-
     const normalizedText = this.layout.normalizeText(text)
-    const longestTokenLength = normalizedText
-      .split(/\s+/)
-      .filter(Boolean)
-      .reduce((maxLength, token) => Math.max(maxLength, token.length), 0)
-    const hasMixedScripts = this.layout.containsCjkText(normalizedText) && /[A-Za-z]/.test(normalizedText)
-    const hasBracketedLongToken = /\([^)]{10,}\)/.test(normalizedText)
-    const hasLongAsciiToken = /[A-Za-z0-9-]{14,}/.test(normalizedText)
-    const baseGuard = fontSizeIn * (hasMixedScripts ? 0.9 : 0.45)
-    const tokenGuard = longestTokenLength >= 10
-      ? fontSizeIn * Math.min(0.8, 0.18 + (longestTokenLength - 10) * 0.04)
+    const metrics = this.collectTextComplexityMetrics(normalizedText)
+    const isContentDriven = isFragment || this.isContentWidthDrivenInlineText(element, style)
+    const baseGuard = fontSizeIn * (
+      metrics.hasMixedScripts
+        ? (metrics.hasDenseAsciiPhrase
+            ? (isContentDriven ? 1.05 : 0.68)
+            : (isContentDriven ? 0.9 : 0.55))
+        : (metrics.hasLongAsciiToken ? (isContentDriven ? 0.45 : 0.24) : 0)
+    )
+    const tokenGuard = metrics.longestAsciiTokenLength >= 10
+      ? fontSizeIn * Math.min(
+          isContentDriven ? 0.8 : 0.55,
+          (isContentDriven ? 0.18 : 0.12) + (metrics.longestAsciiTokenLength - 10) * (isContentDriven ? 0.04 : 0.03),
+        )
       : 0
     const structureGuard = fontSizeIn * (
-      (hasBracketedLongToken ? 0.45 : 0) +
-      (hasLongAsciiToken ? 0.35 : 0)
+      (metrics.hasBracketedLongToken ? (isContentDriven ? 0.45 : 0.28) : 0) +
+      (metrics.hasLongAsciiToken ? (isContentDriven ? 0.35 : 0.22) : 0) +
+      (metrics.hasSlashSeparatedAscii ? (isContentDriven ? 0.34 : 0.2) : 0) +
+      (metrics.hasMixedScripts && metrics.asciiTokenCount >= 2 ? (isContentDriven ? 0.2 : 0.12) : 0) +
+      (metrics.hasDenseAsciiPhrase ? (isContentDriven ? 0.14 : 0.08) : 0)
     )
-    const minComplexGuard = hasBracketedLongToken || hasLongAsciiToken
-      ? 0.18
+    const minComplexGuard = metrics.hasBracketedLongToken || metrics.hasLongAsciiToken || metrics.hasSlashSeparatedAscii
+      ? (isContentDriven ? 0.18 : 0.12)
       : 0
-    return Math.min(0.24, this.layout.roundInch(Math.max(minComplexGuard, baseGuard + tokenGuard + structureGuard)))
+    const cap = isContentDriven ? 0.3 : 0.24
+    return Math.min(cap, this.layout.roundInch(Math.max(minComplexGuard, baseGuard + tokenGuard + structureGuard)))
+  }
+
+  /**
+   * 提取文本里影响 PPT 宽度估算的复杂度指标。
+   * @param text 规范化后的文本
+   */
+  private collectTextComplexityMetrics(text: string): {
+    asciiTokenCount: number
+    asciiCharCount: number
+    longestAsciiTokenLength: number
+    hasMixedScripts: boolean
+    hasDenseAsciiPhrase: boolean
+    hasSlashSeparatedAscii: boolean
+    hasBracketedLongToken: boolean
+    hasLongAsciiToken: boolean
+  } {
+    const asciiLikeTokens = text.match(/[A-Za-z0-9._-]+/g) || []
+    const asciiCharCount = asciiLikeTokens.reduce((total, token) => total + token.length, 0)
+    const longestAsciiTokenLength = asciiLikeTokens.reduce((maxLength, token) => Math.max(maxLength, token.length), 0)
+    const hasMixedScripts = this.layout.containsCjkText(text) && /[A-Za-z]/.test(text)
+    return {
+      asciiTokenCount: asciiLikeTokens.length,
+      asciiCharCount,
+      longestAsciiTokenLength,
+      hasMixedScripts,
+      hasDenseAsciiPhrase: asciiLikeTokens.length >= 3 && asciiCharCount >= 18,
+      hasSlashSeparatedAscii: /[A-Za-z0-9._-]+\s*\/\s*[A-Za-z0-9._-]+/.test(text),
+      hasBracketedLongToken: /\([^)]{10,}\)/.test(text),
+      hasLongAsciiToken: longestAsciiTokenLength >= 14,
+    }
   }
 
   /**
