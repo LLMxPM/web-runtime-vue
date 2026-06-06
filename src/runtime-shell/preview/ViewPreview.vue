@@ -32,6 +32,7 @@ import { computed, defineComponent, h, nextTick, onUnmounted, ref, shallowRef, w
 import ScaledCanvasViewport from '@runtime-kit/internal/components/viewport/ScaledCanvasViewport.vue'
 import { appPageConfig } from '@/core/utils/config'
 import { buildPageContentScaleStyles } from '@/core/utils/page-scale'
+import { createRafResizeObserver } from '@/core/utils/resize-observer'
 import { importViewModule } from '@/core/utils/view-module'
 
 interface Props {
@@ -94,7 +95,7 @@ function bindResizeObserver(): void {
     return
   }
 
-  resizeObserver = new ResizeObserver(() => computeScale())
+  resizeObserver = createRafResizeObserver(() => computeScale())
   resizeObserver.observe(containerRef.value)
 }
 

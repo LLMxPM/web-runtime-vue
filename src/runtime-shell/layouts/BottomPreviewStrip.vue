@@ -94,6 +94,7 @@ import PreviewThumbnail from '@/runtime-shell/layouts/PreviewThumbnail.vue'
 import AppBrandIcon from '@/runtime-shell/layouts/AppBrandIcon.vue'
 import type { MenuItem } from '@/core/types/menu'
 import { DEFAULT_PAGE_CONFIG } from '@/core/utils/config'
+import { createRafResizeObserver } from '@/core/utils/resize-observer'
 import { isRouteActive } from '@/core/utils/route-generator'
 
 interface GroupSection {
@@ -167,7 +168,7 @@ const scrollBy = (offset: number) => {
 
 onMounted(() => {
   if (scrollContainer.value) {
-    resizeObserver = new ResizeObserver(() => {
+    resizeObserver = createRafResizeObserver(() => {
       checkScroll()
     })
     resizeObserver.observe(scrollContainer.value)

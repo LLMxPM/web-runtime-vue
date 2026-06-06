@@ -57,6 +57,7 @@ ref="previewContainer" class="mermaid-diagram-container w-full h-full"
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
+import { createRafResizeObserver } from '@/core/utils/resize-observer'
 import { buildViewerSurfaceStyle, type ViewerSurfaceProps } from '@runtime-kit/internal/utils/viewer-style'
 
 // Props接口定义
@@ -631,7 +632,7 @@ onMounted(() => {
   window.__mermaidViewerResizeHandler = handleResize
   window.addEventListener('resize', handleResize)
   if (diagramContainer.value) {
-    resizeObserver = new ResizeObserver(() => fitSvgToContainer(diagramContainer.value))
+    resizeObserver = createRafResizeObserver(() => fitSvgToContainer(diagramContainer.value))
     resizeObserver.observe(diagramContainer.value)
   }
 })

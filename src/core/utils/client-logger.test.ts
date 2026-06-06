@@ -64,4 +64,29 @@ describe('runtime client logger', () => {
       }),
     )
   })
+
+  it('should ignore browser ResizeObserver loop noise', async () => {
+    window.__RUNTIME_PREVIEW_CONTEXT__ = {
+      artifactId: 'artifact-1',
+      tenantId: 'tenant-1',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: '2',
+      projectId: '3',
+      entryDescriptor: { entry_type: 'route', route: '/' },
+      assetBaseUrl: '/assets',
+      traceId: 'trace-resize',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }))
+    const consoleErrorMock = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', fetchMock)
+
+    reportRuntimeClientError('ResizeObserver loop completed with undelivered notifications.', {
+      component: 'window.error',
+    })
+    await Promise.resolve()
+
+    expect(consoleErrorMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

@@ -17,6 +17,10 @@ interface RuntimeClientErrorPayload {
 
 const ERROR_DEDUPE_WINDOW_MS = 30_000
 const MAX_TEXT_LENGTH = 4096
+const IGNORED_BROWSER_ERROR_MESSAGES = new Set([
+  'ResizeObserver loop completed with undelivered notifications.',
+  'ResizeObserver loop limit exceeded',
+])
 const recentErrors = new Map<string, number>()
 let installed = false
 
@@ -58,6 +62,9 @@ export function installRuntimeClientLogger(app: App): void {
  */
 export function reportRuntimeClientError(error: unknown, options: Partial<RuntimeClientErrorPayload> = {}): void {
   const payload = buildRuntimeClientErrorPayload(error, options)
+  if (shouldIgnoreRuntimeClientError(payload)) {
+    return
+  }
   if (import.meta.env.DEV) {
     console.error(payload.message, sanitizeUnknown(error))
   }
@@ -125,6 +132,15 @@ function shouldDropDuplicate(payload: RuntimeClientErrorPayload): boolean {
   }
   recentErrors.set(signature, now)
   return false
+}
+
+/**
+ * 过滤浏览器派发到 window.error 的已知良性噪声，避免污染控制台和后端错误统计。
+ * @param payload 标准化后的错误载荷
+ * @returns 是否应忽略
+ */
+function shouldIgnoreRuntimeClientError(payload: RuntimeClientErrorPayload): boolean {
+  return IGNORED_BROWSER_ERROR_MESSAGES.has((payload.message || '').trim())
 }
 
 function normalizeError(error: unknown): { name: string; message: string; stack: string } {

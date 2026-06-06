@@ -42,6 +42,7 @@ v-if="pathData" :d="pathData" :stroke="resolvedColor" :stroke-width="strokeWidth
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { createRafResizeObserver } from '@/core/utils/resize-observer'
 
 export interface ConnectorProps {
   // 起始元素选择器或 ref
@@ -400,7 +401,7 @@ onMounted(() => {
   const toElement = getElement(props.to)
 
   if (fromElement && toElement) {
-    resizeObserver = new ResizeObserver(updateConnector)
+    resizeObserver = createRafResizeObserver(updateConnector)
     resizeObserver.observe(fromElement)
     resizeObserver.observe(toElement)
   }

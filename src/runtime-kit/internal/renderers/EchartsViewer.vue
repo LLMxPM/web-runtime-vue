@@ -20,6 +20,7 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { createRafResizeObserver } from '@/core/utils/resize-observer'
 import { useViewerSurfaceStyle, type ViewerSurfaceProps } from '@runtime-kit/internal/utils/viewer-style'
 
 type EchartsRenderer = 'canvas' | 'svg'
@@ -197,7 +198,7 @@ watch(
 onMounted(() => {
   renderChart()
   if (surfaceRef.value) {
-    resizeObserver = new ResizeObserver(() => resize())
+    resizeObserver = createRafResizeObserver(() => resize())
     resizeObserver.observe(surfaceRef.value)
   }
 })
