@@ -36,6 +36,7 @@ defineOptions({
 
 const props = withDefaults(defineProps<Props>(), {
   variant: 'logo',
+  alt: undefined,
   size: 4,
 })
 

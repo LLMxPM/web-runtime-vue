@@ -979,8 +979,8 @@ interface PreviewTailwindCssRequestOptions {
  * @param options 请求上下文
  */
 async function handlePreviewTailwindCssRequest(
-  req: any,
-  res: any,
+  req: RuntimeNodeRequest,
+  res: RuntimeNodeResponse,
   options: PreviewTailwindCssRequestOptions,
 ): Promise<void> {
   try {
@@ -1150,7 +1150,7 @@ function normalizePreviewAssetBase(rawValue: string): string {
  * @param res Node 响应对象
  * @param html HTML 内容
  */
-function sendHtml(res: any, html: string): void {
+function sendHtml(res: RuntimeNodeResponse, html: string): void {
   res.statusCode = 200
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.end(html)
@@ -1161,7 +1161,7 @@ function sendHtml(res: any, html: string): void {
  * @param res Node 响应对象
  * @param css CSS 内容
  */
-function sendCss(res: any, css: string): void {
+function sendCss(res: RuntimeNodeResponse, css: string): void {
   res.statusCode = 200
   res.setHeader('Content-Type', 'text/css; charset=utf-8')
   res.setHeader('Cache-Control', 'no-store')
@@ -1173,7 +1173,7 @@ function sendCss(res: any, css: string): void {
  * @param res Node 响应对象
  * @param error 错误对象
  */
-function sendPreviewTailwindErrorCss(res: any, error: unknown): void {
+function sendPreviewTailwindErrorCss(res: RuntimeNodeResponse, error: unknown): void {
   const previewError = error instanceof PreviewGatewayError
     ? error
     : new PreviewGatewayError(500, 'PREVIEW_TAILWIND_ERROR', error instanceof Error ? error.message : '预览 Tailwind CSS 生成失败。')
@@ -1189,7 +1189,7 @@ function sendPreviewTailwindErrorCss(res: any, error: unknown): void {
  * @param res Node 响应对象
  * @param error 错误对象
  */
-function sendPreviewError(res: any, error: unknown): void {
+function sendPreviewError(res: RuntimeNodeResponse, error: unknown): void {
   const previewError = error instanceof PreviewGatewayError
     ? error
     : new PreviewGatewayError(500, 'PREVIEW_GATEWAY_ERROR', error instanceof Error ? error.message : '预览网关异常。')

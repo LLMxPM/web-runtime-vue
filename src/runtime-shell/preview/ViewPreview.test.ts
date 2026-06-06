@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/one-component-per-file */
 
 /**
  * 文件用途：验证单页预览组件向截图探针暴露 loading、ready 与 error 状态。

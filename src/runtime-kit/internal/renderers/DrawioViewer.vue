@@ -91,7 +91,7 @@ const INTRINSIC_HEIGHT_RELEASE_RATIO = 1.25
  * 动态加载 GraphViewer 脚本
  */
 const loadGraphViewerScript = async (): Promise<void> => {
-  if (typeof window !== 'undefined' && (window as any).GraphViewer) {
+  if (typeof window !== 'undefined' && window.GraphViewer) {
     return
   }
 
@@ -100,7 +100,7 @@ const loadGraphViewerScript = async (): Promise<void> => {
     await new Promise<void>((resolve, reject) => {
       existing.addEventListener('load', () => resolve())
       existing.addEventListener('error', () => reject(new Error('CDN viewer.min.js 加载失败')))
-      if ((window as any).GraphViewer) resolve()
+      if (window.GraphViewer) resolve()
     })
     return
   }
@@ -336,7 +336,7 @@ const renderDiagramContent = async (xmlContent: string) => {
     const xml = preprocessDrawioXml(xmlContent)
 
     // 配置：禁用工具栏，不依赖 viewer 的 zoom
-    const data: Record<string, any> = {
+    const data: Record<string, string> = {
       xml: xml,
       lightbox: 'false' // 关键：禁用灯箱/工具栏
     }
@@ -467,7 +467,7 @@ defineExpose({
 // 全局类型声明
 declare global {
   interface Window {
-    GraphViewer: {
+    GraphViewer?: {
       processElements(): void
     }
   }

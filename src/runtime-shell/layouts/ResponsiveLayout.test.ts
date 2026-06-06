@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/one-component-per-file */
 
 /**
  * 文件用途：验证响应式布局在不同菜单模式下的配置透传与底部缩略图切换行为。
@@ -8,12 +9,46 @@ import { createApp, nextTick } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+type MockMenuMode = 'text' | 'preview' | 'bottom-preview'
+
+/**
+ * 从未知对象中读取可选记录结构。
+ * @param value 待解析值
+ * @returns 可索引对象；无效时返回 null
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
+}
+
+/**
+ * 读取页面配置中的宽度，用于测试桩输出。
+ * @param pageConfig 页面配置对象
+ * @returns 页面宽度；不存在时返回 unknown
+ */
+function getMockPageWidth(pageConfig: unknown): number | 'unknown' {
+  const width = asRecord(pageConfig)?.width
+  return typeof width === 'number' ? width : 'unknown'
+}
+
+/**
+ * 将应用配置对象转成便于断言的标题:菜单模式文本。
+ * @param appConfig 应用配置对象
+ * @returns 文本摘要
+ */
+function formatMockAppConfig(appConfig: unknown): string {
+  const configRecord = asRecord(appConfig)
+  const title = typeof configRecord?.title === 'string' ? configRecord.title : 'unknown'
+  const features = asRecord(configRecord?.features)
+  const menuMode = typeof features?.menuMode === 'string' ? features.menuMode : 'unknown'
+  return `${title}:${menuMode}`
+}
+
 const { sidebarPropSpy, sidePreviewPropSpy, bottomStripPropSpy, mockMenuMode, mockPageConfig, mockNavigableRoutes } = vi.hoisted(() => ({
   sidebarPropSpy: vi.fn(),
   sidePreviewPropSpy: vi.fn(),
   bottomStripPropSpy: vi.fn(),
   mockMenuMode: {
-    value: 'preview' as 'text' | 'preview' | 'bottom-preview',
+    value: 'preview' as MockMenuMode,
   },
   mockPageConfig: {
     value: {
@@ -104,7 +139,7 @@ vi.mock('@/runtime-shell/layouts/BottomPreviewStrip.vue', async () => {
         return () => h(
           'div',
           { 'data-testid': 'bottom-preview-strip-stub' },
-          `bottom:${(props.pageConfig as any)?.width ?? 'unknown'}`,
+          `bottom:${getMockPageWidth(props.pageConfig)}`,
         )
       },
     }),
@@ -133,7 +168,7 @@ vi.mock('@/runtime-shell/layouts/ResponsiveSidebar.vue', async () => {
         return () => h(
           'div',
           { 'data-testid': 'responsive-sidebar-stub' },
-          `${(props.appConfig as any).title}:${(props.appConfig as any).features?.menuMode}`,
+          formatMockAppConfig(props.appConfig),
         )
       },
     }),
@@ -162,7 +197,7 @@ vi.mock('@/runtime-shell/layouts/SidePreviewStrip.vue', async () => {
         return () => h(
           'div',
           { 'data-testid': 'side-preview-strip-stub' },
-          `${(props.appConfig as any).title}:${(props.appConfig as any).features?.menuMode}`,
+          formatMockAppConfig(props.appConfig),
         )
       },
     }),

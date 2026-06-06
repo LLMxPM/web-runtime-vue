@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/one-component-per-file */
 
 /**
  * 文件用途：验证底部缩略图导航条的项目标题、项目图标与基础交互渲染。

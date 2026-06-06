@@ -12,6 +12,26 @@ import { createRuntimePageCaptureTarget } from '@/core/utils/export-dom'
 import { getRuntimePreloadedConfig, getRuntimePreviewContext } from '@/core/utils/path'
 import { normalizeAssetKey } from '@/core/shared/runtime-preview'
 
+type SnapdomCaptureResult = Awaited<ReturnType<typeof snapdom>>
+
+interface ElementStyleSnapshot {
+  position: string
+  visibility: string
+  opacity: string
+  display: string
+  transform: string
+  transformOrigin: string
+  width: string
+  height: string
+  padding: string
+  margin: string
+  boxShadow: string
+  borderRadius: string
+  overflow: string
+  backgroundClip: string
+  backgroundColor: string
+}
+
 export class PageCaptureService {
   private static instance: PageCaptureService
   private defaultOptions: CaptureOptions = {
@@ -78,7 +98,7 @@ export class PageCaptureService {
           ...(mergedOptions.proxyUrl ? { useProxy: mergedOptions.proxyUrl } : {})
         })
         const timeout = mergedOptions.timeout ?? 15000
-        const timedCap = new Promise<any>((resolve, reject) => {
+        const timedCap = new Promise<SnapdomCaptureResult>((resolve, reject) => {
           const timer = setTimeout(() => {
             reject(new Error(`捕获超时(${timeout}ms)`))
           }, timeout)
@@ -298,23 +318,7 @@ export class PageCaptureService {
     // console.log('开始预处理元素:', element.tagName, element.className)
 
     // 1. 确保元素可见
-    const originalStyle = {
-      position: element.style.position,
-      visibility: element.style.visibility,
-      opacity: element.style.opacity,
-      display: element.style.display,
-      transform: element.style.transform,
-      transformOrigin: element.style.transformOrigin,
-      width: element.style.width,
-      height: element.style.height,
-      padding: element.style.padding,
-      margin: element.style.margin,
-      boxShadow: element.style.boxShadow,
-      borderRadius: element.style.borderRadius,
-      overflow: element.style.overflow,
-      backgroundClip: (element.style as any).backgroundClip,
-      backgroundColor: element.style.backgroundColor
-    }
+    const originalStyle = this.captureElementStyleSnapshot(element)
 
     // 强制显示元素
     if (window.getComputedStyle(element).display === 'none') {
@@ -364,18 +368,7 @@ export class PageCaptureService {
       if (isLikelyPageContent) {
         // 记录直接子元素的样式（路由视图容器）
         const child = element.firstElementChild as HTMLElement | null
-        const childOriginal: any = child ? {
-          transform: child.style.transform,
-          transformOrigin: child.style.transformOrigin,
-          width: child.style.width,
-          height: child.style.height,
-          padding: child.style.padding,
-          margin: child.style.margin,
-          boxShadow: child.style.boxShadow,
-          borderRadius: child.style.borderRadius,
-          overflow: child.style.overflow,
-          backgroundColor: child.style.backgroundColor
-        } : null
+        const childOriginal = child ? this.captureElementStyleSnapshot(child) : null
 
         // 去除容器和其子元素的装饰确保无边距
         element.style.padding = '0'
@@ -383,7 +376,7 @@ export class PageCaptureService {
         element.style.boxShadow = 'none'
         element.style.borderRadius = '0'
         element.style.overflow = 'hidden'
-          ; (element.style as any).backgroundClip = 'border-box'
+        element.style.backgroundClip = 'border-box'
 
         if (child) {
           child.style.padding = '0'
@@ -429,6 +422,31 @@ export class PageCaptureService {
     return {
       width: Math.max(0, width),
       height: Math.max(0, height),
+    }
+  }
+
+  /**
+   * 记录元素内联样式快照，便于截图后恢复原始状态。
+   * @param element 目标元素
+   * @returns 当前内联样式值
+   */
+  private captureElementStyleSnapshot(element: HTMLElement): ElementStyleSnapshot {
+    return {
+      position: element.style.position,
+      visibility: element.style.visibility,
+      opacity: element.style.opacity,
+      display: element.style.display,
+      transform: element.style.transform,
+      transformOrigin: element.style.transformOrigin,
+      width: element.style.width,
+      height: element.style.height,
+      padding: element.style.padding,
+      margin: element.style.margin,
+      boxShadow: element.style.boxShadow,
+      borderRadius: element.style.borderRadius,
+      overflow: element.style.overflow,
+      backgroundClip: element.style.backgroundClip,
+      backgroundColor: element.style.backgroundColor,
     }
   }
 

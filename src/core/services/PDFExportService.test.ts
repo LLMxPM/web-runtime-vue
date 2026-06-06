@@ -5,7 +5,29 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Router } from 'vue-router'
 import { PDFExportService } from './PDFExportService'
+
+type RouterStub = Pick<Router, 'currentRoute' | 'push'>
+
+interface MockPdfOptions {
+  orientation: 'landscape' | 'portrait'
+  unit: string
+  format: [number, number]
+  compress: boolean
+  putOnlyUsedFonts: boolean
+  floatPrecision: number
+}
+
+interface MockPdfInstance {
+  options: MockPdfOptions
+  internal: {
+    pageSize: {
+      getWidth: () => number
+      getHeight: () => number
+    }
+  }
+}
 
 const mockCaptureCurrentPage = vi.hoisted(() => vi.fn())
 const mockRoutes = vi.hoisted(() => ({
@@ -22,7 +44,7 @@ const mockAppPageConfig = vi.hoisted(() => ({
 }))
 const mockPdfRuntime = vi.hoisted(() => ({
   constructSpy: vi.fn(),
-  instances: [] as any[],
+  instances: [] as MockPdfInstance[],
 }))
 
 vi.mock('./PageCaptureService', () => ({
@@ -47,14 +69,14 @@ vi.mock('@/core/utils/route-generator', () => ({
 }))
 
 vi.mock('jspdf', () => {
-  class MockJsPDF {
-    options: any
+  class MockJsPDF implements MockPdfInstance {
+    options: MockPdfOptions
     addPage = vi.fn()
     addImage = vi.fn()
     save = vi.fn()
-    internal: any
+    internal: MockPdfInstance['internal']
 
-    constructor(options: any) {
+    constructor(options: MockPdfOptions) {
       this.options = options
       this.internal = {
         pageSize: {
@@ -111,7 +133,7 @@ describe('PDFExportService', () => {
   it('导出所有页面时应按页码顺序传入 routePath 并恢复原路由', async () => {
     const router = createRouterStub('/origin')
     const service = new PDFExportService()
-    service.setRouter(router as any)
+    service.setRouter(router as unknown as Router)
     renderRoute('/origin')
 
     const result = await service.exportAllPages({ mode: 'all', method: 'canvas-pdf' })
@@ -144,7 +166,7 @@ describe('PDFExportService', () => {
         },
       },
       push: vi.fn(),
-    } as any)
+    } as unknown as Router)
 
     await service.exportCurrentPage({ mode: 'current', method: 'canvas-pdf' })
 
@@ -180,7 +202,7 @@ describe('PDFExportService', () => {
         },
       },
       push: vi.fn(),
-    } as any)
+    } as unknown as Router)
 
     await service.exportCurrentPage({ mode: 'current', method: 'canvas-pdf' })
 
@@ -221,7 +243,7 @@ describe('PDFExportService', () => {
         },
       },
       push: vi.fn(),
-    } as any)
+    } as unknown as Router)
 
     await service.exportCurrentPage({ mode: 'current', method: 'canvas-pdf' })
 
@@ -239,7 +261,7 @@ describe('PDFExportService', () => {
  * 创建导出测试用路由桩。
  * @param originalRoute 初始路由
  */
-function createRouterStub(originalRoute: string) {
+function createRouterStub(originalRoute: string): RouterStub {
   const router = {
     currentRoute: {
       value: {

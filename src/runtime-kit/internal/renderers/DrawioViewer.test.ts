@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file */
 /**
  * 文件用途：验证 Draw.io 渲染器在外层高度不完整时的自适应兜底能力。
  *
@@ -22,14 +23,14 @@ async function waitForDrawioRender(): Promise<void> {
 }
 
 afterEach(() => {
-  delete (window as any).GraphViewer
-  delete (SVGElement.prototype as any).getBBox
+  delete window.GraphViewer
+  Reflect.deleteProperty(SVGElement.prototype, 'getBBox')
 })
 
 describe('DrawioViewer', () => {
   it('传入 content 时应直接渲染 XML 而不请求 src', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    ;(window as any).GraphViewer = {
+    window.GraphViewer = {
       processElements: vi.fn(() => {
         document.querySelectorAll('.mxgraph').forEach(element => {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -102,7 +103,7 @@ describe('DrawioViewer', () => {
       configurable: true,
     })
 
-    ;(window as any).GraphViewer = {
+    window.GraphViewer = {
       processElements: vi.fn(() => {
         document.querySelectorAll('.mxgraph').forEach(element => {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')

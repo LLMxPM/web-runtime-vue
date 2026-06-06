@@ -440,21 +440,21 @@ function getDefaultRouteRecords(): RouteRecordRaw[] {
  * @returns 带页码的路由配置副本
  */
 function calculatePageNumbers(yamlRoutes: RouteConfigYaml['routes']): RouteConfigYaml['routes'] {
-  const routes = JSON.parse(JSON.stringify(yamlRoutes))
-  routes.sort((a: any, b: any) => (a.meta.order || 0) - (b.meta.order || 0))
+  const routes = JSON.parse(JSON.stringify(yamlRoutes)) as RouteConfigYaml['routes']
+  routes.sort(sortRoutesByOrder)
 
   let currentPageNumber = 1
-  routes.forEach((route: any) => {
-    const hasChildren = route.children && route.children.length > 0
+  routes.forEach((route) => {
+    const hasChildren = Array.isArray(route.children) && route.children.length > 0
 
     if (!hasChildren && !route.meta?.hidden) {
       route.meta.pageNumber = currentPageNumber
       currentPageNumber += 1
     }
 
-    if (hasChildren) {
-      route.children.sort((a: any, b: any) => (a.meta.order || 0) - (b.meta.order || 0))
-      route.children.forEach((child: any) => {
+    if (hasChildren && route.children) {
+      route.children.sort(sortRoutesByOrder)
+      route.children.forEach((child) => {
         if (!child.meta?.hidden) {
           child.meta.pageNumber = currentPageNumber
           currentPageNumber += 1
@@ -464,6 +464,16 @@ function calculatePageNumbers(yamlRoutes: RouteConfigYaml['routes']): RouteConfi
   })
 
   return routes
+}
+
+/**
+ * 按路由 meta.order 升序排列，未配置时按 0 处理。
+ * @param left 左侧路由配置
+ * @param right 右侧路由配置
+ * @returns 排序结果
+ */
+function sortRoutesByOrder<T extends { meta: { order: number } }>(left: T, right: T): number {
+  return (left.meta.order || 0) - (right.meta.order || 0)
 }
 
 /**

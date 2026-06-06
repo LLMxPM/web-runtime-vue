@@ -2,6 +2,8 @@
  * 文件用途：统一处理页面视图模块的本地加载、远程虚拟模块加载与缺省回退逻辑。
  */
 
+import type { Component } from 'vue'
+
 import {
   type RuntimePreloadedConfigBundle,
   buildRemoteModuleId,
@@ -12,7 +14,12 @@ import {
 import { getRuntimePreviewContext, getRuntimePreviewToken, getRuntimePreloadedConfig } from '@/core/utils/path'
 import { BUILD_RELEASE_VIEW_MODULES } from './build-release-view-modules'
 
-type ViewModuleLoader = () => Promise<unknown>
+export interface RuntimeViewModule {
+  default?: Component
+  [key: string]: unknown
+}
+
+type ViewModuleLoader = () => Promise<RuntimeViewModule>
 
 /**
  * Runtime 壳层内建兜底页面模块。
@@ -113,7 +120,7 @@ export function shouldUseLocalRuntimeViewModule(
  * @param viewPath 页面逻辑路径
  * @returns 异步模块导入函数
  */
-export function createViewModuleLoader(viewPath: string): () => Promise<any> {
+export function createViewModuleLoader(viewPath: string): () => Promise<RuntimeViewModule> {
   return async () => importViewModule(viewPath)
 }
 
@@ -122,7 +129,7 @@ export function createViewModuleLoader(viewPath: string): () => Promise<any> {
  * @param viewPath 页面逻辑路径
  * @returns 页面模块对象
  */
-export async function importViewModule(viewPath: string): Promise<any> {
+export async function importViewModule(viewPath: string): Promise<RuntimeViewModule> {
   const { normalizedPath, aliasPath } = resolveViewModulePath(viewPath)
   const preloadedConfig = getRuntimePreloadedConfig()
 
@@ -229,18 +236,18 @@ function resolveBuildReleaseViewModuleLoader(
 
   const directLoader = BUILD_RELEASE_VIEW_MODULES[aliasPath]
   if (directLoader) {
-    return directLoader
+    return directLoader as ViewModuleLoader
   }
 
   const srcPath = aliasPath.replace('@/', '/src/')
-  return BUILD_RELEASE_VIEW_MODULES[srcPath] || null
+  return (BUILD_RELEASE_VIEW_MODULES[srcPath] as ViewModuleLoader | undefined) || null
 }
 
 /**
  * 加载本地内建的 NotFound 页面。
  * @returns Fallback 模块
  */
-async function importFallbackModule(): Promise<any> {
+async function importFallbackModule(): Promise<RuntimeViewModule> {
   for (const fallbackKey of NOT_FOUND_FALLBACK_KEYS) {
     const loader = BUILTIN_VIEW_MODULES[fallbackKey]
     if (loader) {

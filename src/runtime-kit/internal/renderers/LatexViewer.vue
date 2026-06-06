@@ -50,6 +50,7 @@ interface Props extends ViewerSurfaceProps {
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   fit: 'contain',
+  textColor: undefined,
   displayMode: false,
   throwOnError: false,
   strict: 'warn',

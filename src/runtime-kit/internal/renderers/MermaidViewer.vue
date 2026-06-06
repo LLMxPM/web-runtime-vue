@@ -68,9 +68,29 @@ interface Props extends ViewerSurfaceProps {
   /** 主题 */
   theme?: 'default' | 'dark' | 'forest' | 'neutral'
   /** 自定义配置 */
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   /** 是否启用点击打开全屏预览 */
   previewEnabled?: boolean
+}
+
+type MermaidLibrary = Awaited<typeof import('mermaid')>['default']
+type SvgPanZoomFactory = typeof import('svg-pan-zoom').default
+
+interface PanZoomController {
+  destroy?: () => void
+  zoomIn: () => void
+  zoomOut: () => void
+  resetZoom: () => void
+  reset: () => void
+}
+
+interface InteractiveSvgElement extends SVGSVGElement {
+  __panZoomInstance?: PanZoomController
+  __cleanupPanZoom?: () => void
+}
+
+interface PreviewContainerElement extends HTMLElement {
+  _escHandler?: (event: KeyboardEvent) => void
 }
 
 // Props默认值
@@ -85,10 +105,10 @@ const props = withDefaults(defineProps<Props>(), {
 // 响应式数据
 const loading = ref(false)
 const error = ref<string | null>(null)
-const diagramContainer = ref<HTMLElement>()
-const previewContainer = ref<HTMLElement>()
+const diagramContainer = ref<HTMLElement | null>(null)
+const previewContainer = ref<PreviewContainerElement | null>(null)
 const mermaidId = ref('')
-let mermaidInstance: any = null
+let mermaidInstance: MermaidLibrary | null = null
 let resizeObserver: ResizeObserver | null = null
 const isPreviewOpen = ref(false)
 
@@ -126,6 +146,33 @@ const diagramStyle = computed(() => ({
  */
 const generateId = (): string => {
   return `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * 将未知错误对象统一转成可展示文案。
+ * @param reason 捕获到的错误对象
+ * @returns 错误消息
+ */
+const getErrorMessage = (reason: unknown): string => {
+  return reason instanceof Error ? reason.message : String(reason || '未知错误')
+}
+
+/**
+ * 读取容器中的 Mermaid SVG，并收窄为支持自定义挂载字段的类型。
+ * @param container 图表容器
+ * @returns SVG 元素；不存在时返回 null
+ */
+const getInteractiveSvg = (container?: ParentNode | null): InteractiveSvgElement | null => {
+  const svg = container?.querySelector('svg')
+  return svg instanceof SVGSVGElement ? svg as InteractiveSvgElement : null
+}
+
+/**
+ * 清理指定容器下的 pan/zoom 交互实例。
+ * @param container 图表容器
+ */
+const cleanupPanZoom = (container?: ParentNode | null): void => {
+  getInteractiveSvg(container)?.__cleanupPanZoom?.()
 }
 
 /**
@@ -178,7 +225,7 @@ const initMermaid = async () => {
     return mermaidInstance
   } catch (err) {
     console.error('Failed to initialize Mermaid:', err)
-    throw new Error(`无法加载Mermaid库: ${err.message || err}`, { cause: err })
+    throw new Error(`无法加载Mermaid库: ${getErrorMessage(err)}`, { cause: err })
   }
 }
 
@@ -193,7 +240,7 @@ const loadContentFromFile = async (src: string): Promise<string> => {
     }
     return await response.text()
   } catch (err) {
-    throw new Error(`无法加载文件 ${src}: ${err.message || err}`, { cause: err })
+    throw new Error(`无法加载文件 ${src}: ${getErrorMessage(err)}`, { cause: err })
   }
 }
 
@@ -203,14 +250,14 @@ const loadContentFromFile = async (src: string): Promise<string> => {
 const fitSvgToContainer = (container?: HTMLElement | null) => {
   const target = container ?? diagramContainer.value
   if (!target) return
-  const svgEl = target.querySelector('svg') as SVGElement | null
+  const svgEl = target.querySelector('svg') as SVGSVGElement | null
   if (!svgEl) return
 
   // 如果没有 viewBox，则尝试使用 BBox 或宽高推断
   const hasViewBox = !!svgEl.getAttribute('viewBox')
   if (!hasViewBox) {
     try {
-      const bbox = (svgEl as any).getBBox?.()
+      const bbox = typeof svgEl.getBBox === 'function' ? svgEl.getBBox() : null
       if (bbox && bbox.width && bbox.height) {
         svgEl.setAttribute('viewBox', `0 0 ${Math.ceil(bbox.width)} ${Math.ceil(bbox.height)}`)
       }
@@ -291,7 +338,7 @@ const renderDiagram = async (content: string) => {
     loading.value = false
   } catch (err) {
     loading.value = false
-    error.value = err.message || '渲染图表时发生未知错误'
+    error.value = getErrorMessage(err)
     console.error('MermaidViewer render error:', err)
   }
 }
@@ -308,7 +355,7 @@ const addInteractivity = (container?: HTMLElement | null) => {
 
   // 动态导入svg-pan-zoom库
   import('svg-pan-zoom').then((svgPanZoomModule) => {
-    const svgPanZoom = svgPanZoomModule.default || svgPanZoomModule
+    const svgPanZoom = (svgPanZoomModule.default || svgPanZoomModule) as SvgPanZoomFactory
 
     // 确保svgPanZoom是一个函数
     if (typeof svgPanZoom !== 'function') {
@@ -340,8 +387,8 @@ const addInteractivity = (container?: HTMLElement | null) => {
       }
     })
 
-      // 将实例保存到组件中，以便后续操作
-      ; (svg as any).__panZoomInstance = panZoomInstance
+    const interactiveSvg = svg as InteractiveSvgElement
+    interactiveSvg.__panZoomInstance = panZoomInstance
 
     // 添加键盘快捷键支持
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -374,13 +421,12 @@ const addInteractivity = (container?: HTMLElement | null) => {
     // 添加键盘事件监听
     document.addEventListener('keydown', handleKeyDown)
 
-      // 保存清理函数
-      ; (svg as any).__cleanupPanZoom = () => {
-        document.removeEventListener('keydown', handleKeyDown)
-        if (panZoomInstance && typeof panZoomInstance.destroy === 'function') {
-          panZoomInstance.destroy()
-        }
+    interactiveSvg.__cleanupPanZoom = () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      if (panZoomInstance && typeof panZoomInstance.destroy === 'function') {
+        panZoomInstance.destroy()
       }
+    }
 
   }).catch((error) => {
     console.error('Failed to load svg-pan-zoom:', error)
@@ -397,7 +443,7 @@ const reload = async () => {
     try {
       content = await loadContentFromFile(props.src)
     } catch (err) {
-      error.value = err.message
+      error.value = getErrorMessage(err)
       return
     }
   }
@@ -412,19 +458,11 @@ const reload = async () => {
  */
 const clear = () => {
   if (diagramContainer.value) {
-    // 清理svg-pan-zoom实例
-    const svg = diagramContainer.value.querySelector('svg')
-    if (svg && (svg as any).__cleanupPanZoom) {
-      ; (svg as any).__cleanupPanZoom()
-    }
-
+    cleanupPanZoom(diagramContainer.value)
     diagramContainer.value.innerHTML = ''
   }
   if (previewContainer.value) {
-    const svg = previewContainer.value.querySelector('svg')
-    if (svg && (svg as any).__cleanupPanZoom) {
-      ; (svg as any).__cleanupPanZoom()
-    }
+    cleanupPanZoom(previewContainer.value)
     previewContainer.value.innerHTML = ''
   }
   error.value = null
@@ -467,7 +505,8 @@ const openPreview = async () => {
   if (!content && props.src) {
     try {
       content = await loadContentFromFile(props.src)
-    } catch (err: any) {
+    } catch (err) {
+      error.value = getErrorMessage(err)
       console.error('预览内容加载失败:', err)
       return
     }
@@ -498,7 +537,9 @@ const openPreview = async () => {
     }
   }
   document.addEventListener('keydown', escHandler)
-    ; (previewContainer as any)._escHandler = escHandler
+  if (previewContainer.value) {
+    previewContainer.value._escHandler = escHandler
+  }
 }
 
 /**
@@ -536,17 +577,16 @@ const closePreview = () => {
   isPreviewOpen.value = false
   // 清理预览容器
   if (previewContainer.value) {
-    const svg = previewContainer.value.querySelector('svg')
-    if (svg && (svg as any).__cleanupPanZoom) {
-      ; (svg as any).__cleanupPanZoom()
-    }
+    cleanupPanZoom(previewContainer.value)
     previewContainer.value.innerHTML = ''
   }
   // 移除 ESC 事件
-  const escHandler = (previewContainer as any)._escHandler
+  const escHandler = previewContainer.value?._escHandler
   if (escHandler) {
     document.removeEventListener('keydown', escHandler)
-      ; (previewContainer as any)._escHandler = null
+    if (previewContainer.value) {
+      previewContainer.value._escHandler = undefined
+    }
   }
 }
 
@@ -563,7 +603,7 @@ watch(() => props.src, async (newSrc) => {
       const content = await loadContentFromFile(newSrc)
       await renderDiagram(content)
     } catch (err) {
-      error.value = err.message
+      error.value = getErrorMessage(err)
     }
   }
 }, { immediate: false })
@@ -578,7 +618,7 @@ onMounted(() => {
   reload()
   // 监听尺寸变化，保持主视图自适应
   const handleResize = () => fitSvgToContainer(diagramContainer.value)
-    ; (window as any).__mermaidViewerResizeHandler = handleResize
+  window.__mermaidViewerResizeHandler = handleResize
   window.addEventListener('resize', handleResize)
   if (diagramContainer.value) {
     resizeObserver = new ResizeObserver(() => fitSvgToContainer(diagramContainer.value))
@@ -590,10 +630,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clear()
   // 清理监听
-  const handleResize = (window as any).__mermaidViewerResizeHandler
+  const handleResize = window.__mermaidViewerResizeHandler
   if (handleResize) {
     window.removeEventListener('resize', handleResize)
-      ; (window as any).__mermaidViewerResizeHandler = null
+    window.__mermaidViewerResizeHandler = undefined
   }
   if (resizeObserver) {
     resizeObserver.disconnect()
@@ -610,6 +650,12 @@ defineExpose({
   openPreview,
   closePreview
 })
+
+declare global {
+  interface Window {
+    __mermaidViewerResizeHandler?: () => void
+  }
+}
 </script>
 
 <style scoped>

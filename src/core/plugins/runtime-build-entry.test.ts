@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { RuntimePreloadedConfigBundle } from '../shared/runtime-preview'
 
 import {
   createBuildEntrySource,
@@ -10,12 +11,14 @@ import {
   createDiagnosticsBuildEntrySource,
 } from './runtime-build-entry'
 
+const MOCK_PRELOADED_CONFIG: RuntimePreloadedConfigBundle = {
+  app: { app: { title: '示例应用' } },
+  routes: { routes: [{ route: 'cover', component: '@/views/Cover.vue' }] },
+}
+
 describe('runtime build entry', () => {
   it('应先注入预加载配置，再通过动态导入启动构建态主入口', () => {
-    const entrySource = createBuildEntrySource({
-      app: { app: { title: '示例应用' } },
-      routes: { routes: [{ route: 'cover', component: '@/views/Cover.vue' }] },
-    } as any)
+    const entrySource = createBuildEntrySource(MOCK_PRELOADED_CONFIG)
 
     expect(entrySource).toContain("window.__RUNTIME_PRELOADED_CONFIG__ = ")
     expect(entrySource).toContain("void import('./build-release-main').catch((error) => {")
@@ -33,10 +36,7 @@ describe('runtime build entry', () => {
   })
 
   it('应生成不拉起完整 Runtime Shell 的诊断态轻量入口', () => {
-    const entrySource = createDiagnosticsBuildEntrySource({
-      app: { app: { title: '示例应用' } },
-      routes: { routes: [{ route: 'cover', component: '@/views/Cover.vue' }] },
-    } as any)
+    const entrySource = createDiagnosticsBuildEntrySource(MOCK_PRELOADED_CONFIG)
 
     expect(entrySource).toContain("window.__RUNTIME_PRELOADED_CONFIG__ = ")
     expect(entrySource).toContain('BUILD_RELEASE_VIEW_MODULES')

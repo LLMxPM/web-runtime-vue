@@ -2,6 +2,7 @@
  * 文件用途：提供 Runtime 内部整项目构建入口，并在临时工作区中执行程序化 Vite 构建、归档与回传。
  */
 
+import type { IncomingMessage, ServerResponse } from 'http'
 import { mkdtemp, mkdir, rm, symlink, writeFile, cp, access, readdir, readFile } from 'fs/promises'
 import { constants as fsConstants } from 'fs'
 import { createHash } from 'crypto'
@@ -129,6 +130,8 @@ interface RuntimeBuildLogContext {
   distRoot?: string
   [key: string]: unknown
 }
+
+type RuntimeNodeResponse = Pick<ServerResponse, 'statusCode' | 'setHeader' | 'end'>
 
 const DEFAULT_BUILD_ENDPOINT = '/__runtime_internal/v1/builds/project'
 const DEFAULT_DIAGNOSTICS_ENDPOINT = '/__runtime_internal/v1/diagnostics/artifact'
@@ -363,8 +366,8 @@ async function verifyDiagnosticsToken(
  * @param options 诊断入口配置
  */
 async function handleRuntimeDiagnosticsRequest(
-  req: NodeJS.ReadableStream & { headers: Record<string, string | string[] | undefined>; method?: string; url?: string },
-  res: any,
+  req: IncomingMessage,
+  res: RuntimeNodeResponse,
   options: {
     runtimeRoot: string
     serviceTokenHeaderName: string
@@ -1367,7 +1370,7 @@ async function pathExists(targetPath: string): Promise<boolean> {
  * @param statusCode HTTP 状态码
  * @param payload 返回体
  */
-function sendJson(res: any, statusCode: number, payload: Record<string, unknown>): void {
+function sendJson(res: RuntimeNodeResponse, statusCode: number, payload: Record<string, unknown>): void {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.end(JSON.stringify(payload))
@@ -1378,7 +1381,7 @@ function sendJson(res: any, statusCode: number, payload: Record<string, unknown>
  * @param res Node 响应对象
  * @param error 原始错误
  */
-function sendBuildError(res: any, error: unknown): void {
+function sendBuildError(res: RuntimeNodeResponse, error: unknown): void {
   if (error instanceof RuntimeBuildError) {
     return sendJson(res, error.statusCode, {
       success: false,

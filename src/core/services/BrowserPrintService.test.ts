@@ -6,7 +6,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import type { Router } from 'vue-router'
 import { BrowserPrintService } from './BrowserPrintService'
+
+type RouterStub = Pick<Router, 'currentRoute' | 'push'>
 
 const mockRoutes = vi.hoisted(() => ({
   value: [
@@ -146,9 +149,9 @@ describe('BrowserPrintService', () => {
         renderCurrentPage(route === '/page-1' ? '第一页内容' : '第二页内容', route)
         await nextTick()
       }),
-    } as any
+    } satisfies RouterStub
     const service = new BrowserPrintService()
-    service.setRouter(router)
+    service.setRouter(router as unknown as Router)
 
     const result = await service.printAllPages({ mode: 'all', method: 'browser-print' })
     const iframe = document.getElementById('runtime-browser-print-frame') as HTMLIFrameElement | null
@@ -185,9 +188,9 @@ describe('BrowserPrintService', () => {
           renderCurrentPage('第二页延迟内容', route)
         }, 120)
       }),
-    } as any
+    } satisfies RouterStub
     const service = new BrowserPrintService()
-    service.setRouter(router)
+    service.setRouter(router as unknown as Router)
 
     const result = await service.printAllPages({ mode: 'all', method: 'browser-print' })
     const iframe = document.getElementById('runtime-browser-print-frame') as HTMLIFrameElement | null
@@ -211,9 +214,9 @@ describe('BrowserPrintService', () => {
         router.currentRoute.value.fullPath = route
         document.body.innerHTML = '<main></main>'
       }),
-    } as any
+    } satisfies RouterStub
     const service = new BrowserPrintService()
-    service.setRouter(router)
+    service.setRouter(router as unknown as Router)
 
     await expect(service.printAllPages({ mode: 'all', method: 'browser-print' })).rejects.toThrow('没有成功收集任何可打印页面')
     expect(document.getElementById('runtime-browser-print-frame')).toBeNull()

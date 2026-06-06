@@ -95,7 +95,7 @@ mathjax.asyncLoad = (file: string) => {
   return loader()
 }
 
-const adaptor = (typeof document === 'undefined' ? liteAdaptor() : browserAdaptor()) as any
+const adaptor = typeof document === 'undefined' ? liteAdaptor() : browserAdaptor()
 RegisterHTMLHandler(adaptor)
 
 const tex = new TeX({

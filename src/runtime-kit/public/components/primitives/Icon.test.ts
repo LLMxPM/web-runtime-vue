@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/one-component-per-file */
 /* eslint-disable vue/component-definition-name-casing */
 
 /**

@@ -2,13 +2,20 @@
  * 文件用途：验证 Runtime 独立页面入口访问控制插件的配置解析与请求判定。
  */
 
+import type { ServerResponse } from 'http'
 import { describe, expect, it, vi } from 'vitest'
+import type { ViteDevServer } from 'vite'
 
 import runtimeStandalonePreviewGate, {
   resolveStandalonePreviewEnabled,
   sendStandalonePreviewDisabledResponse,
   shouldBlockStandalonePreviewRequest,
 } from './runtime-standalone-preview-gate'
+
+type MockServerResponse = Pick<ServerResponse, 'statusCode' | 'setHeader' | 'end'> & {
+  headers: Record<string, string | number | readonly string[]>
+  body: string
+}
 
 describe('runtime standalone preview gate', () => {
   it('默认启用独立页面入口，仅显式关闭值会禁用', () => {
@@ -25,11 +32,10 @@ describe('runtime standalone preview gate', () => {
   it('启用时不注册拦截中间件', () => {
     const plugin = runtimeStandalonePreviewGate({ enabled: true })
     const use = vi.fn()
-    const configureServer = plugin.configureServer as any
 
-    configureServer?.({
+    plugin.configureServer?.({
       middlewares: { use },
-    })
+    } as unknown as ViteDevServer)
 
     expect(use).not.toHaveBeenCalled()
   })
@@ -117,7 +123,7 @@ describe('runtime standalone preview gate', () => {
       method: 'GET',
       url: '/',
       headers: { accept: 'text/html' },
-    }, response as any)
+    }, response)
 
     expect(response.statusCode).toBe(403)
     expect(response.headers['x-runtime-error-code']).toBe('STANDALONE_PREVIEW_DISABLED')
@@ -131,7 +137,7 @@ describe('runtime standalone preview gate', () => {
       method: 'GET',
       url: '/',
       headers: { accept: 'application/json' },
-    }, response as any)
+    }, response)
 
     expect(response.statusCode).toBe(403)
     expect(response.headers['content-type']).toBe('application/json; charset=utf-8')
@@ -146,10 +152,10 @@ describe('runtime standalone preview gate', () => {
  * 创建用于断言响应内容的最小 ServerResponse 替身。
  * @returns 可记录状态、响应头和响应体的对象
  */
-function createMockResponse() {
+function createMockResponse(): MockServerResponse {
   return {
     statusCode: 200,
-    headers: {} as Record<string, string | number | readonly string[]>,
+    headers: {},
     body: '',
     setHeader(name: string, value: string | number | readonly string[]) {
       this.headers[name.toLowerCase()] = value

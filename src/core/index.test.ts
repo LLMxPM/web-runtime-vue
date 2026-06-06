@@ -8,7 +8,7 @@
 import { describe, expect, it, vi, beforeAll } from 'vitest'
 
 describe('Core 模块对外接口 (External API)', () => {
-  let CoreAPI: any
+  let CoreAPI: typeof import('./index')
 
   beforeAll(async () => {
     // 模拟全局 fetch，防止模块级初始化的路由器和配置加载由于无效的相对路径报错
