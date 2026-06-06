@@ -16,6 +16,7 @@ import type {
 } from '@/core/types/pptx-export'
 import { appConfig as runtimeAppConfig, appPageConfig } from '@/core/utils/config'
 import { findRuntimePageSource } from '@/core/utils/export-dom'
+import { collectAllExportPages } from '@/core/utils/export-pages'
 import { generateFilename } from '@/core/utils/file'
 import { PPTXDomConverter, type PptxGradientFillInstruction } from '@/core/services/pptx/PPTXDomConverter'
 
@@ -583,24 +584,7 @@ export class PPTXExportService {
    * 获取所有按页码排序的页面。
    */
   private async getAllPages(): Promise<PageInfo[]> {
-    try {
-      const { getRouteInfosSortedByPageNumber } = await import('@/core/utils/route-generator')
-      const routes = getRouteInfosSortedByPageNumber()
-
-      return routes.map((route, index) => ({
-        route: route.path,
-        title: route.name || `页面 ${index + 1}`,
-        order: route.pageNumber || index,
-        meta: {
-          pageNumber: route.pageNumber,
-          level: route.level,
-          hidden: route.hidden,
-        },
-      }))
-    } catch (error) {
-      console.error('获取 PPTX 导出页面列表失败:', error)
-      return []
-    }
+    return collectAllExportPages(this.router)
   }
 
   /**

@@ -16,6 +16,7 @@ import type {
 } from '@/core/services/pptx/PPTXDomConverter.types'
 import { MEDIA_SELECTORS } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
+import { PPTXImageDataResolver } from '@/core/services/pptx/PPTXImageDataResolver'
 
 export interface PptxDomMediaExportHost {
   options: PptxPageConvertOptions
@@ -41,10 +42,23 @@ export interface PptxDomMediaExportHost {
   ) => void
 }
 
+interface IntrinsicImageSize {
+  width: number
+  height: number
+}
+
+interface ResolvedImageSizingOptions {
+  w?: number
+  h?: number
+  sizing?: ImageSizingOptions
+}
+
 /**
  * PPTX 媒体导出 helper。
  */
 export class PPTXDomConverterMedia {
+  private readonly imageDataResolver = new PPTXImageDataResolver()
+
   constructor(
     private readonly layout: PPTXDomConverterLayout,
     private readonly svgSerializer: PPTXSvgSerializer,
@@ -76,7 +90,7 @@ export class PPTXDomConverterMedia {
     if (this.isSvgBasedSource(sourceType, element)) {
       const svg = this.findRenderableSvg(element)
       if (svg) {
-        this.addSvgBlock(host, svg, element, sourceType, label, context)
+        await this.addSvgBlock(host, svg, element, sourceType, label, context)
         return
       }
       await this.addScreenshotBlock(host, element, sourceType, '未找到可序列化 SVG，降级为局部截图', context)
@@ -86,12 +100,12 @@ export class PPTXDomConverterMedia {
     if (sourceType === 'chart') {
       const svg = this.findRenderableSvg(element)
       if (svg) {
-        this.addSvgBlock(host, svg, element, sourceType, label, context)
+        await this.addSvgBlock(host, svg, element, sourceType, label, context)
         return
       }
 
       const canvas = element.querySelector?.('canvas') ?? (element instanceof HTMLCanvasElement ? element : null)
-      if (canvas instanceof HTMLCanvasElement && this.addCanvasBlock(host, canvas, element, sourceType, label, context)) {
+      if (canvas instanceof HTMLCanvasElement && await this.addCanvasBlock(host, canvas, element, sourceType, label, context)) {
         return
       }
 
@@ -100,7 +114,7 @@ export class PPTXDomConverterMedia {
     }
 
     if (sourceType === 'canvas' && element instanceof HTMLCanvasElement) {
-      if (!this.addCanvasBlock(host, element, element, sourceType, label, context)) {
+      if (!await this.addCanvasBlock(host, element, element, sourceType, label, context)) {
         host.addSkippedItem(sourceType, label, 'canvas 像素为空或无法读取', context)
       }
       return
@@ -138,7 +152,7 @@ export class PPTXDomConverterMedia {
 
     const label = this.layout.buildElementLabel(element)
     if (backgroundUrl.startsWith('data:image/')) {
-      this.addImageDataBlock(host, backgroundUrl, element, 'image', label, 'CSS 背景图导出为图片块', context)
+      await this.addImageDataBlock(host, backgroundUrl, element, 'image', label, 'CSS 背景图导出为图片块', context, backgroundUrl)
       return true
     }
 
@@ -179,7 +193,7 @@ export class PPTXDomConverterMedia {
         throw new Error('无法创建视频帧 canvas')
       }
       canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height)
-      this.addImageDataBlock(host, canvas.toDataURL('image/png'), element, 'video', label, '视频当前帧导出为图片块', context)
+      await this.addImageDataBlock(host, canvas.toDataURL('image/png'), element, 'video', label, '视频当前帧导出为图片块', context)
     } catch {
       await this.addScreenshotBlock(host, element, 'video', '视频无封面且当前帧不可读取，降级为局部截图', context)
     }
@@ -214,9 +228,9 @@ export class PPTXDomConverterMedia {
     sourceType: PptxReportSourceType,
     label: string,
     context: VisitContext,
-  ): void {
+  ): Promise<void> {
     const data = this.svgSerializer.svgToDataUrl(svg)
-    this.addImageDataBlock(host, data, element, sourceType, label, 'SVG 作为可移动缩放图片块', context)
+    return this.addImageDataBlock(host, data, element, sourceType, label, 'SVG 作为可移动缩放图片块', context)
   }
 
   /**
@@ -235,16 +249,16 @@ export class PPTXDomConverterMedia {
     sourceType: PptxReportSourceType,
     label: string,
     context: VisitContext,
-  ): boolean {
+  ): Promise<boolean> {
     if (canvas.width <= 0 || canvas.height <= 0) {
-      return false
+      return Promise.resolve(false)
     }
 
     try {
-      this.addImageDataBlock(host, canvas.toDataURL('image/png'), element, sourceType, label, 'canvas 导出为 PNG 图片块', context)
-      return true
+      return this.addImageDataBlock(host, canvas.toDataURL('image/png'), element, sourceType, label, 'canvas 导出为 PNG 图片块', context)
+        .then(() => true)
     } catch {
-      return false
+      return Promise.resolve(false)
     }
   }
 
@@ -273,7 +287,7 @@ export class PPTXDomConverterMedia {
 
     const svgSource = await this.svgSerializer.resolveSvgSource(path)
     if (svgSource) {
-      this.addImageDataBlock(
+      await this.addImageDataBlock(
         host,
         this.svgSerializer.svgSourceToDataUrl(svgSource),
         element,
@@ -282,6 +296,17 @@ export class PPTXDomConverterMedia {
         'SVG 源文件原样嵌入为可移动缩放图片块',
         context,
       )
+      return true
+    }
+
+    const imageData = await this.imageDataResolver.resolve(path)
+    if (imageData) {
+      await this.addImageDataBlock(host, imageData, element, sourceType, label, reason, context, imageData)
+      return true
+    }
+
+    if (this.imageDataResolver.shouldAvoidDeferredPath(path)) {
+      await this.addScreenshotBlock(host, element, sourceType, `图片 URL 无法读取，降级为局部截图：${path}`, context)
       return true
     }
 
@@ -294,7 +319,7 @@ export class PPTXDomConverterMedia {
     host.options.slide.addImage({
       path,
       ...box,
-      ...this.buildImageSizing(element, box),
+      ...(await this.buildImageSizing(element, box, path)),
       ...host.buildPptObjectMeta(context, 'image', label, true),
     })
     host.addReportItem(sourceType, 'image', false, label, reason, context)
@@ -319,20 +344,23 @@ export class PPTXDomConverterMedia {
     label: string,
     reason: string,
     context: VisitContext,
-  ): void {
+    source?: string,
+  ): Promise<void> {
     const box = this.layout.getPptxBox(element)
     if (!box) {
       host.addSkippedItem(sourceType, label, '图片块尺寸无效', context)
-      return
+      return Promise.resolve()
     }
 
-    host.options.slide.addImage({
-      data,
-      ...box,
-      ...this.buildImageSizing(element, box),
-      ...host.buildPptObjectMeta(context, data.startsWith('data:image/svg') ? 'svg' : 'image', label, true),
+    return this.buildImageSizing(element, box, source || data).then(imageSizing => {
+      host.options.slide.addImage({
+        data,
+        ...box,
+        ...imageSizing,
+        ...host.buildPptObjectMeta(context, data.startsWith('data:image/svg') ? 'svg' : 'image', label, true),
+      })
+      host.addReportItem(sourceType, data.startsWith('data:image/svg') ? 'svg' : 'image', false, label, reason, context)
     })
-    host.addReportItem(sourceType, data.startsWith('data:image/svg') ? 'svg' : 'image', false, label, reason, context)
   }
 
   /**
@@ -367,7 +395,7 @@ export class PPTXDomConverterMedia {
       host.options.slide.addImage({
         data,
         ...box,
-        ...this.buildImageSizing(element, box),
+        ...(await this.buildImageSizing(element, box)),
         ...host.buildPptObjectMeta(context, 'screenshot', label, true),
       })
       host.addReportItem(sourceType, 'screenshot', false, label, reason, context)
@@ -385,36 +413,320 @@ export class PPTXDomConverterMedia {
    * 根据图片元素样式构造 PPTX 图片缩放策略。
    * @param element 图片或图片容器
    * @param box PPTX 位置尺寸
+   * @param source 图片源地址或 data URL
    */
-  private buildImageSizing(element: Element, box: ElementBox): { sizing?: ImageSizingOptions } {
-    const image = element instanceof HTMLImageElement ? element : element.querySelector?.('img')
-    if (!(image instanceof HTMLElement)) {
-      if (element instanceof HTMLElement) {
-        const style = window.getComputedStyle(element)
-        if (style.backgroundSize === 'contain' || style.backgroundSize === 'cover') {
-          return {
-            sizing: {
-              type: style.backgroundSize,
-              w: box.w,
-              h: box.h,
-            },
-          }
-        }
-      }
+  private async buildImageSizing(element: Element, box: ElementBox, source?: string): Promise<ResolvedImageSizingOptions> {
+    const sizingMode = this.resolveImageSizingMode(element)
+    if (!sizingMode) {
       return {}
     }
 
-    const style = window.getComputedStyle(image)
-    if (style.objectFit !== 'contain' && style.objectFit !== 'cover') {
-      return {}
-    }
-
-    return {
+    const result: ResolvedImageSizingOptions = {
       sizing: {
-        type: style.objectFit,
+        type: sizingMode,
         w: box.w,
         h: box.h,
       },
+    }
+
+    const intrinsicSize = await this.resolveIntrinsicImageSize(element, source)
+    if (!intrinsicSize) {
+      return result
+    }
+
+    const proxyBox = this.buildIntrinsicProxyBox(box, intrinsicSize)
+    return {
+      w: proxyBox.w,
+      h: proxyBox.h,
+      sizing: result.sizing,
+    }
+  }
+
+  /**
+   * 读取当前元素对应的 cover/contain 模式。
+   * @param element 图片元素或背景图容器
+   */
+  private resolveImageSizingMode(element: Element): ImageSizingOptions['type'] | null {
+    const image = element instanceof HTMLImageElement ? element : element.querySelector?.('img')
+    if (image instanceof HTMLElement) {
+      const style = window.getComputedStyle(image)
+      if (style.objectFit === 'contain' || style.objectFit === 'cover') {
+        return style.objectFit
+      }
+    }
+
+    if (element instanceof HTMLElement) {
+      const style = window.getComputedStyle(element)
+      if (style.backgroundSize === 'contain' || style.backgroundSize === 'cover') {
+        return style.backgroundSize
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * 解析图片原始尺寸。
+   * @param element 图片元素或背景图容器
+   * @param source 图片源地址或 data URL
+   */
+  private async resolveIntrinsicImageSize(element: Element, source?: string): Promise<IntrinsicImageSize | null> {
+    const image = element instanceof HTMLImageElement ? element : element.querySelector?.('img')
+    if (image instanceof HTMLImageElement && image.naturalWidth > 0 && image.naturalHeight > 0) {
+      return {
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      }
+    }
+
+    if (!source) {
+      return null
+    }
+
+    if (/^data:image\//i.test(source)) {
+      return this.parseIntrinsicSizeFromDataUrl(source)
+    }
+
+    return this.loadImageSizeFromSource(source)
+  }
+
+  /**
+   * 从 data URL 中直接解析图片尺寸，避免测试环境或跨域场景依赖 Image.onload。
+   * @param source data URL
+   */
+  private parseIntrinsicSizeFromDataUrl(source: string): IntrinsicImageSize | null {
+    const match = /^data:image\/([^;]+);base64,(.+)$/i.exec(source)
+    if (!match) {
+      return null
+    }
+
+    const subtype = String(match[1] || '').toLowerCase()
+    const base64 = match[2] || ''
+    let binary = ''
+    try {
+      binary = window.atob(base64)
+    } catch {
+      return null
+    }
+
+    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
+    if (subtype === 'png') {
+      return this.parsePngSize(bytes)
+    }
+    if (subtype === 'gif') {
+      return this.parseGifSize(bytes)
+    }
+    if (subtype === 'jpeg' || subtype === 'jpg') {
+      return this.parseJpegSize(bytes)
+    }
+    if (subtype === 'svg+xml') {
+      return this.parseSvgSize(binary)
+    }
+
+    return null
+  }
+
+  /**
+   * 使用脱离 DOM 的 Image 读取图片尺寸。
+   * @param source 图片源地址或 data URL
+   */
+  private async loadImageSizeFromSource(source: string): Promise<IntrinsicImageSize | null> {
+    return new Promise(resolve => {
+      const image = new Image()
+      const cleanup = () => {
+        image.removeEventListener('load', handleLoad)
+        image.removeEventListener('error', handleError)
+      }
+      const handleLoad = () => {
+        cleanup()
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          resolve({
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+          })
+          return
+        }
+        resolve(null)
+      }
+      const handleError = () => {
+        cleanup()
+        resolve(null)
+      }
+
+      image.addEventListener('load', handleLoad, { once: true })
+      image.addEventListener('error', handleError, { once: true })
+      image.src = source
+
+      if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        handleLoad()
+      }
+    })
+  }
+
+  /**
+   * 解析 PNG IHDR 中的原始尺寸。
+   * @param bytes PNG 字节
+   */
+  private parsePngSize(bytes: Uint8Array): IntrinsicImageSize | null {
+    if (bytes.length < 24) {
+      return null
+    }
+
+    const width = this.readUint32(bytes, 16)
+    const height = this.readUint32(bytes, 20)
+    if (width <= 0 || height <= 0) {
+      return null
+    }
+
+    return { width, height }
+  }
+
+  /**
+   * 解析 GIF 逻辑屏幕尺寸。
+   * @param bytes GIF 字节
+   */
+  private parseGifSize(bytes: Uint8Array): IntrinsicImageSize | null {
+    if (bytes.length < 10) {
+      return null
+    }
+
+    const width = bytes[6] | (bytes[7] << 8)
+    const height = bytes[8] | (bytes[9] << 8)
+    if (width <= 0 || height <= 0) {
+      return null
+    }
+
+    return { width, height }
+  }
+
+  /**
+   * 解析 JPEG 首个 SOF 段中的原始尺寸。
+   * @param bytes JPEG 字节
+   */
+  private parseJpegSize(bytes: Uint8Array): IntrinsicImageSize | null {
+    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) {
+      return null
+    }
+
+    let offset = 2
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xFF) {
+        offset += 1
+        continue
+      }
+
+      const marker = bytes[offset + 1]
+      offset += 2
+      if (marker === 0xD8 || marker === 0xD9) {
+        continue
+      }
+
+      if (offset + 2 > bytes.length) {
+        return null
+      }
+      const segmentLength = (bytes[offset] << 8) | bytes[offset + 1]
+      if (segmentLength < 2 || offset + segmentLength > bytes.length) {
+        return null
+      }
+
+      if (
+        (marker >= 0xC0 && marker <= 0xC3) ||
+        (marker >= 0xC5 && marker <= 0xC7) ||
+        (marker >= 0xC9 && marker <= 0xCB) ||
+        (marker >= 0xCD && marker <= 0xCF)
+      ) {
+        if (offset + 7 > bytes.length) {
+          return null
+        }
+        const height = (bytes[offset + 3] << 8) | bytes[offset + 4]
+        const width = (bytes[offset + 5] << 8) | bytes[offset + 6]
+        if (width <= 0 || height <= 0) {
+          return null
+        }
+        return { width, height }
+      }
+
+      offset += segmentLength
+    }
+
+    return null
+  }
+
+  /**
+   * 解析 SVG 文本中的宽高或 viewBox。
+   * @param source SVG 文本
+   */
+  private parseSvgSize(source: string): IntrinsicImageSize | null {
+    const normalized = String(source || '')
+    const widthMatch = /\bwidth=["']([\d.]+)(?:px)?["']/i.exec(normalized)
+    const heightMatch = /\bheight=["']([\d.]+)(?:px)?["']/i.exec(normalized)
+    const width = widthMatch ? Number.parseFloat(widthMatch[1]) : 0
+    const height = heightMatch ? Number.parseFloat(heightMatch[1]) : 0
+    if (width > 0 && height > 0) {
+      return { width, height }
+    }
+
+    const viewBoxMatch = /\bviewBox=["'][^"']*?([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)[^"']*["']/i.exec(normalized)
+    if (!viewBoxMatch) {
+      return null
+    }
+
+    const viewBoxWidth = Number.parseFloat(viewBoxMatch[3] || '0')
+    const viewBoxHeight = Number.parseFloat(viewBoxMatch[4] || '0')
+    if (viewBoxWidth <= 0 || viewBoxHeight <= 0) {
+      return null
+    }
+
+    return {
+      width: viewBoxWidth,
+      height: viewBoxHeight,
+    }
+  }
+
+  /**
+   * 读取大端 32 位无符号整数。
+   * @param bytes 原始字节
+   * @param offset 起始偏移
+   */
+  private readUint32(bytes: Uint8Array, offset: number): number {
+    return (
+      (bytes[offset] << 24) |
+      (bytes[offset + 1] << 16) |
+      (bytes[offset + 2] << 8) |
+      bytes[offset + 3]
+    ) >>> 0
+  }
+
+  /**
+   * 按原图比例构造给 pptxgenjs 的代理尺寸。
+   * 说明：pptxgenjs 4.0.1 会把顶层 w/h 当作原图尺寸参与 cover/contain 计算，
+   * 若直接传目标盒子尺寸，会得到零裁剪并表现为拉伸。
+   * @param box 元素在 slide 中的最终目标尺寸
+   * @param intrinsicSize 图片原始尺寸
+   */
+  private buildIntrinsicProxyBox(box: ElementBox, intrinsicSize: IntrinsicImageSize): Pick<ElementBox, 'w' | 'h'> {
+    const width = Number(intrinsicSize.width)
+    const height = Number(intrinsicSize.height)
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return { w: box.w, h: box.h }
+    }
+
+    const sourceRatio = height / width
+    const boxRatio = box.h / box.w
+    if (!Number.isFinite(sourceRatio) || sourceRatio <= 0 || !Number.isFinite(boxRatio) || boxRatio <= 0) {
+      return { w: box.w, h: box.h }
+    }
+
+    if (sourceRatio >= boxRatio) {
+      return {
+        w: Math.max(0.01, box.h / sourceRatio),
+        h: box.h,
+      }
+    }
+
+    return {
+      w: box.w,
+      h: Math.max(0.01, box.w * sourceRatio),
     }
   }
 

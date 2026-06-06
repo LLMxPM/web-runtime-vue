@@ -5,6 +5,7 @@
 import { nextTick } from 'vue'
 import type { Router } from 'vue-router'
 import { appPageConfig } from '@/core/utils/config'
+import { collectAllExportPages } from '@/core/utils/export-pages'
 import type {
   ExportOptions,
   ExportProgress,
@@ -272,24 +273,7 @@ export class BrowserPrintService {
    * 获取所有按页码排序的页面。
    */
   private async getAllPages(): Promise<PageInfo[]> {
-    try {
-      const { getRouteInfosSortedByPageNumber } = await import('@/core/utils/route-generator')
-      const routes = getRouteInfosSortedByPageNumber()
-
-      return routes.map((route, index) => ({
-        route: route.path,
-        title: route.name || `页面 ${index + 1}`,
-        order: route.pageNumber || index,
-        meta: {
-          pageNumber: route.pageNumber,
-          level: route.level,
-          hidden: route.hidden,
-        },
-      }))
-    } catch (error) {
-      console.error('获取打印页面列表失败:', error)
-      return []
-    }
+    return collectAllExportPages(this.router)
   }
 
   /**

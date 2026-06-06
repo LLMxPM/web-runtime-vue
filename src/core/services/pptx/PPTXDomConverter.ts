@@ -86,15 +86,19 @@ export class PPTXDomConverter {
       return
     }
 
-    if (element instanceof HTMLElement && await this.media.addBackgroundImageElement(this.createMediaExportHost(), element, context)) {
-      return
+    let exportedBackgroundImage = false
+    if (element instanceof HTMLElement) {
+      exportedBackgroundImage = await this.media.addBackgroundImageElement(this.createMediaExportHost(), element, context)
+      if (exportedBackgroundImage && !this.shouldContinueAfterBackgroundImageExport(element)) {
+        return
+      }
     }
 
     if (element instanceof HTMLElement && this.gradient.addLinearGradientElement(this.createGradientExportHost(), element, context)) {
       return
     }
 
-    if (element instanceof HTMLElement && this.layout.shouldScreenshotComplexElement(element)) {
+    if (element instanceof HTMLElement && !exportedBackgroundImage && this.layout.shouldScreenshotComplexElement(element)) {
       await this.addScreenshotBlock(element, 'complex-css', '复杂 CSS 容器降级为局部截图', context)
       return
     }
@@ -137,6 +141,21 @@ export class PPTXDomConverter {
         this.text.addDirectTextNode(this.createTextExportHost(), element, childNode, elementContext)
       }
     }
+  }
+
+  /**
+   * 判断背景图容器在导出图片块后，是否仍需继续导出叠加在其上的文本或子元素。
+   * @param element 已完成背景图导出的容器
+   * @returns 是否继续遍历子节点
+   */
+  private shouldContinueAfterBackgroundImageExport(element: HTMLElement): boolean {
+    if (this.layout.hasVisibleChildElement(element)) {
+      return true
+    }
+
+    return Array.from(element.childNodes).some(childNode => {
+      return childNode instanceof Text && Boolean(this.layout.normalizeText(childNode.textContent || ''))
+    })
   }
 
   /**

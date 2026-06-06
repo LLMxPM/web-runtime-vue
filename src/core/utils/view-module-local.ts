@@ -2,7 +2,9 @@
  * 文件用途：提供 Runtime 本地 fixture/开发模式可加载的页面模块映射。
  */
 
-type ViewModuleLoader = () => Promise<unknown>
+import type { RuntimeViewModule } from './view-module'
+
+type ViewModuleLoader = () => Promise<RuntimeViewModule>
 
 /**
  * Runtime 本地开发 / 本地构建模式可加载的页面模块。
@@ -12,10 +14,10 @@ type ViewModuleLoader = () => Promise<unknown>
  * 3. Backend 构建态不应把本文件纳入 Rollup 依赖图。
  */
 const LOCAL_RUNTIME_VIEW_MODULES: Record<string, ViewModuleLoader> = {
-  ...import.meta.glob('@/views/**/*.vue'),
-  ...import.meta.glob('/src/views/**/*.vue'),
-  ...import.meta.glob('@/examples/local/views/**/*.vue'),
-  ...import.meta.glob('/src/examples/local/views/**/*.vue'),
+  ...import.meta.glob<RuntimeViewModule>('@/views/**/*.vue'),
+  ...import.meta.glob<RuntimeViewModule>('/src/views/**/*.vue'),
+  ...import.meta.glob<RuntimeViewModule>('@/examples/local/views/**/*.vue'),
+  ...import.meta.glob<RuntimeViewModule>('/src/examples/local/views/**/*.vue'),
 }
 
 /**

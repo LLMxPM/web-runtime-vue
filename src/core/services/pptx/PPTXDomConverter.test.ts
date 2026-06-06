@@ -21,6 +21,10 @@ describe('PPTXDomConverter', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    delete window.__RUNTIME_PREVIEW_CONTEXT__
+    delete window.__RUNTIME_PREVIEW_TOKEN__
+    delete window.__RUNTIME_PRELOADED_CONFIG__
+    delete window.__RUNTIME_PUBLIC_BASE_URL__
   })
 
   it('应将标题、正文、关键数字和简单形状转换为可编辑对象', async () => {
@@ -867,6 +871,108 @@ describe('PPTXDomConverter', () => {
     }))
   })
 
+  it('应通过 Runtime 代理读取 manifest 图片并内嵌为 data URL', async () => {
+    const slide = createSlideMock()
+    const assetHash = '5c1add7d570de71de7febd09afb603a16f8f81e5c61a0a2d8b96f4aa9f0a6d1f'
+    const assetBaseUrl = 'http://127.0.0.1:8000/public/assets/1'
+    const assetUrl = `${assetBaseUrl}/${assetHash}`
+    const pngHeader = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      expect(String(url)).toContain('__runtime-snapdom-resource-proxy')
+      return new Response(pngHeader, {
+        headers: {
+          'content-type': 'application/octet-stream',
+        },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    window.__RUNTIME_PREVIEW_CONTEXT__ = {
+      artifactId: 'artifact-1',
+      tenantId: 'tenant_1',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: '1',
+      projectId: '2',
+      entryDescriptor: { entry_type: 'route', route: '/test' },
+      assetBaseUrl,
+      traceId: 'req-1',
+    }
+    window.__RUNTIME_PREVIEW_TOKEN__ = 'preview-token'
+    window.__RUNTIME_PUBLIC_BASE_URL__ = 'https://runtime.example.com/runtime/'
+    window.__RUNTIME_PRELOADED_CONFIG__ = {
+      manifest: {
+        artifact_id: 'artifact-1',
+        tenant_id: 'tenant_1',
+        preview_kind: 'project',
+        owner_scope: {
+          scope_type: 'project',
+          workspace_id: '1',
+          project_id: '2',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/test' },
+        asset_base_url: assetBaseUrl,
+        modules: {},
+        assets: {
+          'theme/logo.png': assetHash,
+        },
+        asset_metadata: {
+          'theme/logo.png': {
+            file_hash: assetHash,
+            render_type: 'image',
+          },
+        },
+      },
+    }
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <img class="theme-logo" src="${assetUrl}" style="width: 320px; height: 160px; object-fit: contain;" />
+      </div>
+    `
+
+    const report = await convert(slide)
+    const addImageCall = slide.addImage.mock.calls[0]?.[0] as Record<string, string>
+    const fetchedUrl = new URL(String(fetchMock.mock.calls[0]?.[0]))
+
+    expect(fetchedUrl.origin).toBe('https://runtime.example.com')
+    expect(fetchedUrl.pathname).toBe('/runtime/__runtime-snapdom-resource-proxy')
+    expect(fetchedUrl.searchParams.get('artifactId')).toBe('artifact-1')
+    expect(fetchedUrl.searchParams.get('token')).toBe('preview-token')
+    expect(fetchedUrl.searchParams.get('url')).toBe(assetUrl)
+    expect(addImageCall.path).toBeUndefined()
+    expect(addImageCall.data).toBe('data:image/png;base64,iVBORw0KGgo=')
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'image',
+      result: 'image',
+      reason: '图片作为可移动缩放图片块',
+    }))
+  })
+
+  it('外部图片无法读取时应降级为局部截图', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    const imageUrl = 'https://cdn.example.com/no-cors.png'
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('CORS blocked')
+    }))
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <img class="remote-image" src="${imageUrl}" style="width: 320px; height: 160px;" />
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+    const addImageCall = slide.addImage.mock.calls[0]?.[0] as Record<string, string>
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(addImageCall.path).toBeUndefined()
+    expect(addImageCall.data).toBe('data:image/png;base64,capture')
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'image',
+      result: 'screenshot',
+      reason: `图片 URL 无法读取，降级为局部截图：${imageUrl}`,
+    }))
+  })
+
   it('应将内联 SVG 的 currentColor、描边和文字样式内联到源文件', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `
@@ -970,6 +1076,7 @@ describe('PPTXDomConverter', () => {
   it('应将全屏 CSS 背景图导出为图片块', async () => {
     const slide = createSlideMock()
     const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    stubDetachedImageSize(1920, 1080)
     document.body.innerHTML = `
       <div id="page" style="width: 1920px; height: 1080px;">
         <div class="background-image" style="width: 1920px; height: 1080px; background-image: url('/src/assets/runtime-shell/background.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
@@ -991,6 +1098,82 @@ describe('PPTXDomConverter', () => {
         sourceType: 'image',
         result: 'image',
         reason: 'CSS 背景图导出为图片块',
+      }),
+    ]))
+  })
+
+  it('应为 cover 背景图写入保留原图比例的代理尺寸，避免 pptxgenjs 拉伸', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    const backgroundDataUrl = `data:image/svg+xml;base64,${window.btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"></svg>')}`
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div
+          class="background-image"
+          style="width: 768px; height: 1080px; background-image: url('${backgroundDataUrl}'); background-size: cover; background-position: center; background-repeat: no-repeat;"
+        ></div>
+      </div>
+    `
+
+    await convert(slide, captureElementAsPng)
+
+    const imageOptions = slide.addImage.mock.calls[0]?.[0] as {
+      w: number
+      h: number
+      sizing?: { type: string; w: number; h: number }
+    }
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(imageOptions.sizing).toEqual(expect.objectContaining({
+      type: 'cover',
+    }))
+    expect(imageOptions.w / imageOptions.h).toBeCloseTo(1200 / 900, 2)
+    expect(imageOptions.h).not.toBe(imageOptions.sizing?.h)
+  })
+
+  it('应继续导出背景图容器中的标题叠层内容', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    stubDetachedImageSize(1200, 900)
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div
+          class="left-section"
+          style="position: relative; width: 768px; height: 1080px; background-image: url('/src/assets/runtime-shell/background.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"
+        >
+          <div
+            class="title-content"
+            style="position: relative; z-index: 10; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;"
+          >
+            <div class="page-header" style="width: 360px; height: 180px; text-align: center;">
+              <h1 class="page-title" style="width: 360px; height: 88px; margin: 0; color: #ffffff; font-size: 72px; line-height: 88px;">目录</h1>
+              <div class="divider" style="width: 96px; height: 4px; margin: 24px auto 0; background-color: #ffffff;"></div>
+              <p class="page-subtitle" style="width: 360px; height: 32px; margin: 16px 0 0; color: #ffffff; font-size: 24px; line-height: 32px;">Contents</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+    const exportedTexts = slide.addText.mock.calls.map(call => String(call[0]))
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(slide.addImage).toHaveBeenCalledWith(expect.objectContaining({
+      path: '/src/assets/runtime-shell/background.png',
+      sizing: expect.objectContaining({
+        type: 'cover',
+      }),
+    }))
+    expect(exportedTexts).toEqual(expect.arrayContaining(['目录', 'Contents']))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'image',
+        result: 'image',
+        reason: 'CSS 背景图导出为图片块',
+      }),
+      expect.objectContaining({
+        result: 'editable-text',
       }),
     ]))
   })
@@ -1122,4 +1305,32 @@ function decodeSvgDataUrl(data: string): string {
   const binary = window.atob(base64)
   const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
   return new TextDecoder().decode(bytes)
+}
+
+/**
+ * stub 脱离 DOM 的 Image 尺寸，便于验证背景图 cover 的代理比例逻辑。
+ * @param width 模拟原图宽度
+ * @param height 模拟原图高度
+ */
+function stubDetachedImageSize(width: number, height: number): void {
+  class MockImage extends EventTarget {
+    complete = false
+    naturalWidth = 0
+    naturalHeight = 0
+    private currentSrc = ''
+
+    set src(value: string) {
+      this.currentSrc = value
+      this.complete = true
+      this.naturalWidth = width
+      this.naturalHeight = height
+      queueMicrotask(() => this.dispatchEvent(new Event('load')))
+    }
+
+    get src(): string {
+      return this.currentSrc
+    }
+  }
+
+  vi.stubGlobal('Image', MockImage)
 }

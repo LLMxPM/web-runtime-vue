@@ -413,7 +413,7 @@ export class PPTXDomConverterText {
    */
   private isLastMeaningfulNodeBranch(parent: HTMLElement, childNode: Node): boolean {
     const childNodes = Array.from(parent.childNodes)
-    const currentIndex = childNodes.indexOf(childNode)
+    const currentIndex = childNodes.indexOf(childNode as ChildNode)
     if (currentIndex < 0) {
       return false
     }
@@ -936,7 +936,7 @@ export class PPTXDomConverterText {
     hasBracketedLongToken: boolean
     hasLongAsciiToken: boolean
   } {
-    const asciiLikeTokens = text.match(/[A-Za-z0-9._-]+/g) || []
+    const asciiLikeTokens: string[] = text.match(/[A-Za-z0-9._-]+/g) ?? []
     const asciiCharCount = asciiLikeTokens.reduce((total, token) => total + token.length, 0)
     const longestAsciiTokenLength = asciiLikeTokens.reduce((maxLength, token) => Math.max(maxLength, token.length), 0)
     const hasMixedScripts = this.layout.containsCjkText(text) && /[A-Za-z]/.test(text)

@@ -32,10 +32,16 @@ describe('runtime standalone preview gate', () => {
   it('启用时不注册拦截中间件', () => {
     const plugin = runtimeStandalonePreviewGate({ enabled: true })
     const use = vi.fn()
-
-    plugin.configureServer?.({
+    const server = {
       middlewares: { use },
-    } as unknown as ViteDevServer)
+    } as unknown as ViteDevServer
+
+    const configureServer = plugin.configureServer
+    if (typeof configureServer === 'function') {
+      configureServer.call({} as never, server)
+    } else {
+      configureServer?.handler.call({} as never, server)
+    }
 
     expect(use).not.toHaveBeenCalled()
   })
@@ -159,9 +165,27 @@ function createMockResponse(): MockServerResponse {
     body: '',
     setHeader(name: string, value: string | number | readonly string[]) {
       this.headers[name.toLowerCase()] = value
+      return this
     },
-    end(chunk?: string | Uint8Array) {
-      this.body = chunk ? String(chunk) : ''
+    end(
+      chunkOrCallback?: string | Uint8Array | (() => void),
+      encodingOrCallback?: BufferEncoding | (() => void),
+      callback?: () => void,
+    ) {
+      if (typeof chunkOrCallback === 'function') {
+        chunkOrCallback()
+        this.body = ''
+        return this
+      }
+
+      if (typeof encodingOrCallback === 'function') {
+        encodingOrCallback()
+      } else {
+        callback?.()
+      }
+
+      this.body = chunkOrCallback ? String(chunkOrCallback) : ''
+      return this
     },
   }
 }

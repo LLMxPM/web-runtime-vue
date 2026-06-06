@@ -8,7 +8,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Router } from 'vue-router'
 import { PDFExportService } from './PDFExportService'
 
-type RouterStub = Pick<Router, 'currentRoute' | 'push'>
+interface RouterStub {
+  currentRoute: {
+    value: {
+      fullPath: string
+      path: string
+    }
+  }
+  push: (route: string) => Promise<void>
+}
 
 interface MockPdfOptions {
   orientation: 'landscape' | 'portrait'
@@ -31,10 +39,14 @@ interface MockPdfInstance {
 
 const mockCaptureCurrentPage = vi.hoisted(() => vi.fn())
 const mockRoutes = vi.hoisted(() => ({
-  value: [
-    { path: '/page-2', name: '第二页', pageNumber: 2, level: 0, hidden: false },
-    { path: '/page-1', name: '第一页', pageNumber: 1, level: 0, hidden: false },
-  ],
+  value: [] as Array<{
+    path: string
+    name: string
+    pageNumber?: number
+    order?: number
+    level: number
+    hidden: boolean
+  }>,
 }))
 const mockAppPageConfig = vi.hoisted(() => ({
   value: {
@@ -65,7 +77,16 @@ vi.mock('@/core/utils/config', () => ({
 }))
 
 vi.mock('@/core/utils/route-generator', () => ({
-  getRouteInfosSortedByPageNumber: () => [...mockRoutes.value].sort((a, b) => a.pageNumber - b.pageNumber),
+  getRouteInfosSortedByPageNumber: () => {
+    return [...mockRoutes.value]
+      .filter(route => route.pageNumber !== undefined)
+      .sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0))
+  },
+  getVisibleRouteInfos: () => {
+    return [...mockRoutes.value]
+      .filter(route => !route.hidden)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+  },
 }))
 
 vi.mock('jspdf', () => {
@@ -102,6 +123,10 @@ beforeEach(() => {
   mockCaptureCurrentPage.mockResolvedValue(createCanvas())
   mockPdfRuntime.constructSpy.mockClear()
   mockPdfRuntime.instances.length = 0
+  mockRoutes.value = [
+    { path: '/page-2', name: '第二页', pageNumber: 2, order: 2, level: 0, hidden: false },
+    { path: '/page-1', name: '第一页', pageNumber: 1, order: 1, level: 0, hidden: false },
+  ]
   mockAppPageConfig.value = {
     width: 1920,
     height: 1080,
@@ -142,6 +167,24 @@ describe('PDFExportService', () => {
     expect(result.pageCount).toBe(2)
     expect(mockCaptureCurrentPage.mock.calls.map(call => call[0].routePath)).toEqual(['/page-1', '/page-2'])
     expect(router.push).toHaveBeenLastCalledWith('/origin')
+  })
+
+  it('全部页面缺少页码目录时应回退到可见路由目录', async () => {
+    mockRoutes.value = [
+      { path: '/page-2', name: '第二页', order: 2, level: 0, hidden: false },
+      { path: '/page-1', name: '第一页', order: 1, level: 0, hidden: false },
+    ]
+
+    const router = createRouterStub('/origin')
+    const service = new PDFExportService()
+    service.setRouter(router as unknown as Router)
+    renderRoute('/origin')
+
+    const result = await service.exportAllPages({ mode: 'all', method: 'canvas-pdf' })
+
+    expect(result.success).toBe(true)
+    expect(result.pageCount).toBe(2)
+    expect(mockCaptureCurrentPage.mock.calls.map(call => call[0].routePath)).toEqual(['/page-1', '/page-2'])
   })
 
   it('创建 PDF 时应使用项目画布比例，而不是当前布局容器尺寸', async () => {

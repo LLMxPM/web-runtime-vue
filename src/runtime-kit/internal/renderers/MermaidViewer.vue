@@ -74,7 +74,11 @@ interface Props extends ViewerSurfaceProps {
 }
 
 type MermaidLibrary = Awaited<typeof import('mermaid')>['default']
-type SvgPanZoomFactory = typeof import('svg-pan-zoom').default
+type MermaidInitializeConfig = Parameters<MermaidLibrary['initialize']>[0]
+type SvgPanZoomFactory = (
+  element: SVGElement,
+  options?: Record<string, unknown>,
+) => PanZoomController
 
 interface PanZoomController {
   destroy?: () => void
@@ -189,7 +193,7 @@ const initMermaid = async () => {
     mermaidInstance = mermaidModule.default
 
     // 配置mermaid
-    const config = {
+    const baseConfig: MermaidInitializeConfig = {
       startOnLoad: false,
       theme: props.theme,
       securityLevel: 'loose',
@@ -217,9 +221,13 @@ const initMermaid = async () => {
       },
       pie: {
         useMaxWidth: true
-      },
-      ...props.config
+      }
     }
+
+    const config = {
+      ...baseConfig,
+      ...props.config
+    } as MermaidInitializeConfig
 
     mermaidInstance.initialize(config)
     return mermaidInstance
@@ -355,7 +363,9 @@ const addInteractivity = (container?: HTMLElement | null) => {
 
   // 动态导入svg-pan-zoom库
   import('svg-pan-zoom').then((svgPanZoomModule) => {
-    const svgPanZoom = (svgPanZoomModule.default || svgPanZoomModule) as SvgPanZoomFactory
+    const svgPanZoom = ((
+      'default' in svgPanZoomModule ? svgPanZoomModule.default : svgPanZoomModule
+    ) as unknown) as SvgPanZoomFactory
 
     // 确保svgPanZoom是一个函数
     if (typeof svgPanZoom !== 'function') {

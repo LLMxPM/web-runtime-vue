@@ -9,13 +9,25 @@ import { nextTick } from 'vue'
 import type { Router } from 'vue-router'
 import { BrowserPrintService } from './BrowserPrintService'
 
-type RouterStub = Pick<Router, 'currentRoute' | 'push'>
+interface RouterStub {
+  currentRoute: {
+    value: {
+      fullPath: string
+      path: string
+    }
+  }
+  push: (route: string) => Promise<void>
+}
 
 const mockRoutes = vi.hoisted(() => ({
-  value: [
-    { path: '/page-2', name: '第二页', pageNumber: 2, level: 0, hidden: false, order: 2 },
-    { path: '/page-1', name: '第一页', pageNumber: 1, level: 0, hidden: false, order: 1 },
-  ],
+  value: [] as Array<{
+    path: string
+    name: string
+    pageNumber?: number
+    level: number
+    hidden: boolean
+    order?: number
+  }>,
 }))
 
 vi.mock('@/core/utils/config', async () => {
@@ -31,7 +43,16 @@ vi.mock('@/core/utils/config', async () => {
 
 vi.mock('@/core/utils/route-generator', async () => {
   return {
-    getRouteInfosSortedByPageNumber: () => [...mockRoutes.value].sort((a, b) => a.pageNumber - b.pageNumber),
+    getRouteInfosSortedByPageNumber: () => {
+      return [...mockRoutes.value]
+        .filter(route => route.pageNumber !== undefined)
+        .sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0))
+    },
+    getVisibleRouteInfos: () => {
+      return [...mockRoutes.value]
+        .filter(route => !route.hidden)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+    },
   }
 })
 
@@ -76,6 +97,10 @@ function stubIframePrint(): ReturnType<typeof vi.fn> {
 beforeEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  mockRoutes.value = [
+    { path: '/page-2', name: '第二页', pageNumber: 2, level: 0, hidden: false, order: 2 },
+    { path: '/page-1', name: '第一页', pageNumber: 1, level: 0, hidden: false, order: 1 },
+  ]
   document.documentElement.style.setProperty('--theme-text-primary', '#123456')
   document.documentElement.style.setProperty('--tw-color-text-primary', '#123456')
   renderCurrentPage('当前页')
@@ -140,6 +165,7 @@ describe('BrowserPrintService', () => {
       currentRoute: {
         value: {
           fullPath: '/origin',
+          path: '/origin',
         },
       },
       push: vi.fn(async (route: string) => {
@@ -164,6 +190,40 @@ describe('BrowserPrintService', () => {
     expect(pages).toHaveLength(2)
     expect(pages[0].textContent).toContain('第一页内容')
     expect(pages[1].textContent).toContain('第二页内容')
+  })
+
+  it('缺少页码目录时应回退到可见路由目录继续收集页面', async () => {
+    stubIframePrint()
+    mockRoutes.value = [
+      { path: '/page-2', name: '第二页', level: 0, hidden: false, order: 2 },
+      { path: '/page-1', name: '第一页', level: 0, hidden: false, order: 1 },
+    ]
+
+    const pushedRoutes: string[] = []
+    const router = {
+      currentRoute: {
+        value: {
+          fullPath: '/origin',
+          path: '/origin',
+        },
+      },
+      push: vi.fn(async (route: string) => {
+        pushedRoutes.push(route)
+        router.currentRoute.value.fullPath = route
+        router.currentRoute.value.path = route
+        renderCurrentPage(route === '/page-1' ? '第一页内容' : '第二页内容', route)
+        await nextTick()
+      }),
+    } satisfies RouterStub
+
+    const service = new BrowserPrintService()
+    service.setRouter(router as unknown as Router)
+
+    const result = await service.printAllPages({ mode: 'all', method: 'browser-print' })
+
+    expect(result.success).toBe(true)
+    expect(result.pageCount).toBe(2)
+    expect(pushedRoutes.slice(0, 2)).toEqual(['/page-1', '/page-2'])
   })
 
   it('应等待目标路由 DOM 渲染完成后再克隆页面', async () => {
@@ -208,10 +268,12 @@ describe('BrowserPrintService', () => {
       currentRoute: {
         value: {
           fullPath: '/origin',
+          path: '/origin',
         },
       },
       push: vi.fn(async (route: string) => {
         router.currentRoute.value.fullPath = route
+        router.currentRoute.value.path = route
         document.body.innerHTML = '<main></main>'
       }),
     } satisfies RouterStub

@@ -28,8 +28,8 @@ type ViewModuleLoader = () => Promise<RuntimeViewModule>
  * 2. 主要用于 NotFound 等兜底页，避免依赖本地示例目录。
  */
 const BUILTIN_VIEW_MODULES = {
-  ...import.meta.glob('@/runtime-shell/fallback/*.vue'),
-  ...import.meta.glob('/src/runtime-shell/fallback/*.vue')
+  ...import.meta.glob<RuntimeViewModule>('@/runtime-shell/fallback/*.vue'),
+  ...import.meta.glob<RuntimeViewModule>('/src/runtime-shell/fallback/*.vue')
 } satisfies Record<string, ViewModuleLoader>
 
 const NOT_FOUND_FALLBACK_KEYS = [
@@ -152,7 +152,7 @@ export async function importViewModule(viewPath: string): Promise<RuntimeViewMod
       normalizedPath,
       previewToken,
     )
-    return import(/* @vite-ignore */ remoteModuleId)
+    return import(/* @vite-ignore */ remoteModuleId) as Promise<RuntimeViewModule>
   }
 
   const builtinLoader = resolveBuiltinViewModuleLoader(aliasPath)
@@ -236,11 +236,11 @@ function resolveBuildReleaseViewModuleLoader(
 
   const directLoader = BUILD_RELEASE_VIEW_MODULES[aliasPath]
   if (directLoader) {
-    return directLoader as ViewModuleLoader
+    return directLoader
   }
 
   const srcPath = aliasPath.replace('@/', '/src/')
-  return (BUILD_RELEASE_VIEW_MODULES[srcPath] as ViewModuleLoader | undefined) || null
+  return BUILD_RELEASE_VIEW_MODULES[srcPath] || null
 }
 
 /**
