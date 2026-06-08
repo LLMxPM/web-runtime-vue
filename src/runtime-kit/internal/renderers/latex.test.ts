@@ -41,6 +41,20 @@ describe('latex renderer helpers', () => {
     })
   })
 
+  it('应忽略 TeX 纯注释并保留转义百分号', async () => {
+    expect(splitLatexSource('% 子层结构：说明文字不是公式')).toEqual([])
+    expect(await renderLatexToString('% 子层结构：说明文字不是公式')).toBe('')
+
+    expect(normalizeLatexSource(String.raw`x + y % 行尾注释`)).toEqual({
+      source: 'x + y',
+      displayMode: false,
+    })
+    expect(normalizeLatexSource(String.raw`\%`)).toEqual({
+      source: String.raw`\%`,
+      displayMode: false,
+    })
+  })
+
   it('应自动切分并渲染多个方括号块级公式', async () => {
     const source = String.raw`\[
 \partial_x \partial_y \left[

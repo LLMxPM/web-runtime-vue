@@ -96,6 +96,11 @@ export class PPTXDomConverterMedia {
     const sourceType = this.resolveMediaSourceType(element)
     const label = this.layout.buildElementLabel(element)
 
+    if (sourceType === 'formula') {
+      await this.addFormulaSvgBlocks(host, element, label, context)
+      return
+    }
+
     if (this.isSvgBasedSource(sourceType, element)) {
       const svg = this.findRenderableSvg(element)
       if (svg) {
@@ -256,6 +261,33 @@ export class PPTXDomConverterMedia {
       undefined,
       exportPayload.boxOverride,
     )
+  }
+
+  /**
+   * 逐个导出 MathJax 生成的公式 SVG，避免多段公式只保留首段。
+   * @param host 导出宿主能力
+   * @param element LaTeX viewer 根元素
+   * @param label 对象摘要
+   * @param context 当前组合上下文
+   */
+  private async addFormulaSvgBlocks(
+    host: PptxDomMediaExportHost,
+    element: Element,
+    label: string,
+    context: VisitContext,
+  ): Promise<void> {
+    const svgs = this.findRenderableSvgs(element)
+    if (svgs.length === 0) {
+      await this.addScreenshotBlock(host, element, 'formula', '未找到可序列化 SVG，降级为局部截图', context)
+      return
+    }
+
+    for (const svg of svgs) {
+      if (await this.addUnsupportedSvgScreenshot(host, element, svg, 'formula', context, PPT_UNSAFE_SVG_REASON)) {
+        continue
+      }
+      await this.addSvgBlock(host, svg, svg, 'formula', label, context)
+    }
   }
 
   /**
@@ -793,6 +825,18 @@ export class PPTXDomConverterMedia {
       return element
     }
     return element.querySelector?.('svg') as SVGSVGElement | null
+  }
+
+  /**
+   * 查找元素内全部可序列化 SVG。
+   * @param element 源元素
+   */
+  private findRenderableSvgs(element: Element): SVGSVGElement[] {
+    if (element instanceof SVGSVGElement) {
+      return [element]
+    }
+    return Array.from(element.querySelectorAll?.('svg') ?? [])
+      .filter((svg): svg is SVGSVGElement => svg instanceof SVGSVGElement)
   }
 
   /**

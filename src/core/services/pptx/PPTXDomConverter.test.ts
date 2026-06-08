@@ -1009,6 +1009,58 @@ describe('PPTXDomConverter', () => {
     expect(imageOptions.h).toBeCloseTo(40 * (7.5 / 1080), 4)
   })
 
+  it('应导出 LaTeX viewer 中的全部 MathJax SVG，而不是只导出第一段公式', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section class="latex-viewer" style="width: 640px; height: 420px;">
+          <div class="latex-viewer__content">
+            <mjx-container><svg id="formula-a" viewBox="0 0 300 48"></svg></mjx-container>
+            <mjx-container><svg id="formula-b" viewBox="0 0 280 48"></svg></mjx-container>
+            <mjx-container><svg id="formula-c" viewBox="0 0 320 48"></svg></mjx-container>
+          </div>
+        </section>
+      </div>
+    `
+
+    const pageElement = document.getElementById('page') as HTMLElement
+    const viewerElement = document.querySelector('.latex-viewer') as HTMLElement
+    const svgElements = Array.from(viewerElement.querySelectorAll('svg')) as SVGSVGElement[]
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+
+    vi.spyOn(pageElement, 'getBoundingClientRect').mockReturnValue(createRect(0, 0, 1920, 1080))
+    vi.spyOn(viewerElement, 'getBoundingClientRect').mockReturnValue(createRect(120, 160, 640, 420))
+    vi.spyOn(svgElements[0], 'getBoundingClientRect').mockReturnValue(createRect(180, 190, 300, 48))
+    vi.spyOn(svgElements[1], 'getBoundingClientRect').mockReturnValue(createRect(190, 260, 280, 48))
+    vi.spyOn(svgElements[2], 'getBoundingClientRect').mockReturnValue(createRect(170, 330, 320, 48))
+
+    const report = await convert(slide)
+    const imageCalls = slide.addImage.mock.calls.map(call => call[0] as {
+      x: number
+      y: number
+      w: number
+      h: number
+      data: string
+    })
+    const inchPerPx = 13.333 / 1920
+
+    expect(imageCalls).toHaveLength(3)
+    expect(imageCalls.every(options => /^data:image\/svg\+xml;base64,/.test(options.data))).toBe(true)
+    expect(imageCalls.map(options => Math.round(options.y / (7.5 / 1080)))).toEqual([190, 260, 330])
+    expect(imageCalls.map(options => Math.round(options.w / inchPerPx))).toEqual([300, 280, 320])
+    expect(report.items.filter(item => item.sourceType === 'formula' && item.result === 'svg')).toHaveLength(3)
+  })
+
   it('应跳过 Connector 的 marker path，并按真实连线路径紧边界导出', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `

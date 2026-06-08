@@ -17,6 +17,7 @@ export type MathStrictMode = boolean | 'ignore' | 'warn' | 'error'
 const BLOCK_ENVIRONMENT_RE = /^\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|multline|multline\*)\}/
 const LATEX_SEGMENT_RE = /(\\begin\{(equation\*?|align\*?|gather\*?|multline\*?)\}[\s\S]*?\\end\{\2\})|\\\[([\s\S]*?)\\\]|\$\$([\s\S]*?)\$\$|\\\(([\s\S]*?)\\\)|(?<!\\)\$(?!\$)([\s\S]*?)(?<!\\)\$/g
 const ONLY_LINEBREAKS_RE = /^(?:\\\\\s*)+$/
+const LATEX_COMMENT_RE = /(?<!\\)%.*$/
 
 export const DEFAULT_LATEX_MACROS: Record<string, string> = {
   dif: '\\mathop{}\\!\\mathrm{d}',
@@ -111,13 +112,27 @@ const htmlDocument = mathjax.document(typeof document === 'undefined' ? '' : doc
 })
 
 /**
+ * 移除未转义百分号引出的 TeX 行注释，避免纯注释资源生成空 SVG。
+ *
+ * @param rawSource 原始公式源码
+ * @returns 去除注释后的公式源码
+ */
+function stripLatexComments(rawSource: string): string {
+  return rawSource
+    .split(/\r?\n/)
+    .map(line => line.replace(LATEX_COMMENT_RE, '').trimEnd())
+    .join('\n')
+    .trim()
+}
+
+/**
  * 去除用户常输入的外层数学定界符，并记录是否需要块级显示。
  *
  * @param rawSource 原始公式源码
  * @returns 规范化源码和显示模式推断结果
  */
 export function normalizeLatexSource(rawSource: string): NormalizedLatexSource {
-  const source = rawSource.trim()
+  const source = stripLatexComments(rawSource)
   if (!source) {
     return { source: '', displayMode: false }
   }
@@ -145,7 +160,7 @@ export function normalizeLatexSource(rawSource: string): NormalizedLatexSource {
  * @returns 按出现顺序排列的公式片段
  */
 export function splitLatexSource(rawSource: string): LatexSourceSegment[] {
-  const source = rawSource.trim()
+  const source = stripLatexComments(rawSource)
   if (!source) {
     return []
   }
