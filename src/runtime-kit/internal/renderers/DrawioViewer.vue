@@ -14,6 +14,8 @@
       },
     ]"
     :style="containerStyle"
+    :data-runtime-drawio-state="drawioState"
+    :data-runtime-drawio-message="drawioStateMessage"
     @pointerdown.capture="suppressGraphViewerNativeEvent"
     @mousedown.capture="suppressGraphViewerNativeEvent"
     @touchstart.capture="suppressGraphViewerNativeEvent"
@@ -82,6 +84,8 @@ interface DiagramBounds {
   height: number
 }
 
+type DrawioRenderState = 'loading' | 'ready' | 'error'
+
 const props = withDefaults(defineProps<Props>(), {
   src: '',
   content: '',
@@ -89,9 +93,18 @@ const props = withDefaults(defineProps<Props>(), {
   highlightColor: 'var(--tw-color-accent1)',
 })
 
+/**
+ * 判断当前组件是否声明了需要渲染的 Draw.io 来源。
+ *
+ * @returns 存在 src 或 content 时返回 true
+ */
+const hasDiagramSource = (): boolean => Boolean(props.content.trim() || props.src.trim())
+
 // 响应式状态
-const loading = ref(false)
+const loading = ref(hasDiagramSource())
 const error = ref<string | null>(null)
+const drawioState = ref<DrawioRenderState>(hasDiagramSource() ? 'loading' : 'ready')
+const drawioStateMessage = ref('')
 const viewerRoot = ref<HTMLElement | null>(null)
 const diagramContainer = ref<HTMLElement | null>(null)
 const previewContainer = ref<HTMLElement | null>(null)
@@ -106,6 +119,7 @@ let currentG: SVGGElement | null = null
 let resizeObserver: ResizeObserver | null = null
 let zoomTimer: number | null = null
 let previewEscHandler: ((event: KeyboardEvent) => void) | null = null
+let renderGeneration = 0
 
 // CDN 配置
 const GRAPH_VIEWER_CDN = 'https://viewer.diagrams.net/js/viewer.min.js'
@@ -114,6 +128,63 @@ const MIN_INTRINSIC_HEIGHT = 200
 const MAX_INTRINSIC_HEIGHT = 960
 const MAX_ZOOM_RETRIES = 30
 const INTRINSIC_HEIGHT_RELEASE_RATIO = 1.25
+
+/**
+ * 标记一次新的 Draw.io 渲染流程，并返回本次流程令牌。
+ *
+ * @returns 渲染流程令牌
+ */
+const beginDrawioRender = (): number => {
+  renderGeneration += 1
+  drawioState.value = 'loading'
+  drawioStateMessage.value = ''
+  currentSvg = null
+  currentG = null
+  hasPreviewContent.value = false
+  return renderGeneration
+}
+
+/**
+ * 标记 Draw.io 渲染失败。
+ *
+ * @param message 失败原因
+ * @param token 渲染流程令牌
+ */
+const markDrawioError = (message: string, token = renderGeneration): void => {
+  if (token !== renderGeneration) return
+  drawioState.value = 'error'
+  drawioStateMessage.value = message
+  error.value = message
+  loading.value = false
+}
+
+/**
+ * 标记 Draw.io 已完成 SVG 输出与缩放，并额外等待两帧确保浏览器完成绘制。
+ *
+ * @param token 渲染流程令牌
+ */
+const markDrawioReady = async (token: number): Promise<void> => {
+  await waitForAnimationFrame()
+  await waitForAnimationFrame()
+  if (token !== renderGeneration) return
+  if (!isManualZoomStillValid()) {
+    scheduleManualZoom(100, 0, token)
+    return
+  }
+  drawioState.value = 'ready'
+  drawioStateMessage.value = ''
+}
+
+/**
+ * 等待一个浏览器绘制帧；测试环境缺少 requestAnimationFrame 时回退到 timeout。
+ */
+const waitForAnimationFrame = (): Promise<void> => new Promise((resolve) => {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => resolve())
+    return
+  }
+  window.setTimeout(resolve, 16)
+})
 
 /**
  * 动态加载 GraphViewer 脚本
@@ -368,7 +439,7 @@ const disableGraphViewerInteractions = (): void => {
  *
  * @returns 是否已成功完成缩放
  */
-const applyManualZoom = (): boolean => {
+const applyManualZoom = (renderToken = renderGeneration): boolean => {
   const svgElement = diagramContainer.value?.querySelector('svg') as SVGSVGElement | null
   if (!svgElement) return false
 
@@ -383,7 +454,7 @@ const applyManualZoom = (): boolean => {
   if (!bbox.width || !bbox.height) return false
 
   if (updateIntrinsicHeight(bbox)) {
-    nextTick(() => scheduleManualZoom(0))
+    nextTick(() => scheduleManualZoom(0, 0, renderToken))
     return false
   }
 
@@ -421,12 +492,30 @@ const applyManualZoom = (): boolean => {
 }
 
 /**
+ * 复验当前 Draw.io SVG 是否仍在容器内且保持可截图尺寸。
+ *
+ * @returns SVG、G 节点和容器尺寸都有效时返回 true
+ */
+const isManualZoomStillValid = (): boolean => {
+  const container = diagramContainer.value
+  if (!container) return false
+
+  const svgElement = container.querySelector('svg') as SVGSVGElement | null
+  const gElement = svgElement?.querySelector('g') as SVGGElement | null
+  if (!svgElement || !gElement) return false
+
+  return container.clientWidth >= MIN_RENDER_SIZE
+    && container.clientHeight >= MIN_RENDER_SIZE
+    && Boolean(gElement.getAttribute('transform'))
+}
+
+/**
  * 延迟并重试缩放，兼容 GraphViewer 异步插入 SVG 和父级延迟布局。
  *
  * @param delay 延迟毫秒数
  * @param retryCount 当前重试次数
  */
-const scheduleManualZoom = (delay = 80, retryCount = 0) => {
+const scheduleManualZoom = (delay = 80, retryCount = 0, renderToken = renderGeneration) => {
   if (zoomTimer !== null) {
     window.clearTimeout(zoomTimer)
     zoomTimer = null
@@ -434,10 +523,17 @@ const scheduleManualZoom = (delay = 80, retryCount = 0) => {
 
   zoomTimer = window.setTimeout(() => {
     zoomTimer = null
-    const applied = applyManualZoom()
-    if (!applied && retryCount < MAX_ZOOM_RETRIES) {
-      scheduleManualZoom(100, retryCount + 1)
+    if (renderToken !== renderGeneration) return
+    const applied = applyManualZoom(renderToken)
+    if (applied) {
+      void markDrawioReady(renderToken)
+      return
     }
+    if (!applied && retryCount < MAX_ZOOM_RETRIES) {
+      scheduleManualZoom(100, retryCount + 1, renderToken)
+      return
+    }
+    markDrawioError('Draw.io 图表未在限定时间内完成渲染。', renderToken)
   }, delay)
 }
 
@@ -445,7 +541,7 @@ const scheduleManualZoom = (delay = 80, retryCount = 0) => {
  * 窗口大小变化时重新缩放
  */
 const handleResize = () => {
-  if (currentSvg && currentG) scheduleManualZoom(0)
+  if (currentSvg && currentG) scheduleManualZoom(0, 0, renderGeneration)
 }
 
 /**
@@ -579,6 +675,7 @@ const closePreview = (): void => {
  */
 const renderDiagramContent = async (xmlContent: string) => {
   if (!xmlContent.trim()) return
+  const renderToken = beginDrawioRender()
   loading.value = true
   error.value = null
 
@@ -620,15 +717,14 @@ const renderDiagramContent = async (xmlContent: string) => {
     if (window.GraphViewer) {
       window.GraphViewer.processElements()
       // GraphViewer 会异步插入 SVG，需等待实际输出后再适配容器。
-      scheduleManualZoom(100)
+      scheduleManualZoom(100, 0, renderToken)
     } else {
       throw new Error('GraphViewer not initialized')
     }
 
     loading.value = false
   } catch (err) {
-    loading.value = false
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    markDrawioError(err instanceof Error ? err.message : 'Unknown error', renderToken)
     console.error('DrawioViewer: Failed to load diagram', err)
   }
 }
@@ -641,6 +737,7 @@ const renderDiagramContent = async (xmlContent: string) => {
 const loadDiagram = async (src: string) => {
   if (!src) return
 
+  const renderToken = beginDrawioRender()
   loading.value = true
   error.value = null
   try {
@@ -651,8 +748,7 @@ const loadDiagram = async (src: string) => {
     }
     await renderDiagramContent(await response.text())
   } catch (err) {
-    loading.value = false
-    error.value = err instanceof Error ? err.message : 'Unknown error'
+    markDrawioError(err instanceof Error ? err.message : 'Unknown error', renderToken)
     console.error('DrawioViewer: Failed to load diagram', err)
   }
 }
@@ -663,11 +759,13 @@ const loadDiagram = async (src: string) => {
 const reloadDiagram = async () => {
   const directContent = props.content.trim()
   if (directContent) {
+    beginDrawioRender()
     await nextTick()
     await renderDiagramContent(directContent)
     return
   }
   if (props.src) {
+    beginDrawioRender()
     await nextTick()
     await loadDiagram(props.src)
     return
@@ -679,12 +777,15 @@ const reloadDiagram = async () => {
  * 清空当前图表 DOM 和状态。
  */
 const clearDiagram = () => {
+  renderGeneration += 1
   if (diagramContainer.value) diagramContainer.value.innerHTML = ''
   sourceContentBounds.value = null
   hasPreviewContent.value = false
   closePreview()
   error.value = null
   loading.value = false
+  drawioState.value = 'ready'
+  drawioStateMessage.value = ''
 }
 
 // 监听内容来源变化
@@ -709,7 +810,7 @@ onMounted(async () => {
   try {
     await loadGraphViewerScript()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'CDN viewer.min.js 加载失败'
+    markDrawioError(e instanceof Error ? e.message : 'CDN viewer.min.js 加载失败')
   }
 
   await reloadDiagram()

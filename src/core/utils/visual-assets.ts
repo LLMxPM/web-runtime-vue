@@ -9,7 +9,7 @@ export interface EditorVisualAssetWaitOptions {
 
 export interface EditorVisualAssetIssue {
   /** 资源类型，用于 Backend 压缩错误详情。 */
-  type: 'view-preview' | 'image' | 'background' | 'font'
+  type: 'view-preview' | 'drawio' | 'image' | 'background' | 'font'
   /** 资源地址；非 URL 类问题可为空。 */
   url?: string
   /** 面向诊断的简短信息。 */
@@ -44,6 +44,7 @@ type TaskStatus = 'pending' | 'loaded' | 'failed'
 
 const DEFAULT_VISUAL_READY_TIMEOUT_MS = 25000
 const VIEW_PREVIEW_STATE_SELECTOR = '[data-runtime-view-preview-state]'
+const DRAWIO_STATE_SELECTOR = '[data-runtime-drawio-state]'
 
 /**
  * 注册浏览器全局截图资源等待函数，供 Backend Playwright 截图前调用。
@@ -76,6 +77,11 @@ export async function waitForEditorVisualAssets(
   pending.push(...viewPreviewResult.pending)
   timedOut = timedOut || viewPreviewResult.timedOut
 
+  const drawioResult = await waitForDrawioReady(deadlineAt)
+  failed.push(...drawioResult.failed)
+  pending.push(...drawioResult.pending)
+  timedOut = timedOut || drawioResult.timedOut
+
   const tasks = collectVisualAssetTasks(document)
   const taskResult = await waitForTasks(tasks, deadlineAt)
   failed.push(...taskResult.failed)
@@ -93,8 +99,8 @@ export async function waitForEditorVisualAssets(
   return {
     ok: failed.length === 0 && pending.length === 0 && !timedOut,
     timedOut,
-    total: tasks.length,
-    loaded: taskResult.loaded,
+    total: tasks.length + drawioResult.total,
+    loaded: taskResult.loaded + drawioResult.loaded,
     failed,
     pending,
     waitedMs: Date.now() - startedAt,
@@ -156,6 +162,69 @@ async function waitForViewPreviewReady(deadlineAt: number): Promise<{
       message: '单页预览组件加载超时。',
     }],
     timedOut: true,
+  }
+}
+
+/**
+ * 等待 Draw.io 图表完成 SVG 输出与缩放。
+ * @param deadlineAt 截止时间戳
+ * @returns 等待结果
+ */
+async function waitForDrawioReady(deadlineAt: number): Promise<{
+  total: number
+  loaded: number
+  failed: EditorVisualAssetIssue[]
+  pending: EditorVisualAssetIssue[]
+  timedOut: boolean
+}> {
+  let latestElements: HTMLElement[] = []
+  while (Date.now() <= deadlineAt) {
+    latestElements = Array.from(document.querySelectorAll<HTMLElement>(DRAWIO_STATE_SELECTOR))
+    if (latestElements.length === 0) {
+      return { total: 0, loaded: 0, failed: [], pending: [], timedOut: false }
+    }
+
+    const failedElement = latestElements.find(element => element.dataset.runtimeDrawioState === 'error')
+    if (failedElement) {
+      return {
+        total: latestElements.length,
+        loaded: latestElements.filter(element => element.dataset.runtimeDrawioState === 'ready').length,
+        failed: [{
+          type: 'drawio',
+          message: failedElement.dataset.runtimeDrawioMessage || 'Draw.io 图表渲染失败。',
+        }],
+        pending: [],
+        timedOut: false,
+      }
+    }
+
+    if (latestElements.every(element => element.dataset.runtimeDrawioState === 'ready')) {
+      return {
+        total: latestElements.length,
+        loaded: latestElements.length,
+        failed: [],
+        pending: [],
+        timedOut: false,
+      }
+    }
+
+    await sleep(Math.min(50, Math.max(0, deadlineAt - Date.now())))
+  }
+
+  const elements = latestElements.length > 0
+    ? latestElements
+    : Array.from(document.querySelectorAll<HTMLElement>(DRAWIO_STATE_SELECTOR))
+  return {
+    total: elements.length,
+    loaded: elements.filter(element => element.dataset.runtimeDrawioState === 'ready').length,
+    failed: [],
+    pending: elements
+      .filter(element => element.dataset.runtimeDrawioState !== 'ready')
+      .map((element): EditorVisualAssetIssue => ({
+        type: 'drawio',
+        message: element.dataset.runtimeDrawioMessage || 'Draw.io 图表渲染超时。',
+      })),
+    timedOut: elements.some(element => element.dataset.runtimeDrawioState !== 'ready'),
   }
 }
 

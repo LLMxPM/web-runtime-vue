@@ -129,6 +129,45 @@ describe('visual asset readiness probe', () => {
     expect(result.pending).toHaveLength(0)
   })
 
+  it('应等待 Draw.io 图表状态从 loading 变为 ready', async () => {
+    document.body.innerHTML = '<div id="drawio" data-runtime-drawio-state="loading"></div>'
+    const drawio = document.querySelector<HTMLElement>('#drawio')!
+    window.setTimeout(() => {
+      drawio.dataset.runtimeDrawioState = 'ready'
+    }, 0)
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 100 })
+
+    expect(result.ok).toBe(true)
+    expect(result.total).toBe(1)
+    expect(result.loaded).toBe(1)
+  })
+
+  it('应把未完成的 Draw.io 图表标记为超时 pending', async () => {
+    document.body.innerHTML = '<div data-runtime-drawio-state="loading" data-runtime-drawio-message="渲染中"></div>'
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 20 })
+
+    expect(result.ok).toBe(false)
+    expect(result.timedOut).toBe(true)
+    expect(result.pending[0]).toMatchObject({
+      type: 'drawio',
+      message: '渲染中',
+    })
+  })
+
+  it('应把 Draw.io 渲染错误标记为 failed', async () => {
+    document.body.innerHTML = '<div data-runtime-drawio-state="error" data-runtime-drawio-message="SVG 生成失败"></div>'
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 100 })
+
+    expect(result.ok).toBe(false)
+    expect(result.failed[0]).toMatchObject({
+      type: 'drawio',
+      message: 'SVG 生成失败',
+    })
+  })
+
   it('应注册全局视觉资源等待函数', () => {
     registerEditorVisualAssetProbe()
 

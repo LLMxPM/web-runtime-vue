@@ -43,6 +43,23 @@ afterEach(() => {
 })
 
 describe('DrawioViewer', () => {
+  it('有 Draw.io 来源但 GraphViewer 尚未输出 SVG 时初始状态应为 loading', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(DrawioViewer, {
+      src: '/slow.drawio',
+      height: 240,
+    })
+    app.mount(host)
+    await nextTick()
+
+    expect(host.querySelector<HTMLElement>('.drawio-viewer')?.dataset.runtimeDrawioState).toBe('loading')
+
+    app.unmount()
+    host.remove()
+  })
+
   it('传入 content 时应直接渲染 XML 而不请求 src', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     window.GraphViewer = {
@@ -64,6 +81,16 @@ describe('DrawioViewer', () => {
       }) as DOMRect),
       configurable: true,
     })
+    const widthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function getClientWidth() {
+      if ((this as HTMLElement).classList?.contains('drawio-viewer')) return 400
+      if ((this as HTMLElement).classList?.contains('drawio-viewer__container')) return 400
+      return 400
+    })
+    const heightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function getClientHeight() {
+      if ((this as HTMLElement).classList?.contains('drawio-viewer')) return 240
+      if ((this as HTMLElement).classList?.contains('drawio-viewer__container')) return 240
+      return 240
+    })
 
     const host = document.createElement('div')
     document.body.appendChild(host)
@@ -79,10 +106,13 @@ describe('DrawioViewer', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(host.querySelector<SVGSVGElement>('.drawio-viewer svg')).not.toBeNull()
+    expect(host.querySelector<HTMLElement>('.drawio-viewer')?.dataset.runtimeDrawioState).toBe('ready')
 
     app.unmount()
     host.remove()
     fetchSpy.mockRestore()
+    widthSpy.mockRestore()
+    heightSpy.mockRestore()
   })
 
   it('父级没有明确高度且使用百分比高度时，应按图表比例补充可渲染高度', async () => {
