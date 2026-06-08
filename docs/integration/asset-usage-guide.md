@@ -24,7 +24,7 @@ Backend 创建 artifact 时应在资源元数据中提供 `asset_metadata[name].
 
 如果需要自定义 DOM 或 CSS 结构，使用 `useAssetSrc`、`useAssetBackground`、`useAssetFontFamily` 或 `resolveResourcePath` 取得运行时资源引用，再由页面源码自行组织样式。
 
-资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。
+资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容始终位于该边框内；框内显示效果通过 `fit` 和 `position` 控制。
 
 ## 3. 显式资源组件
 
@@ -38,7 +38,7 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero" alt="产品主图" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -47,6 +47,9 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 - `name`：资源逻辑名，必填。
 - `alt`：图片替代文本。
 - `fallback`：资源未命中时使用的兜底 URL。
+- `class`：外层图片框样式，使用 Tailwind 控制边框、圆角、尺寸、内边距、背景和裁剪。
+- `fit`：图片在边框框体内的填充方式，常用 `contain` 展示完整图片，`cover` 填满并裁切。
+- `position`：图片在边框框体内的位置，例如 `center`、`top` 或 `50% 40%`。
 
 失败表现：资源名为空或未命中时，使用 `fallback`；没有 fallback 时显示占位或 fallback slot。
 

@@ -15,13 +15,13 @@
         "previewable": true,
         "recommendation_level": "default",
         "display_name": "图片资源渲染",
-        "summary": "渲染 render_type=image 的工作空间图片资源，资源 URL 由 Runtime 上下文解析。",
+        "summary": "渲染 render_type=image 的工作空间图片资源，图片始终显示在组件边框框体内，资源 URL 由 Runtime 上下文解析。",
         "tags": [
           "image"
         ],
         "usage": [
           "import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'",
-          "<AssetImage name=\"product-hero\" alt=\"产品主图\" class=\"w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
+          "<AssetImage name=\"product-hero\" alt=\"产品主图\" fit=\"contain\" position=\"center\" class=\"w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 img 或图片占位内容。",
         "return_example": [
@@ -30,7 +30,9 @@
         "constraints": [
           "适用于 asset_metadata.render_type=image 的资源。",
           "Backend/Agent 应根据资源元数据显式选择该组件，不再通过 AssetRenderer 自动分发。",
-          "资源名应为 manifest.assets 中的逻辑名；无法渲染时展示兜底文案。"
+          "资源名应为 manifest.assets 中的逻辑名；无法渲染时展示兜底文案。",
+          "AssetImage 的 class 作用于外层图片框，边框、圆角、宽高、内边距、背景和裁剪都通过完整静态 Tailwind 类控制。",
+          "图片内容位于该边框框体内，使用 fit 控制 object-fit（contain/cover/fill/none），使用 position 控制 object-position；不要通过额外包裹层或内联 style 改边框尺寸。"
         ],
         "audiences": [
           "backend",
@@ -61,12 +63,13 @@
             "class": {
               "type": "string",
               "label": "Tailwind 类",
-              "description": "唯一的容器样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如：w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "description": "外层图片框的唯一样式入口。使用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪；图片本身会在这个边框框体内显示，框内缩放和裁切不要写在 class 里，而应使用 fit 与 position。例如：w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
               "default": "w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "fit": {
               "type": "select",
-              "label": "填充方式",
+              "label": "框内填充方式",
+              "description": "控制图片在边框框体内的 object-fit：contain 保留完整图片，cover 填满框体并允许裁切，fill 拉伸填满，none 使用原始尺寸。",
               "default": "contain",
               "options": [
                 {
@@ -89,7 +92,8 @@
             },
             "position": {
               "type": "string",
-              "label": "图片位置",
+              "label": "框内图片位置",
+              "description": "控制图片在边框框体内的 object-position，例如 center、top、bottom、left、right 或 50% 40%。",
               "default": "center"
             }
           },

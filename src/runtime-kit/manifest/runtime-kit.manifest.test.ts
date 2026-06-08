@@ -200,6 +200,9 @@ describe('runtime kit manifest', () => {
     expect(assetImageProps.fallback.agent_visible).toBe(false)
     expect(assetImageProps.class.default).toBe(assetImageClass)
     expect(assetImageProps.class.description).toContain('完整静态 Tailwind 类')
+    expect(assetImageProps.class.description).toContain('外层图片框')
+    expect(assetImageProps.fit.description).toContain('边框框体内')
+    expect(assetImageProps.position.description).toContain('object-position')
     expect(assetImageProps).not.toHaveProperty('showFallbackPlaceholder')
     expect(getPresetKeys('AssetImage')).toEqual(expect.arrayContaining(['contain-preview', 'cover-banner']))
 
