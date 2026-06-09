@@ -718,6 +718,63 @@ describe('PPTXDomConverter', () => {
     expect(Number(codeOptions.x)).toBeGreaterThan(Number(spanOptions.x))
   })
 
+  it('不应把 flex 容器里的 absolute 顶部装饰条重算到页面中间', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div
+          class="relative h-full w-full bg-background flex flex-col items-center justify-center"
+          style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 1920px; height: 1080px; background: #ffffff;"
+        >
+          <div
+            class="absolute top-0 left-0 right-0 h-2 bg-background-invert"
+            style="position: absolute; top: 0; left: 0; width: 1920px; height: 8px; background: #111827;"
+          ></div>
+          <div style="width: 360px; height: 96px;">
+            <h1 style="width: 360px; height: 56px; font-size: 32px; color: #0f172a;">Attention Is All You Need</h1>
+          </div>
+          <div
+            class="absolute bottom-0 left-0 right-0 h-2 bg-background-invert"
+            style="position: absolute; left: 0; bottom: 0; width: 1920px; height: 8px; background: #111827;"
+          ></div>
+        </div>
+      </div>
+    `
+
+    await convert(slide)
+    const stripCalls = slide.addShape.mock.calls.filter(([, options]) => {
+      const fill = (options as { fill?: { color?: unknown } }).fill
+      return fill?.color === '111827'
+    })
+    const topStripOptions = stripCalls[0]?.[1] as Record<string, unknown>
+
+    expect(stripCalls.length).toBeGreaterThanOrEqual(2)
+    expect(Number(topStripOptions.y)).toBeCloseTo(0, 4)
+    expect(Number(topStripOptions.h)).toBeCloseTo((8 / 1080) * 7.5, 4)
+  })
+
+  it('absolute 子元素不应参与 flex 子项分布兜底计算', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div class="flex items-center justify-between" style="display: flex; align-items: center; justify-content: space-between; position: relative; width: 500px; height: 60px;">
+          <div style="position: absolute; left: 0; top: 0; width: 500px; height: 8px; background: #111827;"></div>
+          <span style="display: block; width: 120px; height: 24px; color: #0f172a; font-size: 16px;">左侧</span>
+          <code style="display: block; width: 80px; height: 20px; color: #2563eb; font-size: 12px;">右侧</code>
+        </div>
+      </div>
+    `
+
+    await convert(slide)
+    const leftOptions = slide.addText.mock.calls.find(([text]) => text === '左侧')?.[1] as Record<string, unknown>
+    const rightOptions = slide.addText.mock.calls.find(([text]) => text === '右侧')?.[1] as Record<string, unknown>
+    const expectedRightX = (420 / 1920) * 13.333
+
+    expect(Number(leftOptions.x)).toBeCloseTo(0, 4)
+    expect(Number(rightOptions.x)).toBeCloseTo(expectedRightX, 4)
+    expect(Number(rightOptions.x)).toBeGreaterThan(Number(leftOptions.x))
+  })
+
   it('应将圆角徽标导出为带文本和内边距的 PPT 形状', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `

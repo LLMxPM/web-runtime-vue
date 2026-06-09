@@ -346,6 +346,9 @@ export class PPTXDomConverterLayout {
     if (!(element instanceof HTMLElement) || !element.parentElement) {
       return rawBox
     }
+    if (this.isOutOfFlowPositionedElement(element)) {
+      return rawBox
+    }
 
     const parent = element.parentElement
     const parentStyle = window.getComputedStyle(parent)
@@ -354,7 +357,9 @@ export class PPTXDomConverterLayout {
     }
 
     const items = Array.from(parent.children).filter((child): child is HTMLElement => {
-      return child instanceof HTMLElement && this.isRawVisibleElement(child)
+      return child instanceof HTMLElement &&
+        !this.isOutOfFlowPositionedElement(child) &&
+        this.isRawVisibleElement(child)
     })
     const itemIndex = items.indexOf(element)
     if (itemIndex < 0) {
@@ -419,6 +424,15 @@ export class PPTXDomConverterLayout {
       nextBox.top = expectedTop
     }
     return nextBox
+  }
+
+  /**
+   * 判断元素是否脱离普通文档流，避免 flex 兜底错误重算绝对定位坐标。
+   * @param element 候选元素
+   */
+  private isOutOfFlowPositionedElement(element: HTMLElement): boolean {
+    const position = window.getComputedStyle(element).position
+    return position === 'absolute' || position === 'fixed'
   }
 
   /**
