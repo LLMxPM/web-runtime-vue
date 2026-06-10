@@ -432,6 +432,7 @@ const pptxReportSummaryItems = computed(() => {
   return [
     { label: '可编辑文本', value: summary.editableText },
     { label: '可编辑形状', value: summary.editableShape },
+    { label: '可编辑表格', value: summary.editableTable },
     { label: '图片块', value: summary.imageBlock },
     { label: 'SVG块', value: summary.svgBlock },
     { label: '截图降级', value: summary.screenshotBlock },
@@ -656,6 +657,7 @@ function getPptxSourceLabel(sourceType: PptxReportSourceType): string {
     body: '正文',
     number: '关键数字',
     shape: '形状',
+    table: '表格',
     image: '图片',
     svg: 'SVG',
     mermaid: 'Mermaid',
@@ -678,6 +680,7 @@ function getPptxResultLabel(result: PptxReportItemResult): string {
   const labels: Record<PptxReportItemResult, string> = {
     'editable-text': '可编辑文本',
     'editable-shape': '可编辑形状',
+    'editable-table': '可编辑表格',
     image: '图片块',
     svg: 'SVG块',
     screenshot: '截图块',

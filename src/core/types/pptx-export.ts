@@ -9,6 +9,7 @@ export type PptxExportMethod = 'pptx-editable'
 export type PptxReportItemResult =
   | 'editable-text'
   | 'editable-shape'
+  | 'editable-table'
   | 'image'
   | 'svg'
   | 'screenshot'
@@ -19,6 +20,7 @@ export type PptxReportSourceType =
   | 'body'
   | 'number'
   | 'shape'
+  | 'table'
   | 'image'
   | 'svg'
   | 'mermaid'
@@ -44,6 +46,8 @@ export interface PptxExportReportSummary {
   editableText: number
   /** 可编辑形状对象数量 */
   editableShape: number
+  /** 可编辑表格对象数量 */
+  editableTable: number
   /** 普通图片块数量 */
   imageBlock: number
   /** SVG 图片块数量 */

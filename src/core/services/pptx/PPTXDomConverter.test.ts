@@ -57,6 +57,145 @@ describe('PPTXDomConverter', () => {
     expect(report.items.map(item => item.sourceType)).toEqual(expect.arrayContaining(['title', 'body', 'number', 'shape']))
   })
 
+  it('应将 Runtime Kit 表格导出为 PPT 原生可编辑表格', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <div
+          data-runtime-kit-table="v1"
+          role="table"
+          aria-rowcount="2"
+          aria-colcount="2"
+          style="position: absolute; left: 100px; top: 80px; width: 400px; height: 160px; font-size: 16px;"
+        >
+          <div role="row" style="display: contents;">
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="0"
+              data-column-index="0"
+              role="columnheader"
+              style="width: 140px; height: 64px; color: #0f172a; background: #f1f5f9; font-weight: 600; padding: 8px 12px; border: 1px solid #cbd5e1;"
+            >指标</div>
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="0"
+              data-column-index="1"
+              role="columnheader"
+              style="width: 260px; height: 64px; color: #2563eb; background: #dbeafe; font-size: 20px; font-weight: 700; text-align: right; vertical-align: middle; padding: 8px 12px; border: 2px dashed #0f172a;"
+            >收入</div>
+          </div>
+          <div role="row" style="display: contents;">
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="1"
+              data-column-index="0"
+              role="rowheader"
+              style="width: 140px; height: 96px; color: #475569; background: #ffffff; padding: 8px 12px; border: 1px solid #cbd5e1;"
+            >Q2</div>
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="1"
+              data-column-index="1"
+              role="cell"
+              style="width: 260px; height: 96px; color: #111827; background: #ffffff; padding: 8px 12px; border: 1px solid #cbd5e1;"
+            >128 万</div>
+          </div>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide)
+    const tableRows = slide.addTable.mock.calls[0]?.[0] as Array<Array<{ text: string, options: Record<string, unknown> }>>
+    const tableOptions = slide.addTable.mock.calls[0]?.[1] as Record<string, unknown>
+    const headerCellOptions = tableRows[0][1].options
+
+    expect(slide.addTable).toHaveBeenCalledTimes(1)
+    expect(slide.addText).not.toHaveBeenCalled()
+    expect(tableRows[0][1].text).toBe('收入')
+    expect(tableRows[1][1].text).toBe('128 万')
+    expect(tableOptions).toEqual(expect.objectContaining({
+      autoPage: false,
+      fit: 'shrink',
+    }))
+    expect(tableOptions.rowH as number[]).toHaveLength(2)
+    expect(tableOptions.colW as number[]).toHaveLength(2)
+    expect((tableOptions.rowH as number[])[0]).toBeCloseTo((64 / 1080) * 7.5, 4)
+    expect((tableOptions.rowH as number[])[1]).toBeCloseTo((96 / 1080) * 7.5, 4)
+    expect((tableOptions.colW as number[])[0]).toBeCloseTo((140 / 1920) * 13.333, 4)
+    expect((tableOptions.colW as number[])[1]).toBeCloseTo((260 / 1920) * 13.333, 4)
+    expect(headerCellOptions).toEqual(expect.objectContaining({
+      fontSize: 10,
+      bold: true,
+      color: '2563EB',
+      align: 'right',
+      valign: 'middle',
+      fit: 'shrink',
+      fill: expect.objectContaining({ color: 'DBEAFE' }),
+      margin: [4, 6, 4, 6],
+    }))
+    expect(headerCellOptions.border).toEqual([
+      expect.objectContaining({ type: 'dash', color: '0F172A', pt: 1 }),
+      expect.objectContaining({ type: 'dash', color: '0F172A', pt: 1 }),
+      expect.objectContaining({ type: 'dash', color: '0F172A', pt: 1 }),
+      expect.objectContaining({ type: 'dash', color: '0F172A', pt: 1 }),
+    ])
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'table',
+        result: 'editable-table',
+        editable: true,
+      }),
+    ]))
+  })
+
+  it('应将 Runtime Kit 表格单元格四边边框导出到 PPT 表格', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div data-runtime-kit-table="v1" role="table" aria-rowcount="2" aria-colcount="2" style="width: 400px; height: 160px;">
+          <div role="row" style="display: contents;">
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="0"
+              data-column-index="0"
+              role="cell"
+              style="width: 200px; height: 80px; border-top: 3px solid #111111; border-right: none; border-bottom: 1px dashed #222222; border-left: none;"
+            >四边控制</div>
+            <div
+              data-runtime-kit-table-cell="v1"
+              data-row-index="0"
+              data-column-index="1"
+              role="cell"
+              style="width: 200px; height: 80px; border: none;"
+            >无边框</div>
+          </div>
+          <div role="row" style="display: contents;">
+            <div data-runtime-kit-table-cell="v1" data-row-index="1" data-column-index="0" role="cell" style="width: 200px; height: 80px; border: none;">A</div>
+            <div data-runtime-kit-table-cell="v1" data-row-index="1" data-column-index="1" role="cell" style="width: 200px; height: 80px; border: none;">B</div>
+          </div>
+        </div>
+      </div>
+    `
+
+    await convert(slide)
+    const tableRows = slide.addTable.mock.calls[0]?.[0] as Array<Array<{ text: string, options: Record<string, unknown> }>>
+    const controlledBorder = tableRows[0][0].options.border
+    const noBorderOptions = tableRows[0][1].options
+
+    expect(controlledBorder).toEqual([
+      expect.objectContaining({ type: 'solid', color: '111111', pt: 1.5 }),
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+      expect.objectContaining({ type: 'dash', color: '222222', pt: 0.5 }),
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+    ])
+    expect(noBorderOptions.border).toEqual([
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+      expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
+    ])
+  })
+
   it('应将多级 div/span 展开为按层级排列的多个组合对象', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `
@@ -1635,6 +1774,9 @@ function createSlideMock() {
     }),
     addImage: vi.fn((options?: Record<string, unknown>) => {
       events.push({ kind: 'image', options })
+    }),
+    addTable: vi.fn((rows?: unknown[], options?: Record<string, unknown>) => {
+      events.push({ kind: 'table', rows, options })
     }),
     background: undefined as Record<string, unknown> | undefined,
   }

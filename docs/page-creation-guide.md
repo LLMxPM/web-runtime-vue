@@ -141,7 +141,73 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 
 不要使用 `AssetRenderer`，也不要引用 `@runtime-kit/internal/renderers/*`。
 
-## 6. 图标和颜色
+## 6. 表格
+
+需要在 PPTX 导出中保留 PowerPoint 原生可编辑表格时，使用 `DataTable`。普通卡片、指标块、复杂交互表格仍由页面源码自行实现。
+
+```vue
+<script setup lang="ts">
+import DataTable from '@runtime-kit/public/components/data/DataTable.v1.vue'
+
+const rows = [
+  ['指标', 'Q1', 'Q2'],
+  ['收入', '96 万', '128 万'],
+  ['增长率', '12%', '18%'],
+]
+
+const tableStyles = {
+  table: {
+    border: {
+      outer: { color: '#94a3b8', width: 2, style: 'solid' },
+      inner: { color: '#cbd5e1', width: 1, style: 'solid' },
+    },
+  },
+  cell: {
+    class: 'text-secondary bg-white',
+  },
+  rows: {
+    0: {
+      class: 'bg-slate-100 text-primary font-semibold',
+      height: 48,
+      border: { bottom: { color: '#475569', width: 2, style: 'solid' } },
+    },
+  },
+  columns: {
+    0: {
+      class: 'text-primary font-medium',
+      width: 160,
+      border: { right: { color: '#94a3b8', width: 2, style: 'solid' } },
+    },
+  },
+  cells: {
+    '1,2': {
+      class: 'text-accent1 font-semibold',
+      border: {
+        top: { color: '#2563eb', width: 2, style: 'solid' },
+        right: { color: '#2563eb', width: 2, style: 'solid' },
+        bottom: { color: '#2563eb', width: 2, style: 'dashed' },
+        left: 'none',
+      },
+    },
+  },
+}
+</script>
+
+<template>
+  <DataTable
+    :rows="rows"
+    :styles="tableStyles"
+    :header-rows="1"
+    class="w-full h-72 text-sm rounded-lg border border-border overflow-hidden"
+  />
+</template>
+```
+
+`DataTable` 不使用 HTML table；固定宽高后内部不滚动，未指定的行列自动均分剩余空间。`headerRows` 和 `headerColumns` 只声明表头语义，不自动套视觉样式；首行、首列或单元格视觉应通过 `styles.rows`、`styles.columns`、`styles.cells` 显式设置。
+
+边框接近 PPT 表格模型：`border` 和 `styles.table.border` 控制整表区域；`styles.rows[index].border` 控制某行区域；`styles.columns[index].border` 控制某列区域；单元格对象和 `styles.cells["行,列"].border` 控制单格。边框可写统一线条、`'none'` / `{ style: 'none' }`，也可写 `{ all, outer, inner, innerHorizontal, innerVertical, top, right, bottom, left }`。例如整表无边框使用 `border="none"` 或 `:border="{ style: 'none' }"`；只画外框使用 `:border="{ outer: { color: '#111827', width: 2, style: 'solid' } }"`。
+
+## 7. 图标和颜色
 
 图标依赖 Runtime 图标配置、资源解析和 SVG inline 能力，因此保留为 Runtime Kit 能力。
 
@@ -165,7 +231,7 @@ const color = resolveColor('accent1-300')
 
 `resolveColor` 只负责颜色表达式解析，不代表 Runtime Kit 提供通用样式系统。
 
-## 7. 高级 DOM 能力
+## 8. 高级 DOM 能力
 
 `Connector` 用于在真实 DOM 元素之间绘制连线，适合流程图、架构图和关系图。
 
@@ -185,7 +251,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vu
 
 该能力依赖元素挂载、尺寸和定位上下文，不进入 Agent 默认推荐流，应在页面预览或项目预览中验证。
 
-## 8. 禁止事项
+## 9. 禁止事项
 
 - 不要使用旧路径 `@runtime-kit/components/...`。
 - 不要引用 `@runtime-kit/internal/...`。
@@ -195,7 +261,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vu
 - 不要使用 `AssetRenderer`。
 - 不要在 CSS 中硬编码资源 `url('/...')`，资源路径必须经过 Runtime 解析。
 
-## 9. 相关文档
+## 10. 相关文档
 
 - [Runtime Kit 能力说明](./runtime-kit-capabilities.md)
 - [资源引用规范](./integration/asset-usage-guide.md)

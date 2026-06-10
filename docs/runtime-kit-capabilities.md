@@ -83,6 +83,7 @@
 | -------------- | --------------------------------------------------------------- | ----------------------------------------------- |
 | `Icon`         | 根据 Runtime 图标配置渲染静态图标、inline SVG、主题色和描边宽度 | 负责图标周围的按钮、卡片和布局样式              |
 | `ThemeLogo`    | 渲染当前主题的常规 Logo 或反色 Logo                             | 自定义图片资源、图标资源、Logo 周围布局         |
+| `DataTable`    | 需要在 PPTX 导出中保留 PowerPoint 原生可编辑表格的二维数据       | 复杂交互表格、排序、分页、合并单元格            |
 | `useTheme`     | 读取主题配置、主题样式变量、主题 logo 与反色 logo               | 主题编辑、项目主题切换、普通 Logo 图片渲染      |
 | `resolveColor` | 自定义 SVG、连线、图表等需要解析 Runtime 主题色                 | 通用样式系统或配色方案生成                      |
 | `Connector`    | 根据真实 DOM 位置绘制流程图、架构图、关系图连线                 | 普通布局、静态线条装饰、可由 SVG 直接表达的图形 |
@@ -90,6 +91,8 @@
 普通页面使用 `Icon` 组件即可，图标配置读取、SVG 加载和 fallback 处理属于 Runtime 内部实现。
 
 普通页面或工作空间组件需要展示项目主题 Logo 时，优先使用 `ThemeLogo`。`ThemeLogo` 只通过 `size` 控制高度，数字刻度跟随页面基础字号，宽度自动等比计算，不提供拉伸、裁剪或兜底图片。只有需要自行组合 URL、样式变量或复杂 DOM 结构时，才直接使用 `useTheme` 读取 `themeLogo`、`themeInvertLogo` 或 `themeStyles`。没有配置主题 Logo 时，`ThemeLogo` 会直接空渲染。
+
+需要导出为 PPT 原生表格时，使用 `DataTable`。它不使用 HTML table，而是通过 CSS Grid 渲染固定宽高的二维表格；`headerRows` 和 `headerColumns` 只声明语义，不自动套样式。整表、行、列和单元格样式分别通过 `styles.table`、`styles.rows`、`styles.columns` 和 `styles.cells` 控制；边框支持统一线条、无边框、外框、内部横竖线和单独四边，并会在 PPTX 导出时映射为 PowerPoint table cell border。
 
 `Connector` 依赖元素挂载、尺寸、滚动和定位上下文，因此只能在页面预览或项目预览中验证，不单独创建组件预览 artifact。
 

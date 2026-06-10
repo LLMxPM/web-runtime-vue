@@ -1098,6 +1098,215 @@
     },
     {
       "kind": "component",
+      "base_name": "DataTable",
+      "version_no": 1,
+      "name": "DataTable.v1",
+      "import_path": "@runtime-kit/public/components/data/DataTable.v1.vue",
+      "category": "runtime",
+      "description": "使用 CSS Grid 渲染 PPT 风格表格，并支持导出为 PPT 原生表格。",
+      "capability": {
+        "enabled": true,
+        "previewable": true,
+        "recommendation_level": "default",
+        "display_name": "PPT 风格表格",
+        "summary": "渲染可固定宽高的 PPT 风格表格，支持全表、行、列和单元格样式覆盖，并支持像 PPT 表格一样设置外框、内部线和四边边框；可编辑 PPTX 导出时会转换为 PowerPoint 原生表格。",
+        "tags": [
+          "table",
+          "pptx"
+        ],
+        "usage": [
+          "import DataTable from '@runtime-kit/public/components/data/DataTable.v1.vue'",
+          "<DataTable :rows=\"tableRows\" :styles=\"tableStyles\" :header-rows=\"1\" class=\"w-full h-72 text-sm rounded-lg border border-border overflow-hidden\" />"
+        ],
+        "returns": "Vue 组件；渲染 CSS Grid 表格，在 PPTX 导出时映射为原生 table。",
+        "return_example": [
+          "<DataTable :rows=\"[['指标', 'Q1'], ['收入', '128 万']]\" :header-rows=\"1\" />"
+        ],
+        "constraints": [
+          "不使用 HTML table，内部使用 div、CSS Grid 与 ARIA role 渲染。",
+          "rows 是完整二维数据；headerRows 和 headerColumns 只声明表头语义，不自动应用视觉样式。",
+          "样式覆盖顺序固定为 table border、cell、columns、rows、单元格对象自身、cells。",
+          "border 可写统一线条、none，或包含 all、outer、inner、innerHorizontal、innerVertical、top、right、bottom、left 的区域边框配置。",
+          "行高只通过 styles.rows[index].height 控制，列宽只通过 styles.columns[index].width 控制，未指定的行列自动均分剩余空间。",
+          "固定宽高后内部不滚动；超出文本在单元格内换行或裁切。",
+          "v1 不支持合并单元格、排序、分页或交互编辑。"
+        ],
+        "audiences": [
+          "backend",
+          "agent"
+        ],
+        "preview_schema": {
+          "props": {
+            "rows": {
+              "type": "json",
+              "label": "表格数据",
+              "description": "完整二维表格数据，不区分表头和内容。单元格可为字符串、数字或带 text/class/style/border 的对象。",
+              "required": true,
+              "default": [
+                [
+                  "指标",
+                  "Q1",
+                  "Q2"
+                ],
+                [
+                  "收入",
+                  "96 万",
+                  "128 万"
+                ],
+                [
+                  "增长率",
+                  "12%",
+                  "18%"
+                ]
+              ]
+            },
+            "headerRows": {
+              "type": "number",
+              "label": "表头行数",
+              "description": "前 N 行作为表头语义，不自动套视觉样式。",
+              "default": 1
+            },
+            "headerColumns": {
+              "type": "number",
+              "label": "表头列数",
+              "description": "前 N 列作为表头语义，不自动套视觉样式。",
+              "default": 0
+            },
+            "class": {
+              "type": "string",
+              "label": "外层 Tailwind 类",
+              "description": "表格外层宽高、圆角、背景、边框、裁剪和基础字体入口，例如：w-full h-72 text-sm rounded-lg border border-border overflow-hidden。",
+              "default": "w-full h-72 text-sm rounded-lg border border-border overflow-hidden"
+            },
+            "styles": {
+              "type": "json",
+              "label": "分层样式",
+              "description": "按 table、cell、rows、columns、cells 分层控制样式；cells key 使用 \"行索引,列索引\"。border 支持 all、outer、inner、innerHorizontal、innerVertical 和四边。",
+              "default": {
+                "table": {
+                  "border": {
+                    "outer": {
+                      "color": "#94a3b8",
+                      "width": 2,
+                      "style": "solid"
+                    },
+                    "inner": {
+                      "color": "#cbd5e1",
+                      "width": 1,
+                      "style": "solid"
+                    }
+                  }
+                },
+                "cell": {
+                  "class": "text-secondary bg-white"
+                },
+                "rows": {
+                  "0": {
+                    "class": "bg-slate-100 text-primary font-semibold",
+                    "height": 48
+                  }
+                },
+                "columns": {
+                  "0": {
+                    "class": "text-primary font-medium",
+                    "width": 160
+                  }
+                },
+                "cells": {
+                  "1,2": {
+                    "class": "text-accent1 font-semibold"
+                  }
+                }
+              }
+            },
+            "border": {
+              "type": "json",
+              "label": "全表边框",
+              "description": "全表边框快捷入口。可写统一线条、{ style: 'none' } 无边框，或 all/outer/inner/innerHorizontal/innerVertical/top/right/bottom/left 区域边框。",
+              "default": {
+                "outer": {
+                  "color": "#94a3b8",
+                  "width": 2,
+                  "style": "solid"
+                },
+                "inner": {
+                  "color": "#cbd5e1",
+                  "width": 1,
+                  "style": "solid"
+                }
+              }
+            }
+          },
+          "presets": [
+            {
+              "key": "row-header",
+              "label": "首行表头",
+              "props": {
+                "headerRows": 1,
+                "headerColumns": 0,
+                "class": "w-full h-72 text-sm rounded-lg border border-border overflow-hidden"
+              }
+            },
+            {
+              "key": "cross-header",
+              "label": "交叉表头",
+              "props": {
+                "headerRows": 1,
+                "headerColumns": 1,
+                "styles": {
+                  "cell": {
+                    "class": "text-secondary bg-white"
+                  },
+                  "table": {
+                    "border": {
+                      "outer": {
+                        "color": "#94a3b8",
+                        "width": 2,
+                        "style": "solid"
+                      },
+                      "inner": {
+                        "color": "#cbd5e1",
+                        "width": 1,
+                        "style": "solid"
+                      }
+                    }
+                  },
+                  "rows": {
+                    "0": {
+                      "class": "bg-slate-100 text-primary font-semibold",
+                      "height": 48
+                    }
+                  },
+                  "columns": {
+                    "0": {
+                      "class": "bg-slate-50 text-primary font-medium",
+                      "width": 160
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "preview_options": {
+          "page": {
+            "width": 960,
+            "height": 540
+          },
+          "placement": {
+            "width_mode": "percent",
+            "width_value": 82,
+            "height_mode": "percent",
+            "height_value": 52,
+            "horizontal_align": "center",
+            "vertical_align": "center",
+            "padding": 56
+          }
+        }
+      }
+    },
+    {
+      "kind": "component",
       "base_name": "Connector",
       "version_no": 1,
       "name": "Connector.v1",

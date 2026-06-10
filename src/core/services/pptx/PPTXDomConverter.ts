@@ -15,6 +15,8 @@ import type { PptxDomGradientExportHost } from '@/core/services/pptx/PPTXDomConv
 import { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
 import { PPTXDomConverterMedia } from '@/core/services/pptx/PPTXDomConverterMedia'
 import type { PptxDomMediaExportHost } from '@/core/services/pptx/PPTXDomConverterMedia'
+import { PPTXDomConverterTable } from '@/core/services/pptx/PPTXDomConverterTable'
+import type { PptxDomTableExportHost } from '@/core/services/pptx/PPTXDomConverterTable'
 import { PPTXDomConverterText } from '@/core/services/pptx/PPTXDomConverterText'
 import type { PptxDomTextExportHost } from '@/core/services/pptx/PPTXDomConverterText'
 import type { PptxPageConvertOptions, VisitContext } from '@/core/services/pptx/PPTXDomConverter.types'
@@ -33,6 +35,7 @@ export class PPTXDomConverter {
   private readonly layout = new PPTXDomConverterLayout(this.cssParser)
   private readonly svgSerializer = new PPTXSvgSerializer(this.cssParser, element => this.layout.measureElementPixels(element))
   private readonly media = new PPTXDomConverterMedia(this.layout, this.svgSerializer)
+  private readonly table = new PPTXDomConverterTable(this.layout)
   private readonly text = new PPTXDomConverterText(this.layout)
   private readonly gradient = new PPTXDomConverterGradient(this.layout)
   private options!: PptxPageConvertOptions
@@ -78,6 +81,11 @@ export class PPTXDomConverter {
    */
   private async visitElement(element: Element, context: VisitContext): Promise<void> {
     if (!this.layout.isVisibleElement(element)) {
+      return
+    }
+
+    if (this.table.isTableElement(element)) {
+      this.table.addTableElement(this.createTableExportHost(), element as HTMLElement, context)
       return
     }
 
@@ -180,6 +188,18 @@ export class PPTXDomConverter {
    * 构造媒体导出宿主能力对象。
    */
   private createMediaExportHost(): PptxDomMediaExportHost {
+    return {
+      options: this.options,
+      buildPptObjectMeta: (...args) => this.buildPptObjectMeta(...args),
+      addReportItem: (...args) => this.addReportItem(...args),
+      addSkippedItem: (...args) => this.addSkippedItem(...args),
+    }
+  }
+
+  /**
+   * 构造表格导出宿主能力对象。
+   */
+  private createTableExportHost(): PptxDomTableExportHost {
     return {
       options: this.options,
       buildPptObjectMeta: (...args) => this.buildPptObjectMeta(...args),

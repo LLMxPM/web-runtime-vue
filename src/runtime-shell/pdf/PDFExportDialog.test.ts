@@ -155,6 +155,7 @@ describe('PDFExportDialog', () => {
         summary: {
           editableText: 2,
           editableShape: 1,
+          editableTable: 1,
           imageBlock: 1,
           svgBlock: 1,
           screenshotBlock: 1,

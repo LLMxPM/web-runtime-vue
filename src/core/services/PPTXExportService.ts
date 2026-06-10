@@ -702,6 +702,7 @@ export class PPTXExportService {
       summary: {
         editableText: 0,
         editableShape: 0,
+        editableTable: 0,
         imageBlock: 0,
         svgBlock: 0,
         screenshotBlock: 0,
@@ -726,6 +727,9 @@ export class PPTXExportService {
           break
         case 'editable-shape':
           report.summary.editableShape += 1
+          break
+        case 'editable-table':
+          report.summary.editableTable += 1
           break
         case 'image':
           report.summary.imageBlock += 1

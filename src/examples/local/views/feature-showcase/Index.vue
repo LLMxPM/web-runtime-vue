@@ -107,6 +107,18 @@ const cards: ShowcaseCard[] = [
     descriptionClass: 'text-accent2-700',
     tagClass: 'bg-accent2-200 text-accent2-800',
   },
+  {
+    title: 'DataTable 表格',
+    description: '展示 CSS Grid 表格的分层样式，以及 PPTX 原生表格导出入口。',
+    icon: 'slider',
+    tag: '运行时能力',
+    to: '/feature-showcase/data-table-showcase',
+    headerClass: 'bg-accent4-100',
+    iconClass: 'text-accent4-700',
+    titleClass: 'text-accent4-800',
+    descriptionClass: 'text-accent4-700',
+    tagClass: 'bg-accent4-200 text-accent4-800',
+  },
 ]
 </script>
 

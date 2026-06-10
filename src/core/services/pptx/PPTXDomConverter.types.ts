@@ -6,6 +6,7 @@ export type PptxSlideLike = {
   addText: (text: string, options?: Record<string, unknown>) => unknown
   addShape: (shapeType: string, options?: Record<string, unknown>) => unknown
   addImage: (options: Record<string, unknown>) => unknown
+  addTable: (rows: PptxTableRowLike[], options?: Record<string, unknown>) => unknown
   background?: unknown
 }
 
@@ -78,6 +79,13 @@ export interface ImageSizingOptions {
   w: number
   h: number
 }
+
+export interface PptxTableCellLike {
+  text?: string
+  options?: Record<string, unknown>
+}
+
+export type PptxTableRowLike = PptxTableCellLike[]
 
 export type LinearGradientDirection = 'right' | 'left' | 'bottom' | 'top'
 

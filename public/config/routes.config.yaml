@@ -54,6 +54,11 @@ routes:
         meta:
           title: 连接线演示
           order: 7
+      - route: data-table-showcase
+        component: '@/examples/local/views/feature-showcase/DataTableShowcase.vue'
+        meta:
+          title: DataTable表格
+          order: 8
   - route: runtime-kit-capabilities
     meta:
       title: Runtime Kit能力说明

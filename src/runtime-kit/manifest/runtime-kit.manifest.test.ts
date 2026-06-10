@@ -40,6 +40,9 @@ describe('runtime kit manifest', () => {
     expect(exportPaths).toContain(
       '@runtime-kit/public/components/primitives/ThemeLogo.v1.vue'
     )
+    expect(exportPaths).toContain(
+      '@runtime-kit/public/components/data/DataTable.v1.vue'
+    )
     expect(exportNames).toContain('useRouteCatalog.v1')
     expect(exportNames).toContain('Connector.v1')
     expect(exportNames).toContain('useTheme.v1')
@@ -149,6 +152,7 @@ describe('runtime kit manifest', () => {
         'DefaultContainer',
         'Icon',
         'ThemeLogo',
+        'DataTable',
       ])
     )
     expect(previewableNames).not.toContain('Connector')
@@ -306,6 +310,25 @@ describe('runtime kit manifest', () => {
     expect(themeLogoProps).not.toHaveProperty('fit')
     expect(themeLogoProps).not.toHaveProperty('fallbackSrc')
     expect(getPresetKeys('ThemeLogo')).toEqual(expect.arrayContaining(['theme-logo', 'theme-invert-logo']))
+
+    const dataTableProps = getPreviewProps('DataTable')
+    expect(Object.keys(dataTableProps)).toEqual(expect.arrayContaining([
+      'rows',
+      'headerRows',
+      'headerColumns',
+      'class',
+      'styles',
+      'border',
+    ]))
+    expect(dataTableProps.rows.type).toBe('json')
+    expect(dataTableProps.rows.description).toContain('完整二维表格数据')
+    expect(dataTableProps.headerRows.default).toBe(1)
+    expect(dataTableProps.headerColumns.default).toBe(0)
+    expect(dataTableProps.class.default).toBe('w-full h-72 text-sm rounded-lg border border-border overflow-hidden')
+    expect(dataTableProps.styles.type).toBe('json')
+    expect(dataTableProps.styles.description).toContain('table、cell、rows、columns、cells')
+    expect(dataTableProps.border.type).toBe('json')
+    expect(getPresetKeys('DataTable')).toEqual(expect.arrayContaining(['row-header', 'cross-header']))
 
     expect(getPresetKeys('DefaultContainer')).toEqual(expect.arrayContaining(['center-canvas', 'section-stack']))
   })
