@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * 文件用途：验证 Runtime 演讲模式页面列表转换逻辑。
+ * 文件用途：验证 Runtime 演讲模式页面列表转换、平铺默认尺寸与本地同步消息。
  */
 
+import { createApp, defineComponent } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { RouteConfig } from '@/core/types/navigation'
@@ -10,11 +11,13 @@ import {
   buildPresenterPages,
   buildPresenterStorageKey,
   parseStoredSyncMessage,
+  usePresenterController,
   writePresenterInitialNavigateMessage,
 } from '@/runtime-shell/presenter/usePresenterController'
 
 afterEach(() => {
   localStorage.clear()
+  document.body.innerHTML = ''
 })
 
 describe('buildPresenterPages', () => {
@@ -157,6 +160,27 @@ describe('buildPresenterPages', () => {
       type: 'navigate',
       currentPath: '/intro',
     })
+  })
+
+  it('未持久化时默认平铺尺寸应为 300', () => {
+    let tileSize = 0
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const app = createApp(defineComponent({
+      setup() {
+        const controller = usePresenterController({
+          role: 'console',
+          channelId: '',
+        })
+        tileSize = controller.tileSize.value
+        return () => null
+      },
+    }))
+
+    app.mount(host)
+
+    expect(tileSize).toBe(300)
+    app.unmount()
   })
 })
 

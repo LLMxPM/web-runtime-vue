@@ -63,7 +63,7 @@ vi.mock('@/runtime-shell/presenter/usePresenterController', async () => {
         updatedAt: 1,
       }),
       viewMode: ref(presenterFixture.viewMode),
-      tileSize: ref(220),
+      tileSize: ref(300),
       channelSupported: ref(true),
       navigateTo: presenterFixture.navigateTo,
       goPrevious: vi.fn(),
@@ -126,6 +126,8 @@ describe('PresenterConsoleView', () => {
     const { app, host } = mountPresenterConsoleView()
     await nextTick()
 
+    expect(host.querySelector<HTMLElement>('.presenter-console__grid')?.style.gridTemplateColumns)
+      .toBe('repeat(auto-fill, minmax(300px, 1fr))')
     expect(host.querySelectorAll('.presenter-console__preview-shield')).toHaveLength(2)
     expect(host.querySelectorAll('.presenter-console__preview-content[inert][aria-hidden="true"]')).toHaveLength(2)
 

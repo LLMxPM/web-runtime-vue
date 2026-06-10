@@ -73,7 +73,7 @@ interface PresenterControllerOptions {
 const TILE_SIZE_STORAGE_KEY = 'web-presentation.presenter.tileSize'
 const CHANNEL_NAME_PREFIX = 'web-presentation:presenter:'
 const SYNC_STORAGE_KEY_PREFIX = 'web-presentation.presenter.sync.'
-const DEFAULT_TILE_SIZE = 220
+const DEFAULT_TILE_SIZE = 300
 const MIN_TILE_SIZE = 140
 const MAX_TILE_SIZE = 420
 
@@ -437,7 +437,11 @@ function readStoredTileSize(): number {
   if (typeof localStorage === 'undefined') {
     return DEFAULT_TILE_SIZE
   }
-  const storedValue = Number(localStorage.getItem(TILE_SIZE_STORAGE_KEY))
+  const storedText = localStorage.getItem(TILE_SIZE_STORAGE_KEY)
+  if (!storedText) {
+    return DEFAULT_TILE_SIZE
+  }
+  const storedValue = Number(storedText)
   return clampTileSize(Number.isFinite(storedValue) ? storedValue : DEFAULT_TILE_SIZE)
 }
 

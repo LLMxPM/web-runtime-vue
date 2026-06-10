@@ -25,8 +25,10 @@ type="button"
       <transition name="fade">
         <button
 v-if="canScrollLeft"
-          class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center -translate-x-3 transition-opacity"
-          @click="scrollBy(-300)">
+          type="button"
+          class="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center -translate-x-3 transition-opacity"
+          aria-label="向左滚动缩略图"
+          @click.stop.prevent="scrollBy(-300)">
           <ChevronLeft :size="18" class="text-slate-600" />
         </button>
       </transition>
@@ -76,8 +78,10 @@ v-if="section.kind === 'group'"
       <transition name="fade">
         <button
 v-if="canScrollRight"
-          class="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center translate-x-3 transition-opacity"
-          @click="scrollBy(300)">
+          type="button"
+          class="absolute right-0 top-1/2 -translate-y-1/2 z-30 bg-white/90 hover:bg-white backdrop-blur shadow-md rounded-full w-8 h-8 flex items-center justify-center translate-x-3 transition-opacity"
+          aria-label="向右滚动缩略图"
+          @click.stop.prevent="scrollBy(300)">
           <ChevronRight :size="18" class="text-slate-600" />
         </button>
       </transition>
@@ -166,13 +170,46 @@ const scrollBy = (offset: number) => {
   }
 }
 
+/**
+ * 将当前激活缩略图滚动到可视区域中部。
+ * @param behavior 滚动动画方式，路由切换使用 smooth，初始同步使用 auto
+ */
+const scrollActiveThumbnailIntoView = (behavior: ScrollBehavior): void => {
+  if (!scrollContainer.value || props.collapsed) return
+
+  const thumbnailElements = Array.from(
+    scrollContainer.value.querySelectorAll<HTMLElement>('[data-preview-thumbnail-path]'),
+  )
+  const activeElement = thumbnailElements.find((element) => {
+    const thumbnailPath = element.dataset.previewThumbnailPath
+    return typeof thumbnailPath === 'string' && isRouteActive(thumbnailPath, route.path)
+  })
+
+  activeElement?.scrollIntoView({
+    behavior,
+    block: 'nearest',
+    inline: 'center',
+  })
+}
+
+/**
+ * 等待 DOM 更新后同步滚动状态和当前缩略图位置。
+ * @param behavior 当前缩略图居中使用的滚动动画方式
+ */
+const syncScrollState = (behavior: ScrollBehavior): void => {
+  void nextTick(() => {
+    checkScroll()
+    scrollActiveThumbnailIntoView(behavior)
+  })
+}
+
 onMounted(() => {
   if (scrollContainer.value) {
     resizeObserver = createRafResizeObserver(() => {
       checkScroll()
     })
     resizeObserver.observe(scrollContainer.value)
-    nextTick(checkScroll)
+    syncScrollState('auto')
   }
 })
 
@@ -182,13 +219,21 @@ onUnmounted(() => {
   }
 })
 
-watch(() => props.collapsed, () => {
-  nextTick(checkScroll)
+watch(() => props.collapsed, (collapsed) => {
+  if (collapsed) {
+    void nextTick(checkScroll)
+    return
+  }
+  syncScrollState('auto')
 }, { flush: 'post' })
 
 watch(() => props.navigationItems, () => {
-  nextTick(checkScroll)
+  syncScrollState('auto')
 }, { deep: true, flush: 'post' })
+
+watch(() => route.path, () => {
+  syncScrollState('smooth')
+}, { flush: 'post' })
 
 /**
  * 归一化底部缩略图分段。
@@ -265,7 +310,7 @@ const toggleGroupCollapse = (groupId: string): void => {
   } else {
     collapsedGroupIds.value.add(groupId)
   }
-  nextTick(checkScroll)
+  syncScrollState('auto')
 }
 
 /**

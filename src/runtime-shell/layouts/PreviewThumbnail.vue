@@ -10,6 +10,7 @@
     :style="fillHeight ? previewFrameStyle : undefined"
     :title="item.title"
     :aria-current="active ? 'page' : undefined"
+    :data-preview-thumbnail-path="item.path"
   >
     <div
       class="preview-thumbnail__frame rounded-lg overflow-hidden relative bg-white shadow-sm"

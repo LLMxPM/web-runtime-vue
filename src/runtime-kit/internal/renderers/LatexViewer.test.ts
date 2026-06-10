@@ -49,6 +49,31 @@ function setElementMetrics(
 }
 
 /**
+ * 在 jsdom 中补齐 getBoundingClientRect 返回值。
+ *
+ * @param element 目标元素
+ * @param rect 需要覆盖的矩形尺寸
+ */
+function setBoundingRect(element: HTMLElement, rect: Partial<DOMRect>): void {
+  const fullRect = {
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: rect.width || 0,
+    bottom: rect.height || 0,
+    width: rect.width || 0,
+    height: rect.height || 0,
+    toJSON: () => ({}),
+    ...rect,
+  }
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => fullRect,
+  })
+}
+
+/**
  * 挂载 LatexViewer 并返回常用测试句柄。
  *
  * @param props 组件 props
@@ -110,8 +135,8 @@ describe('LatexViewer', () => {
     vm.updateFit()
     await nextTick()
 
-    expect(content?.style.fontSize).toBe('0.5em')
-    expect(content?.style.transform).toBe('')
+    expect(content?.style.fontSize).toBe('')
+    expect(content?.style.transform).toBe('scale(0.5)')
 
     app.unmount()
     host.remove()
@@ -142,8 +167,53 @@ describe('LatexViewer', () => {
     vm.updateFit()
     await nextTick()
 
-    expect(content?.style.fontSize).toBe('3em')
-    expect(content?.style.transform).toBe('')
+    expect(content?.style.fontSize).toBe('')
+    expect(content?.style.transform).toBe('scale(3)')
+
+    app.unmount()
+    host.remove()
+  })
+
+  it('重复刷新 contain 适配时不应叠加上一次缩放结果', async () => {
+    const { app, host, vm } = mountLatexViewer({
+      content: String.raw`\sum_{i=1}^{n} i`,
+      width: '200px',
+      height: '100px',
+      padding: 0,
+    })
+    await flushRender()
+
+    const viewer = host.querySelector<HTMLElement>('.latex-viewer')
+    const content = host.querySelector<HTMLElement>('.latex-viewer__content')
+    const container = host.querySelector<HTMLElement>('mjx-container')
+    expect(viewer).toBeTruthy()
+    expect(content).toBeTruthy()
+    expect(container).toBeTruthy()
+
+    setElementMetrics(viewer!, { clientWidth: 200, clientHeight: 100 })
+    setElementMetrics(content!, {
+      scrollWidth: 400,
+      scrollHeight: 50,
+      offsetWidth: 400,
+      offsetHeight: 50,
+    })
+    setElementMetrics(container!, {
+      scrollWidth: 400,
+      scrollHeight: 50,
+      offsetWidth: 400,
+      offsetHeight: 50,
+    })
+
+    vm.updateFit()
+    await nextTick()
+    expect(content?.style.transform).toBe('scale(0.5)')
+
+    setBoundingRect(content!, { width: 200, height: 25 })
+    setBoundingRect(container!, { width: 200, height: 25 })
+    vm.updateFit()
+    await nextTick()
+
+    expect(content?.style.transform).toBe('scale(0.5)')
 
     app.unmount()
     host.remove()

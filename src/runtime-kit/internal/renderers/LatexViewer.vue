@@ -70,7 +70,12 @@ let fitUpdateTimer: number | null = null
 const fitClass = computed(() => `latex-viewer--fit-${props.fit}`)
 const contentStyle = computed<CSSProperties>(() => ({
   ...(props.textColor ? { color: props.textColor } : {}),
-  ...(props.fit === 'contain' && contentScale.value !== 1 ? { fontSize: `${contentScale.value}em` } : {}),
+  ...(props.fit === 'contain' && contentScale.value !== 1
+    ? {
+        transform: `scale(${contentScale.value})`,
+        transformOrigin: 'center center',
+      }
+    : {}),
 }))
 
 /**
@@ -116,26 +121,43 @@ function getAvailableSize(element: HTMLElement): { width: number; height: number
 }
 
 /**
- * 获取 MathJax 公式组在基准字号下的自然尺寸。
+ * 读取元素不受 transform 影响的布局尺寸。
+ *
+ * @param element 目标元素
+ * @param activeScale 当前视觉缩放倍率，用于还原 getBoundingClientRect 兜底值
+ * @returns 元素布局宽高
+ */
+function getUnscaledElementSize(element: HTMLElement, activeScale: number): { width: number; height: number } {
+  const scale = Number.isFinite(activeScale) && activeScale > 0 ? activeScale : 1
+  const rect = element.getBoundingClientRect()
+
+  return {
+    width: Math.max(element.scrollWidth, element.offsetWidth, rect.width / scale),
+    height: Math.max(element.scrollHeight, element.offsetHeight, rect.height / scale),
+  }
+}
+
+/**
+ * 获取 MathJax 公式组的自然尺寸。
  *
  * @param element 公式内容组元素
- * @param activeScale 当前已应用的字号缩放倍率
+ * @param activeScale 当前视觉缩放倍率
  * @returns 自然宽高
  */
 function getNaturalContentSize(element: HTMLElement, activeScale: number): { width: number; height: number } {
-  const scale = Number.isFinite(activeScale) && activeScale > 0 ? activeScale : 1
+  const contentSize = getUnscaledElementSize(element, activeScale)
   const containers = Array.from(element.querySelectorAll<HTMLElement>('mjx-container'))
   const childWidth = Math.max(
     0,
-    ...containers.map(item => item.scrollWidth || item.offsetWidth || item.getBoundingClientRect().width),
+    ...containers.map(item => getUnscaledElementSize(item, activeScale).width),
   )
   const childHeight = containers.reduce((total, item) => {
-    return total + (item.scrollHeight || item.offsetHeight || item.getBoundingClientRect().height)
+    return total + getUnscaledElementSize(item, activeScale).height
   }, 0)
 
   return {
-    width: Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width, childWidth) / scale,
-    height: Math.max(element.scrollHeight, element.offsetHeight, element.getBoundingClientRect().height, childHeight) / scale,
+    width: Math.max(contentSize.width, childWidth),
+    height: Math.max(contentSize.height, childHeight),
   }
 }
 
