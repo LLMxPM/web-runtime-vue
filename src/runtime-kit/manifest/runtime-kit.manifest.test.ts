@@ -314,21 +314,20 @@ describe('runtime kit manifest', () => {
     const dataTableProps = getPreviewProps('DataTable')
     expect(Object.keys(dataTableProps)).toEqual(expect.arrayContaining([
       'rows',
-      'headerRows',
-      'headerColumns',
+      'width',
+      'height',
       'class',
       'styles',
-      'border',
     ]))
     expect(dataTableProps.rows.type).toBe('json')
     expect(dataTableProps.rows.description).toContain('完整二维表格数据')
-    expect(dataTableProps.headerRows.default).toBe(1)
-    expect(dataTableProps.headerColumns.default).toBe(0)
-    expect(dataTableProps.class.default).toBe('w-full h-72 text-sm rounded-lg border border-border overflow-hidden')
+    expect(dataTableProps.width.default).toBe('100%')
+    expect(dataTableProps.height.default).toBe('100%')
+    expect(dataTableProps.class.default).toBe('text-sm rounded-lg border border-border overflow-hidden')
     expect(dataTableProps.styles.type).toBe('json')
     expect(dataTableProps.styles.description).toContain('table、cell、rows、columns、cells')
-    expect(dataTableProps.border.type).toBe('json')
-    expect(getPresetKeys('DataTable')).toEqual(expect.arrayContaining(['row-header', 'cross-header']))
+    expect(getPresetKeys('DataTable')).toEqual(expect.arrayContaining(['highlight-first-row', 'highlight-first-row-column']))
+    expect(getPresetLabels('DataTable')).toEqual(expect.arrayContaining(['首行强调', '首行首列强调']))
 
     expect(getPresetKeys('DefaultContainer')).toEqual(expect.arrayContaining(['center-canvas', 'section-stack']))
   })
@@ -405,6 +404,11 @@ function getPreviewProps(componentName: string): Record<string, PreviewField> {
 function getPresetKeys(componentName: string): string[] {
   const schema = getPreviewSchema(componentName)
   return (schema.presets || []).map((preset) => String(preset.key || ''))
+}
+
+function getPresetLabels(componentName: string): string[] {
+  const schema = getPreviewSchema(componentName)
+  return (schema.presets || []).map((preset) => String((preset as { label?: string }).label || ''))
 }
 
 function getPreviewSchema(componentName: string): PreviewSchema {

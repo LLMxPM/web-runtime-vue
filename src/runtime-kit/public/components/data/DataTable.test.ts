@@ -14,14 +14,12 @@ afterEach(() => {
 })
 
 describe('DataTable', () => {
-  it('应使用 div 和 ARIA role 渲染，不输出 HTML table', () => {
+  it('应使用 div 和统一 cell role 渲染，不输出 HTML table', () => {
     const { app, host } = mountDataTable({
       rows: [
         ['区域', '收入'],
         ['华东', '128 万'],
       ],
-      headerRows: 1,
-      headerColumns: 1,
       class: 'w-full h-72 text-sm rounded-lg overflow-hidden',
     })
 
@@ -34,12 +32,65 @@ describe('DataTable', () => {
     expect(root.getAttribute('aria-colcount')).toBe('2')
     expect(root.classList.contains('h-72')).toBe(true)
     expect(cells).toHaveLength(4)
-    expect(cells.map(cell => cell.getAttribute('role'))).toEqual([
-      'columnheader',
-      'columnheader',
-      'rowheader',
-      'cell',
-    ])
+    expect(cells.map(cell => cell.getAttribute('role'))).toEqual(['cell', 'cell', 'cell', 'cell'])
+
+    app.unmount()
+  })
+
+  it('默认宽高应填满父容器', () => {
+    const { app, host } = mountDataTable({
+      rows: [
+        ['维度', 'Q1'],
+        ['收入', '100'],
+      ],
+    })
+
+    const root = host.querySelector('[data-runtime-kit-table="v1"]') as HTMLElement
+
+    expect(root.style.width).toBe('100%')
+    expect(root.style.height).toBe('100%')
+
+    app.unmount()
+  })
+
+  it('顶层 width 和 height 应支持 number 与 string 输入', () => {
+    const { app, host } = mountDataTable({
+      rows: [
+        ['指标', 'Q1'],
+        ['收入', '128 万'],
+      ],
+      width: 320,
+      height: '18rem',
+    })
+
+    const root = host.querySelector('[data-runtime-kit-table="v1"]') as HTMLElement
+
+    expect(root.style.width).toBe('320px')
+    expect(root.style.height).toBe('18rem')
+
+    app.unmount()
+  })
+
+  it('顶层 width 和 height 应优先于透传 style 中的同名字段', () => {
+    const { app, host } = mountDataTable({
+      rows: [
+        ['指标', 'Q1'],
+        ['收入', '128 万'],
+      ],
+      width: 320,
+      height: 240,
+      style: {
+        width: '999px',
+        height: '999px',
+        backgroundColor: 'rgb(240, 249, 255)',
+      },
+    })
+
+    const root = host.querySelector('[data-runtime-kit-table="v1"]') as HTMLElement
+
+    expect(root.style.width).toBe('320px')
+    expect(root.style.height).toBe('240px')
+    expect(root.style.backgroundColor).toBe('rgb(240, 249, 255)')
 
     app.unmount()
   })
@@ -103,23 +154,33 @@ describe('DataTable', () => {
     app.unmount()
   })
 
-  it('表头语义不应自动套视觉样式', () => {
+  it('显式行列样式应独立于语义配置存在', () => {
     const { app, host } = mountDataTable({
       rows: [
         ['维度', 'Q1'],
         ['收入', '100'],
       ],
-      headerRows: 1,
-      headerColumns: 1,
+      styles: {
+        rows: {
+          0: {
+            class: 'font-semibold',
+          },
+        },
+        columns: {
+          0: {
+            class: 'text-primary',
+          },
+        },
+      },
     })
 
     const topLeft = host.querySelector('[data-row-index="0"][data-column-index="0"]') as HTMLElement
-    const rowHeader = host.querySelector('[data-row-index="1"][data-column-index="0"]') as HTMLElement
+    const firstColumnBody = host.querySelector('[data-row-index="1"][data-column-index="0"]') as HTMLElement
 
-    expect(topLeft.getAttribute('role')).toBe('columnheader')
-    expect(rowHeader.getAttribute('role')).toBe('rowheader')
-    expect(topLeft.className).not.toContain('font-semibold')
-    expect(rowHeader.className).not.toContain('font-semibold')
+    expect(topLeft.getAttribute('role')).toBe('cell')
+    expect(firstColumnBody.getAttribute('role')).toBe('cell')
+    expect(topLeft.className).toContain('font-semibold')
+    expect(firstColumnBody.className).toContain('text-primary')
 
     app.unmount()
   })
@@ -130,7 +191,11 @@ describe('DataTable', () => {
         ['A', 'B'],
         ['C', 'D'],
       ],
-      border: { style: 'none' },
+      styles: {
+        table: {
+          border: { style: 'none' },
+        },
+      },
     })
 
     const cells = Array.from(host.querySelectorAll('[data-runtime-kit-table-cell="v1"]')) as HTMLElement[]
@@ -183,9 +248,13 @@ describe('DataTable', () => {
         ['A', 'B'],
         ['C', 'D'],
       ],
-      border: {
-        outer: { color: '#111111', width: 3, style: 'solid' },
-        inner: { color: '#888888', width: 1, style: 'dashed' },
+      styles: {
+        table: {
+          border: {
+            outer: { color: '#111111', width: 3, style: 'solid' },
+            inner: { color: '#888888', width: 1, style: 'dashed' },
+          },
+        },
       },
     })
 

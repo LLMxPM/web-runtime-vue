@@ -3,12 +3,12 @@
 -->
 <template>
   <div
-    v-bind="$attrs"
+    v-bind="rootAttrs"
     role="table"
     data-runtime-kit-table="v1"
     class="runtime-data-table"
-    :class="props.class"
-    :style="tableStyle"
+    :class="rootClassName"
+    :style="[forwardedStyle, tableStyle]"
     :aria-rowcount="rowCount"
     :aria-colcount="columnCount"
   >
@@ -26,7 +26,7 @@
         class="runtime-data-table__cell"
         :class="cell.className"
         :style="cell.style"
-        :role="cell.role"
+        role="cell"
         :aria-rowindex="cell.rowIndex + 1"
         :aria-colindex="cell.columnIndex + 1"
         :data-row-index="cell.rowIndex"
@@ -120,25 +120,27 @@ export interface RuntimeTableStyleLayers {
 }
 
 export interface DataTableProps {
-  /** 完整二维表格数据，不强制区分表头和内容 */
+  /** 完整二维表格数据 */
   rows: RuntimeTableCellInput[][]
-  /** 前 N 行为表头语义，不自动套视觉样式 */
-  headerRows?: number
-  /** 前 N 列为表头语义，不自动套视觉样式 */
-  headerColumns?: number
-  /** 表格外层宽高、圆角、背景和基础字体类 */
+  /** 表格宽度；数字按 px 处理，默认填满父容器 */
+  width?: number | string
+  /** 表格高度；数字按 px 处理，默认填满父容器 */
+  height?: number | string
+  /** 表格外层圆角、背景、边框和基础字体类 */
   class?: string | string[] | Record<string, boolean>
   /** 分层样式配置 */
   styles?: RuntimeTableStyleLayers
-  /** 全表边框快捷入口 */
-  border?: RuntimeTableBorder
 }
 </script>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed, type CSSProperties, useAttrs, type StyleValue } from 'vue'
 import clsx from 'clsx'
 import { twMerge } from 'tailwind-merge'
+
+defineOptions({
+  inheritAttrs: false,
+})
 
 interface MergedCellStyle {
   className: string
@@ -151,7 +153,6 @@ interface RenderedCell {
   rowIndex: number
   columnIndex: number
   text: string
-  role: 'columnheader' | 'rowheader' | 'cell'
   className: string
   style: CSSProperties
 }
@@ -189,19 +190,27 @@ interface RuntimeTableBorderContext {
 }
 
 const props = withDefaults(defineProps<DataTableProps>(), {
-  headerRows: 0,
-  headerColumns: 0,
+  width: '100%',
+  height: '100%',
   class: '',
   styles: () => ({}),
-  border: undefined,
 })
+const attrs = useAttrs()
 
 const rowCount = computed(() => props.rows.length)
 const columnCount = computed(() => {
   return props.rows.reduce((maxCount, row) => Math.max(maxCount, row.length), 0)
 })
+const rootAttrs = computed(() => {
+  const { class: _class, style: _style, ...restAttrs } = attrs
+  return restAttrs
+})
+const forwardedStyle = computed<StyleValue | undefined>(() => attrs.style as StyleValue | undefined)
+const rootClassName = computed(() => mergeClass(attrs.class, props.class))
 
 const tableStyle = computed<CSSProperties>(() => ({
+  width: normalizeCssSize(props.width) || '100%',
+  height: normalizeCssSize(props.height) || '100%',
   gridTemplateColumns: buildTrackTemplate(columnCount.value, index => props.styles.columns?.[index]?.width),
   gridTemplateRows: buildTrackTemplate(rowCount.value, index => props.styles.rows?.[index]?.height),
 }))
@@ -219,7 +228,6 @@ const renderedRows = computed<RenderedRow[]>(() => {
         rowIndex,
         columnIndex,
         text: normalizeCellText(sourceCell),
-        role: resolveCellRole(rowIndex, columnIndex),
         className: mergedStyle.className,
         style: {
           gridColumn: columnIndex + 1,
@@ -301,10 +309,9 @@ function resolveBorderSides(
   columnIndex: number,
 ): RuntimeTableBorderSides {
   const borders: RuntimeTableBorderSides = {}
-  const hasExplicitTableBorder = Boolean(props.border || props.styles.table?.border)
+  const hasExplicitTableBorder = Boolean(props.styles.table?.border)
   const layerInputs = [
     { scope: 'table' as const, border: hasExplicitTableBorder ? undefined : DEFAULT_TABLE_BORDER },
-    { scope: 'table' as const, border: props.border },
     { scope: 'table' as const, border: props.styles.table?.border },
     { scope: 'cell' as const, border: props.styles.cell?.border },
     { scope: 'column' as const, border: props.styles.columns?.[columnIndex]?.border },
@@ -579,21 +586,6 @@ function normalizeCssSize(value?: number | string): string {
 }
 
 /**
- * 按表头语义参数解析单元格 ARIA role。
- * @param rowIndex 0 基行索引
- * @param columnIndex 0 基列索引
- */
-function resolveCellRole(rowIndex: number, columnIndex: number): RenderedCell['role'] {
-  if (rowIndex < props.headerRows) {
-    return 'columnheader'
-  }
-  if (columnIndex < props.headerColumns) {
-    return 'rowheader'
-  }
-  return 'cell'
-}
-
-/**
  * 读取单元格展示文本。
  * @param cell 单元格输入
  */
@@ -622,8 +614,6 @@ function mergeClass(...values: unknown[]): string {
 .runtime-data-table {
   box-sizing: border-box;
   display: grid;
-  width: 100%;
-  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

@@ -12,10 +12,10 @@
           </div>
           <DataTable
             :rows="metricRows"
-            :header-rows="1"
-            :header-columns="1"
             :styles="metricStyles"
-            class="min-h-0 w-full flex-1 rounded-lg border border-border bg-white text-sm overflow-hidden"
+            width="100%"
+            height="100%"
+            class="min-h-0 flex-1 rounded-lg border border-border bg-white text-sm overflow-hidden"
           />
         </section>
 
@@ -23,15 +23,16 @@
           <div>
             <h3 class="font-heading text-lg font-semibold text-primary">项目排期矩阵</h3>
             <p class="mt-2 font-body text-sm leading-6 text-secondary">
-              首列作为行表头语义；该表设置为无边框，用于对照 PPTX 导出的 none 边框。
+              首列通过列样式强调；该表设置为无边框，用于对照 PPTX 导出的 none 边框。
             </p>
           </div>
 
           <DataTable
             :rows="timelineRows"
-            :header-columns="1"
             :styles="timelineStyles"
-            class="mt-5 min-h-0 w-full flex-1 rounded-lg bg-white text-xs overflow-hidden"
+            width="100%"
+            height="100%"
+            class="mt-5 min-h-0 flex-1 rounded-lg bg-white text-xs overflow-hidden"
           />
         </section>
 
@@ -133,7 +134,7 @@ const metricStyles: RuntimeTableStyleLayers = {
 }
 
 /**
- * 项目排期矩阵数据，首列作为行表头语义。
+ * 项目排期矩阵数据，首列通过列样式强调。
  */
 const timelineRows: RuntimeTableCellInput[][] = [
   ['调研', '需求访谈', '流程梳理', '数据口径'],
@@ -178,8 +179,8 @@ const timelineStyles: RuntimeTableStyleLayers = {
  */
 const styleNotes = [
   {
-    title: '表头不强约定',
-    description: 'headerRows 和 headerColumns 只影响语义，首行首列样式需要显式写入 styles。',
+    title: '显式宽高',
+    description: 'width 和 height 负责定义表格可分配空间，未设置尺寸的行列按剩余空间自动均分。',
   },
   {
     title: '分层样式',
