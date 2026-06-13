@@ -12,6 +12,7 @@ interface RouteCatalogInfoLike {
   pageNumber?: number
   level?: number
   hidden?: boolean
+  speakerNotes?: string | null
 }
 
 const INTERNAL_RUNTIME_ROUTE_PREFIXES = ['/__presenter']
@@ -93,6 +94,7 @@ function collectRouterPages(router?: Pick<Router, 'getRoutes'> | null): PageInfo
         meta: {
           pageNumber: resolveNumericMetaValue(record.meta.pageNumber),
           hidden: Boolean(record.meta.hidden),
+          speakerNotes: resolveSpeakerNotes(record.meta.speakerNotes),
         },
       })),
   )
@@ -116,6 +118,7 @@ function createPageInfo(route: RouteCatalogInfoLike, index: number): PageInfo {
       pageNumber,
       level: route.level,
       hidden: route.hidden,
+      speakerNotes: resolveSpeakerNotes(route.speakerNotes),
     },
   }
 }
@@ -272,4 +275,13 @@ function normalizeRoutePath(routePath?: string | null): string {
 function resolveNumericMetaValue(value: unknown): number | undefined {
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? numericValue : undefined
+}
+
+/**
+ * 解析演讲者备注，只保留字符串备注。
+ * @param value 原始备注值
+ * @returns 备注文本；未配置时返回 null
+ */
+function resolveSpeakerNotes(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
 }

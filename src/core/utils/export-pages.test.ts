@@ -16,6 +16,7 @@ const mockRouteCatalog = vi.hoisted(() => ({
     pageNumber?: number
     level?: number
     hidden?: boolean
+    speakerNotes?: string | null
   }>,
   visible: [] as Array<{
     path: string
@@ -24,6 +25,7 @@ const mockRouteCatalog = vi.hoisted(() => ({
     pageNumber?: number
     level?: number
     hidden?: boolean
+    speakerNotes?: string | null
   }>,
 }))
 
@@ -40,14 +42,15 @@ describe('collectAllExportPages', () => {
 
   it('页码目录为空时应回退到可见路由目录', async () => {
     mockRouteCatalog.visible = [
-      { path: '/page-2', name: '第二页', order: 2, level: 0, hidden: false },
-      { path: '/page-1', name: '第一页', order: 1, level: 0, hidden: false },
+      { path: '/page-2', name: '第二页', order: 2, level: 0, hidden: false, speakerNotes: '第二页备注' },
+      { path: '/page-1', name: '第一页', order: 1, level: 0, hidden: false, speakerNotes: '第一页备注' },
     ]
 
     const pages = await collectAllExportPages()
 
     expect(pages.map(page => page.route)).toEqual(['/page-1', '/page-2'])
     expect(pages.map(page => page.title)).toEqual(['第一页', '第二页'])
+    expect(pages.map(page => page.meta?.speakerNotes)).toEqual(['第一页备注', '第二页备注'])
   })
 
   it('路由目录为空时应回退到 Router 路由表', async () => {
@@ -58,8 +61,8 @@ describe('collectAllExportPages', () => {
         createRouteRecord('/hidden', { meta: { title: '隐藏页', hidden: true, order: 3 } }),
         createRouteRecord('/__presenter-display', { meta: { title: '演讲窗口', order: 4 } }),
         createRouteRecord('/:pathMatch(.*)*', { meta: { title: '404', order: 5 } }),
-        createRouteRecord('/page-2', { meta: { title: '第二页', order: 2 } }),
-        createRouteRecord('/page-1', { meta: { title: '第一页', order: 1 } }),
+        createRouteRecord('/page-2', { meta: { title: '第二页', order: 2, speakerNotes: '第二页备注' } }),
+        createRouteRecord('/page-1', { meta: { title: '第一页', order: 1, speakerNotes: '第一页备注' } }),
       ]),
     } satisfies Pick<Router, 'getRoutes'>
 
@@ -67,6 +70,7 @@ describe('collectAllExportPages', () => {
 
     expect(pages.map(page => page.route)).toEqual(['/page-1', '/page-2'])
     expect(pages.map(page => page.title)).toEqual(['第一页', '第二页'])
+    expect(pages.map(page => page.meta?.speakerNotes)).toEqual(['第一页备注', '第二页备注'])
   })
 })
 

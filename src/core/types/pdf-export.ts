@@ -127,6 +127,7 @@ export interface PageInfo {
     pageNumber?: number           // 页码
     level?: number               // 层级
     hidden?: boolean             // 是否隐藏
+    speakerNotes?: string | null  // 演讲者备注
     [key: string]: unknown       // 其他元数据
   }
 }

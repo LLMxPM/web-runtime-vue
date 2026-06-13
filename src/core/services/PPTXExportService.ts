@@ -90,6 +90,9 @@ export class PPTXExportService {
         route: routePath || '',
         title: pageTitle,
         order: 1,
+        meta: {
+          speakerNotes: this.getCurrentPageSpeakerNotes(),
+        },
       }, 1, gradientFills)
       this.appendReportPage(report, pageReport)
 
@@ -276,6 +279,11 @@ export class PPTXExportService {
     const layout = this.resolveSlideLayout()
     const pageWidthPx = appPageConfig.value.width || 1920
     const pageHeightPx = appPageConfig.value.height || 1080
+    const speakerNotes = this.pickSpeakerNotes(page.meta?.speakerNotes)
+
+    if (speakerNotes) {
+      slide.addNotes(speakerNotes)
+    }
 
     return this.converter.convertPage({
       slide,
@@ -533,6 +541,13 @@ export class PPTXExportService {
   }
 
   /**
+   * 获取当前页演讲者备注。
+   */
+  private getCurrentPageSpeakerNotes(): string | null {
+    return this.pickSpeakerNotes(this.router?.currentRoute.value.meta?.speakerNotes)
+  }
+
+  /**
    * 规范化标题文本。
    * @param title 候选标题
    */
@@ -543,6 +558,19 @@ export class PPTXExportService {
 
     const normalizedTitle = title.trim()
     return normalizedTitle.length > 0 ? normalizedTitle : undefined
+  }
+
+  /**
+   * 规范化演讲者备注，空白备注不写入 PPTX。
+   * @param notes 候选备注
+   */
+  private pickSpeakerNotes(notes: unknown): string | null {
+    if (typeof notes !== 'string') {
+      return null
+    }
+
+    const normalizedNotes = notes.trim()
+    return normalizedNotes.length > 0 ? normalizedNotes : null
   }
 
   /**
