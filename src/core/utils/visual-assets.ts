@@ -9,7 +9,7 @@ export interface EditorVisualAssetWaitOptions {
 
 export interface EditorVisualAssetIssue {
   /** 资源类型，用于 Backend 压缩错误详情。 */
-  type: 'view-preview' | 'drawio' | 'image' | 'background' | 'font'
+  type: 'view-preview' | 'drawio' | 'mermaid' | 'image' | 'background' | 'font'
   /** 资源地址；非 URL 类问题可为空。 */
   url?: string
   /** 面向诊断的简短信息。 */
@@ -41,10 +41,39 @@ interface VisualAssetTask {
 }
 
 type TaskStatus = 'pending' | 'loaded' | 'failed'
+type RuntimeDiagramType = Extract<EditorVisualAssetIssue['type'], 'drawio' | 'mermaid'>
+
+interface RuntimeDiagramProbe {
+  type: RuntimeDiagramType
+  stateSelector: string
+  stateDatasetKey: keyof DOMStringMap
+  messageDatasetKey: keyof DOMStringMap
+  failedMessage: string
+  timeoutMessage: string
+}
 
 const DEFAULT_VISUAL_READY_TIMEOUT_MS = 25000
 const VIEW_PREVIEW_STATE_SELECTOR = '[data-runtime-view-preview-state]'
 const DRAWIO_STATE_SELECTOR = '[data-runtime-drawio-state]'
+const MERMAID_STATE_SELECTOR = '[data-runtime-mermaid-state]'
+const RUNTIME_DIAGRAM_PROBES: RuntimeDiagramProbe[] = [
+  {
+    type: 'drawio',
+    stateSelector: DRAWIO_STATE_SELECTOR,
+    stateDatasetKey: 'runtimeDrawioState',
+    messageDatasetKey: 'runtimeDrawioMessage',
+    failedMessage: 'Draw.io 图表渲染失败。',
+    timeoutMessage: 'Draw.io 图表渲染超时。',
+  },
+  {
+    type: 'mermaid',
+    stateSelector: MERMAID_STATE_SELECTOR,
+    stateDatasetKey: 'runtimeMermaidState',
+    messageDatasetKey: 'runtimeMermaidMessage',
+    failedMessage: 'Mermaid 图表渲染失败。',
+    timeoutMessage: 'Mermaid 图表渲染超时。',
+  },
+]
 
 /**
  * 注册浏览器全局截图资源等待函数，供 Backend Playwright 截图前调用。
@@ -77,10 +106,16 @@ export async function waitForEditorVisualAssets(
   pending.push(...viewPreviewResult.pending)
   timedOut = timedOut || viewPreviewResult.timedOut
 
-  const drawioResult = await waitForDrawioReady(deadlineAt)
-  failed.push(...drawioResult.failed)
-  pending.push(...drawioResult.pending)
-  timedOut = timedOut || drawioResult.timedOut
+  let diagramTotal = 0
+  let diagramLoaded = 0
+  for (const probe of RUNTIME_DIAGRAM_PROBES) {
+    const diagramResult = await waitForRuntimeDiagramReady(deadlineAt, probe)
+    diagramTotal += diagramResult.total
+    diagramLoaded += diagramResult.loaded
+    failed.push(...diagramResult.failed)
+    pending.push(...diagramResult.pending)
+    timedOut = timedOut || diagramResult.timedOut
+  }
 
   const tasks = collectVisualAssetTasks(document)
   const taskResult = await waitForTasks(tasks, deadlineAt)
@@ -99,8 +134,8 @@ export async function waitForEditorVisualAssets(
   return {
     ok: failed.length === 0 && pending.length === 0 && !timedOut,
     timedOut,
-    total: tasks.length + drawioResult.total,
-    loaded: taskResult.loaded + drawioResult.loaded,
+    total: tasks.length + diagramTotal,
+    loaded: taskResult.loaded + diagramLoaded,
     failed,
     pending,
     waitedMs: Date.now() - startedAt,
@@ -166,11 +201,12 @@ async function waitForViewPreviewReady(deadlineAt: number): Promise<{
 }
 
 /**
- * 等待 Draw.io 图表完成 SVG 输出与缩放。
+ * 等待 Runtime 图表组件完成 SVG 输出与缩放。
  * @param deadlineAt 截止时间戳
+ * @param probe 图表探针配置
  * @returns 等待结果
  */
-async function waitForDrawioReady(deadlineAt: number): Promise<{
+async function waitForRuntimeDiagramReady(deadlineAt: number, probe: RuntimeDiagramProbe): Promise<{
   total: number
   loaded: number
   failed: EditorVisualAssetIssue[]
@@ -179,26 +215,26 @@ async function waitForDrawioReady(deadlineAt: number): Promise<{
 }> {
   let latestElements: HTMLElement[] = []
   while (Date.now() <= deadlineAt) {
-    latestElements = Array.from(document.querySelectorAll<HTMLElement>(DRAWIO_STATE_SELECTOR))
+    latestElements = Array.from(document.querySelectorAll<HTMLElement>(probe.stateSelector))
     if (latestElements.length === 0) {
       return { total: 0, loaded: 0, failed: [], pending: [], timedOut: false }
     }
 
-    const failedElement = latestElements.find(element => element.dataset.runtimeDrawioState === 'error')
+    const failedElement = latestElements.find(element => element.dataset[probe.stateDatasetKey] === 'error')
     if (failedElement) {
       return {
         total: latestElements.length,
-        loaded: latestElements.filter(element => element.dataset.runtimeDrawioState === 'ready').length,
+        loaded: latestElements.filter(element => element.dataset[probe.stateDatasetKey] === 'ready').length,
         failed: [{
-          type: 'drawio',
-          message: failedElement.dataset.runtimeDrawioMessage || 'Draw.io 图表渲染失败。',
+          type: probe.type,
+          message: failedElement.dataset[probe.messageDatasetKey] || probe.failedMessage,
         }],
         pending: [],
         timedOut: false,
       }
     }
 
-    if (latestElements.every(element => element.dataset.runtimeDrawioState === 'ready')) {
+    if (latestElements.every(element => element.dataset[probe.stateDatasetKey] === 'ready')) {
       return {
         total: latestElements.length,
         loaded: latestElements.length,
@@ -213,18 +249,18 @@ async function waitForDrawioReady(deadlineAt: number): Promise<{
 
   const elements = latestElements.length > 0
     ? latestElements
-    : Array.from(document.querySelectorAll<HTMLElement>(DRAWIO_STATE_SELECTOR))
+    : Array.from(document.querySelectorAll<HTMLElement>(probe.stateSelector))
   return {
     total: elements.length,
-    loaded: elements.filter(element => element.dataset.runtimeDrawioState === 'ready').length,
+    loaded: elements.filter(element => element.dataset[probe.stateDatasetKey] === 'ready').length,
     failed: [],
     pending: elements
-      .filter(element => element.dataset.runtimeDrawioState !== 'ready')
+      .filter(element => element.dataset[probe.stateDatasetKey] !== 'ready')
       .map((element): EditorVisualAssetIssue => ({
-        type: 'drawio',
-        message: element.dataset.runtimeDrawioMessage || 'Draw.io 图表渲染超时。',
+        type: probe.type,
+        message: element.dataset[probe.messageDatasetKey] || probe.timeoutMessage,
       })),
-    timedOut: elements.some(element => element.dataset.runtimeDrawioState !== 'ready'),
+    timedOut: elements.some(element => element.dataset[probe.stateDatasetKey] !== 'ready'),
   }
 }
 

@@ -7,6 +7,8 @@
     class="mermaid-viewer"
     :style="surfaceStyle"
     :class="{ 'cursor-zoom-in group': previewEnabled }"
+    :data-runtime-mermaid-state="mermaidState"
+    :data-runtime-mermaid-message="mermaidStateMessage"
     v-bind="$attrs"
     @click="handleViewerClick"
   >
@@ -76,6 +78,7 @@ interface Props extends ViewerSurfaceProps {
 
 type MermaidLibrary = Awaited<typeof import('mermaid')>['default']
 type MermaidInitializeConfig = Parameters<MermaidLibrary['initialize']>[0]
+type MermaidRenderState = 'loading' | 'ready' | 'error'
 type SvgPanZoomFactory = (
   element: SVGElement,
   options?: Record<string, unknown>,
@@ -107,15 +110,24 @@ const props = withDefaults(defineProps<Props>(), {
   previewEnabled: false
 })
 
+/**
+ * 判断当前组件是否有可渲染 Mermaid 来源。
+ * @returns 存在 content 或 src 时返回 true
+ */
+const hasDiagramSource = (): boolean => Boolean(props.content.trim() || props.src.trim())
+
 // 响应式数据
-const loading = ref(false)
+const loading = ref(hasDiagramSource())
 const error = ref<string | null>(null)
+const mermaidState = ref<MermaidRenderState>(hasDiagramSource() ? 'loading' : 'ready')
+const mermaidStateMessage = ref('')
 const diagramContainer = ref<HTMLElement | null>(null)
 const previewContainer = ref<PreviewContainerElement | null>(null)
 const mermaidId = ref('')
 let mermaidInstance: MermaidLibrary | null = null
 let resizeObserver: ResizeObserver | null = null
 const isPreviewOpen = ref(false)
+let renderGeneration = 0
 
 // 预览尺寸（基于窗口自适应）
 const previewWidth = 'calc(100vw - 24px)'
@@ -161,6 +173,54 @@ const generateId = (): string => {
 const getErrorMessage = (reason: unknown): string => {
   return reason instanceof Error ? reason.message : String(reason || '未知错误')
 }
+
+/**
+ * 标记一次新的 Mermaid 渲染流程，并返回流程令牌。
+ * @returns 当前渲染流程令牌
+ */
+const beginMermaidRender = (): number => {
+  renderGeneration += 1
+  mermaidState.value = 'loading'
+  mermaidStateMessage.value = ''
+  return renderGeneration
+}
+
+/**
+ * 标记 Mermaid 渲染失败。
+ * @param message 失败原因
+ * @param token 渲染流程令牌
+ */
+const markMermaidError = (message: string, token = renderGeneration): void => {
+  if (token !== renderGeneration) return
+  mermaidState.value = 'error'
+  mermaidStateMessage.value = message
+  error.value = message
+  loading.value = false
+}
+
+/**
+ * 标记 Mermaid 已完成 SVG 输出与浏览器绘制。
+ * @param token 渲染流程令牌
+ */
+const markMermaidReady = async (token: number): Promise<void> => {
+  await waitForAnimationFrame()
+  await waitForAnimationFrame()
+  if (token !== renderGeneration) return
+  mermaidState.value = 'ready'
+  mermaidStateMessage.value = ''
+  loading.value = false
+}
+
+/**
+ * 等待一个浏览器绘制帧；测试环境缺少 requestAnimationFrame 时回退到 timeout。
+ */
+const waitForAnimationFrame = (): Promise<void> => new Promise((resolve) => {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => resolve())
+    return
+  }
+  window.setTimeout(resolve, 16)
+})
 
 /**
  * 读取容器中的 Mermaid SVG，并收窄为支持自定义挂载字段的类型。
@@ -295,8 +355,9 @@ const fitSvgToContainer = (container?: HTMLElement | null) => {
  * 渲染图表
  */
 const renderDiagram = async (content: string) => {
+  const renderToken = beginMermaidRender()
   if (!content?.trim()) {
-    error.value = '图表内容为空'
+    markMermaidError('图表内容为空', renderToken)
     return
   }
 
@@ -344,10 +405,9 @@ const renderDiagram = async (content: string) => {
     // 主视图始终自适应容器，不启用交互
     fitSvgToContainer(diagramContainer.value)
 
-    loading.value = false
+    await markMermaidReady(renderToken)
   } catch (err) {
-    loading.value = false
-    error.value = getErrorMessage(err)
+    markMermaidError(getErrorMessage(err), renderToken)
     console.error('MermaidViewer render error:', err)
   }
 }
@@ -451,23 +511,30 @@ const reload = async () => {
   let content = props.content
 
   if (!content && props.src) {
+    const renderToken = beginMermaidRender()
+    loading.value = true
+    error.value = null
     try {
       content = await loadContentFromFile(props.src)
+      if (renderToken !== renderGeneration) return
     } catch (err) {
-      error.value = getErrorMessage(err)
+      markMermaidError(getErrorMessage(err), renderToken)
       return
     }
   }
 
   if (content) {
     await renderDiagram(content)
+    return
   }
+  clear()
 }
 
 /**
  * 清空图表
  */
 const clear = () => {
+  renderGeneration += 1
   if (diagramContainer.value) {
     cleanupPanZoom(diagramContainer.value)
     diagramContainer.value.innerHTML = ''
@@ -478,6 +545,8 @@ const clear = () => {
   }
   error.value = null
   loading.value = false
+  mermaidState.value = 'ready'
+  mermaidStateMessage.value = ''
 }
 
 /**
@@ -602,26 +671,13 @@ const closePreview = () => {
 }
 
 // 监听props变化
-watch(() => props.content, (newContent) => {
-  if (newContent) {
-    renderDiagram(newContent)
-  }
-}, { immediate: false })
-
-watch(() => props.src, async (newSrc) => {
-  if (newSrc) {
-    try {
-      const content = await loadContentFromFile(newSrc)
-      await renderDiagram(content)
-    } catch (err) {
-      error.value = getErrorMessage(err)
-    }
-  }
+watch(() => [props.src, props.content], () => {
+  void reload()
 }, { immediate: false })
 
 watch(() => props.theme, () => {
   mermaidInstance = null // 重置实例以应用新主题
-  reload()
+  void reload()
 })
 
 // 组件挂载后初始化

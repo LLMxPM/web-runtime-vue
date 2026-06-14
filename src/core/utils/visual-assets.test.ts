@@ -168,6 +168,45 @@ describe('visual asset readiness probe', () => {
     })
   })
 
+  it('应等待 Mermaid 图表状态从 loading 变为 ready', async () => {
+    document.body.innerHTML = '<div id="mermaid" data-runtime-mermaid-state="loading"></div>'
+    const mermaid = document.querySelector<HTMLElement>('#mermaid')!
+    window.setTimeout(() => {
+      mermaid.dataset.runtimeMermaidState = 'ready'
+    }, 0)
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 100 })
+
+    expect(result.ok).toBe(true)
+    expect(result.total).toBe(1)
+    expect(result.loaded).toBe(1)
+  })
+
+  it('应把未完成的 Mermaid 图表标记为超时 pending', async () => {
+    document.body.innerHTML = '<div data-runtime-mermaid-state="loading" data-runtime-mermaid-message="渲染中"></div>'
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 20 })
+
+    expect(result.ok).toBe(false)
+    expect(result.timedOut).toBe(true)
+    expect(result.pending[0]).toMatchObject({
+      type: 'mermaid',
+      message: '渲染中',
+    })
+  })
+
+  it('应把 Mermaid 渲染错误标记为 failed', async () => {
+    document.body.innerHTML = '<div data-runtime-mermaid-state="error" data-runtime-mermaid-message="语法错误"></div>'
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 100 })
+
+    expect(result.ok).toBe(false)
+    expect(result.failed[0]).toMatchObject({
+      type: 'mermaid',
+      message: '语法错误',
+    })
+  })
+
   it('应注册全局视觉资源等待函数', () => {
     registerEditorVisualAssetProbe()
 

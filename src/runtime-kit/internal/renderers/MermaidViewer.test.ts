@@ -5,9 +5,28 @@
  */
 
 import { createApp, nextTick } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import MermaidViewer from './MermaidViewer.vue'
+
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: () => undefined,
+    render: async () => ({
+      svg: '<svg viewBox="0 0 200 100"><g><text>Demo</text></g></svg>',
+    }),
+  },
+}))
+
+/**
+ * 等待 Mermaid 异步导入、SVG 插入和绘制帧确认完成。
+ */
+async function waitForMermaidRender(): Promise<void> {
+  for (let index = 0; index < 6; index += 1) {
+    await new Promise(resolve => window.setTimeout(resolve, 20))
+    await nextTick()
+  }
+}
 
 describe('MermaidViewer', () => {
   it('应允许外部 class 控制容器高度和最小高度', async () => {
@@ -52,5 +71,40 @@ describe('MermaidViewer', () => {
     app.unmount()
     host.remove()
     document.body.querySelector('.fixed.inset-0')?.remove()
+  })
+
+  it('有 Mermaid 来源时初始状态应为 loading', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(MermaidViewer, {
+      content: 'flowchart TD\n  A --> B',
+    })
+    app.mount(host)
+    await nextTick()
+
+    expect(host.querySelector<HTMLElement>('.mermaid-viewer')?.dataset.runtimeMermaidState).toBe('loading')
+
+    app.unmount()
+    host.remove()
+  })
+
+  it('渲染完成后应将 Mermaid 状态标记为 ready', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+
+    const app = createApp(MermaidViewer, {
+      content: 'flowchart TD\n  A --> B',
+      height: 240,
+    })
+    app.mount(host)
+
+    await waitForMermaidRender()
+
+    expect(host.querySelector<SVGSVGElement>('.mermaid-viewer svg')).not.toBeNull()
+    expect(host.querySelector<HTMLElement>('.mermaid-viewer')?.dataset.runtimeMermaidState).toBe('ready')
+
+    app.unmount()
+    host.remove()
   })
 })
