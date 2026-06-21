@@ -5,6 +5,8 @@
 import { vi } from 'vitest'
 import { PPTXDomConverter, type PptxGradientFillInstruction } from './PPTXDomConverter'
 
+type CaptureElementAsPng = (element: HTMLElement) => Promise<string>
+
 const shapeTypes = {
   rect: 'rect',
   roundRect: 'roundRect',
@@ -19,7 +21,10 @@ const shapeTypes = {
  */
 export async function convert(
   slide = createSlideMock(),
-  captureElementAsPng = vi.fn(async () => 'data:image/png;base64,test'),
+  captureElementAsPng: CaptureElementAsPng = vi.fn(async (element: HTMLElement) => {
+    void element
+    return 'data:image/png;base64,test'
+  }),
   gradientFillCollector?: (instruction: PptxGradientFillInstruction) => void,
 ) {
   const pageElement = document.getElementById('page') as HTMLElement

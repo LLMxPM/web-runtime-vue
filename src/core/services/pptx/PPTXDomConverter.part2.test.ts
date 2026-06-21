@@ -8,6 +8,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PptxGradientFillInstruction } from './PPTXDomConverter'
 import { convert, createSlideMock, decodeSvgDataUrl, stubDetachedImageSize } from './PPTXDomConverter.test-support'
 
+/**
+ * 创建可断言调用目标的局部截图 mock。
+ */
+function createCaptureElementAsPngMock() {
+  return vi.fn(async (element: HTMLElement) => {
+    void element
+    return 'data:image/png;base64,capture'
+  })
+}
+
 describe('PPTXDomConverter', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
@@ -492,5 +502,177 @@ describe('PPTXDomConverter', () => {
       result: 'screenshot',
       reason: '复杂 CSS 容器降级为局部截图',
     }))
+  })
+
+  it('应将同一容器下多个 3D 子分支整体截图', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="perspective-row" style="display: flex; align-items: center; justify-content: center; width: 1400px; height: 500px; padding: 71px; gap: 32px; overflow: hidden;">
+          <div style="width: 439px; height: 386px; transform: perspective(1200px) rotateY(25deg); transform-style: preserve-3d;">
+            <figure class="image-viewer" style="width: 100%; height: 100%;">
+              <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover;">
+            </figure>
+          </div>
+          <div style="width: 398px; height: 358px; transform: perspective(1200px) rotateY(0deg); transform-style: preserve-3d;">
+            <figure class="image-viewer" style="width: 100%; height: 100%;">
+              <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover;">
+            </figure>
+          </div>
+          <div style="width: 439px; height: 386px; transform: perspective(1200px) rotateY(-25deg); transform-style: preserve-3d;">
+            <figure class="image-viewer" style="width: 100%; height: 100%;">
+              <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover;">
+            </figure>
+          </div>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(document.getElementById('perspective-row'))
+    expect(slide.addImage).toHaveBeenCalledTimes(1)
+    expect(report.items).toEqual([
+      expect.objectContaining({
+        sourceType: 'complex-css',
+        result: 'screenshot',
+        reason: '3D CSS 视觉降级为局部截图',
+      }),
+    ])
+  })
+
+  it('应将单张 3D 卡片截图为最小卡片宿主', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="outer" style="width: 900px; height: 520px; padding: 80px;">
+          <div id="single-card" style="width: 420px; height: 320px; overflow: hidden; border-radius: 24px; transform: perspective(1200px) rotateY(-24deg);">
+            <figure class="image-viewer" style="width: 100%; height: 100%;">
+              <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover;">
+            </figure>
+          </div>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(document.getElementById('single-card'))
+    expect(captureElementAsPng.mock.calls[0]?.[0]).not.toBe(document.getElementById('outer'))
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'complex-css',
+      result: 'screenshot',
+      reason: '3D CSS 视觉降级为局部截图',
+    }))
+  })
+
+  it('应在媒体容器包含 3D 图片时优先截图媒体容器', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <figure id="media-wrapper" class="image-viewer" style="width: 360px; height: 240px; overflow: hidden; border-radius: 18px;">
+          <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover; transform: perspective(1000px) rotateY(18deg);">
+        </figure>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(document.getElementById('media-wrapper'))
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'complex-css',
+      result: 'screenshot',
+      reason: '3D CSS 视觉降级为局部截图',
+    }))
+  })
+
+  it('应将 3D 文本容器整体截图', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="text-card" style="width: 420px; height: 180px; color: #0f172a; font-size: 36px; transform: perspective(900px) rotateX(18deg);">
+          3D 文本卡片
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(document.getElementById('text-card'))
+    expect(slide.addText).not.toHaveBeenCalled()
+    expect(report.items[0]).toEqual(expect.objectContaining({
+      sourceType: 'complex-css',
+      result: 'screenshot',
+    }))
+  })
+
+  it('父容器含 3D 子树和文本时应保留文本可编辑', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section id="mixed-row" style="display: flex; align-items: center; gap: 32px; width: 900px; height: 320px;">
+          <div id="mixed-card" style="width: 320px; height: 220px; transform: perspective(1000px) rotateY(-22deg);">
+            <figure class="image-viewer" style="width: 100%; height: 100%;">
+              <img src="data:image/png;base64,test" style="width: 100%; height: 100%; object-fit: cover;">
+            </figure>
+          </div>
+          <p style="width: 360px; height: 48px; color: #334155; font-size: 24px;">旁边文字保持可编辑</p>
+        </section>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(document.getElementById('mixed-card'))
+    expect(captureElementAsPng.mock.calls[0]?.[0]).not.toBe(document.getElementById('mixed-row'))
+    expect(slide.addText).toHaveBeenCalledWith('旁边文字保持可编辑', expect.objectContaining({
+      color: '334155',
+    }))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'complex-css',
+        result: 'screenshot',
+        reason: '3D CSS 视觉降级为局部截图',
+      }),
+      expect.objectContaining({
+        sourceType: 'body',
+        result: 'editable-text',
+      }),
+    ]))
+  })
+
+  it('纯 matrix3d 位移不应触发 3D 截图降级', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div style="width: 360px; height: 80px; color: #0f172a; font-size: 24px; transform: matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 24, 12, 0, 1);">
+          纯位移文本
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(slide.addText).toHaveBeenCalledWith('纯位移文本', expect.objectContaining({
+      color: '0F172A',
+    }))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'body',
+        result: 'editable-text',
+      }),
+    ]))
   })
 })

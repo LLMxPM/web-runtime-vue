@@ -15,6 +15,7 @@ import type { PptxDomGradientExportHost } from '@/core/services/pptx/PPTXDomConv
 import { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
 import { PPTXDomConverterMedia } from '@/core/services/pptx/PPTXDomConverterMedia'
 import type { PptxDomMediaExportHost } from '@/core/services/pptx/PPTXDomConverterMedia'
+import { PPTX_3D_SCREENSHOT_REASON, PPTXDomConverterRaster } from '@/core/services/pptx/PPTXDomConverterRaster'
 import { PPTXDomConverterTable } from '@/core/services/pptx/PPTXDomConverterTable'
 import type { PptxDomTableExportHost } from '@/core/services/pptx/PPTXDomConverterTable'
 import { PPTXDomConverterText } from '@/core/services/pptx/PPTXDomConverterText'
@@ -35,6 +36,7 @@ export class PPTXDomConverter {
   private readonly layout = new PPTXDomConverterLayout(this.cssParser)
   private readonly svgSerializer = new PPTXSvgSerializer(this.cssParser, element => this.layout.measureElementPixels(element))
   private readonly media = new PPTXDomConverterMedia(this.layout, this.svgSerializer)
+  private readonly raster = new PPTXDomConverterRaster(this.layout)
   private readonly table = new PPTXDomConverterTable(this.layout)
   private readonly text = new PPTXDomConverterText(this.layout)
   private readonly gradient = new PPTXDomConverterGradient(this.layout)
@@ -81,6 +83,12 @@ export class PPTXDomConverter {
    */
   private async visitElement(element: Element, context: VisitContext): Promise<void> {
     if (!this.layout.isVisibleElement(element)) {
+      return
+    }
+
+    const threeDScreenshotTarget = this.raster.resolve3dScreenshotTarget(element, this.options.pageElement)
+    if (threeDScreenshotTarget) {
+      await this.addScreenshotBlock(threeDScreenshotTarget, 'complex-css', PPTX_3D_SCREENSHOT_REASON, context)
       return
     }
 
