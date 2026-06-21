@@ -651,6 +651,134 @@ describe('PPTXDomConverter', () => {
     ]))
   })
 
+  it('多张 3D 示例卡片含标题时应拆分截图并保留标题可编辑', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="example-grid" class="grid grid-cols-2 gap-12" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; width: 960px; height: 720px;">
+          <div class="example-card" style="width: 456px; height: 320px;">
+            <h2 style="width: 456px; height: 48px; color: #0f172a; font-size: 30px;">左侧倾斜30°</h2>
+            <div style="width: 456px; height: 256px; display: flex; align-items: center; justify-content: center;">
+              <div id="wrapper-a" class="perspective-3d-wrapper" style="width: 300px; height: 200px;">
+                <div class="perspective-3d-stage" style="width: 300px; height: 200px; perspective: 800px;">
+                  <div class="perspective-3d-content" style="width: 300px; height: 200px; transform: rotateX(0deg) rotateY(30deg) rotateZ(0deg);">
+                    <div style="width: 300px; height: 200px;"><p>rotateY: 30°</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="example-card" style="width: 456px; height: 320px;">
+            <h2 style="width: 456px; height: 48px; color: #0f172a; font-size: 30px;">上仰倾斜20°</h2>
+            <div style="width: 456px; height: 256px; display: flex; align-items: center; justify-content: center;">
+              <div id="wrapper-b" class="perspective-3d-wrapper" style="width: 300px; height: 200px;">
+                <div class="perspective-3d-stage" style="width: 300px; height: 200px; perspective: 900px;">
+                  <div class="perspective-3d-content" style="width: 300px; height: 200px; transform: rotateX(-20deg) rotateY(0deg) rotateZ(0deg);">
+                    <div style="width: 300px; height: 200px;"><p>rotateX: -20°</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="example-card" style="width: 456px; height: 320px;">
+            <h2 style="width: 456px; height: 48px; color: #0f172a; font-size: 30px;">复合旋转</h2>
+            <div style="width: 456px; height: 256px; display: flex; align-items: center; justify-content: center;">
+              <div id="wrapper-c" class="perspective-3d-wrapper" style="width: 300px; height: 200px;">
+                <div class="perspective-3d-stage" style="width: 300px; height: 200px; perspective: 1000px;">
+                  <div class="perspective-3d-content" style="width: 300px; height: 200px; transform: rotateX(15deg) rotateY(25deg) rotateZ(5deg);">
+                    <div style="width: 300px; height: 200px;"><p>rotateX: 15°</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="example-card" style="width: 456px; height: 320px;">
+            <h2 style="width: 456px; height: 48px; color: #0f172a; font-size: 30px;">强透视效果</h2>
+            <div style="width: 456px; height: 256px; display: flex; align-items: center; justify-content: center;">
+              <div id="wrapper-d" class="perspective-3d-wrapper" style="width: 300px; height: 200px;">
+                <div class="perspective-3d-stage" style="width: 300px; height: 200px; perspective: 500px;">
+                  <div class="perspective-3d-content" style="width: 300px; height: 200px; transform: rotateX(0deg) rotateY(-40deg) rotateZ(0deg);">
+                    <div style="width: 300px; height: 200px;"><p>rotateY: -40°</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+    const capturedTargets = captureElementAsPng.mock.calls.map(call => call[0])
+
+    expect(capturedTargets).toEqual([
+      document.getElementById('wrapper-a'),
+      document.getElementById('wrapper-b'),
+      document.getElementById('wrapper-c'),
+      document.getElementById('wrapper-d'),
+    ])
+    expect(capturedTargets).not.toContain(document.getElementById('example-grid'))
+    expect(slide.addText).toHaveBeenCalledWith('左侧倾斜30°', expect.any(Object))
+    expect(slide.addText).toHaveBeenCalledWith('上仰倾斜20°', expect.any(Object))
+    expect(slide.addText).toHaveBeenCalledWith('复合旋转', expect.any(Object))
+    expect(slide.addText).toHaveBeenCalledWith('强透视效果', expect.any(Object))
+    expect(slide.addText).not.toHaveBeenCalledWith('rotateY: 30°', expect.any(Object))
+    expect(report.items.filter(item => item.sourceType === 'complex-css' && item.result === 'screenshot')).toHaveLength(4)
+  })
+
+  it('单个 3D island 视觉外溢时应提升到外层包裹避免裁剪', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = createCaptureElementAsPngMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="overflow-card" style="width: 560px; height: 360px;">
+          <h2 style="width: 560px; height: 48px; color: #0f172a; font-size: 30px;">透视示例标题</h2>
+          <div id="overflow-holder" style="width: 480px; height: 280px; display: flex; align-items: center; justify-content: center;">
+            <div id="overflow-wrapper" style="width: 300px; height: 200px;">
+              <div id="overflow-stage" style="width: 300px; height: 200px; perspective: 800px;">
+                <div id="overflow-content" style="width: 300px; height: 200px; transform: rotateX(15deg) rotateY(25deg) rotateZ(18deg);">
+                  <div style="width: 300px; height: 200px;"><p>外溢 3D 内容</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+
+    const pageElement = document.getElementById('page') as HTMLElement
+    const holderElement = document.getElementById('overflow-holder') as HTMLElement
+    const wrapperElement = document.getElementById('overflow-wrapper') as HTMLElement
+    const stageElement = document.getElementById('overflow-stage') as HTMLElement
+    const contentElement = document.getElementById('overflow-content') as HTMLElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(pageElement, 'getBoundingClientRect').mockReturnValue(createRect(0, 0, 1920, 1080))
+    vi.spyOn(holderElement, 'getBoundingClientRect').mockReturnValue(createRect(80, 80, 480, 280))
+    vi.spyOn(wrapperElement, 'getBoundingClientRect').mockReturnValue(createRect(170, 120, 300, 200))
+    vi.spyOn(stageElement, 'getBoundingClientRect').mockReturnValue(createRect(170, 120, 300, 200))
+    vi.spyOn(contentElement, 'getBoundingClientRect').mockReturnValue(createRect(130, 92, 380, 256))
+
+    await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).toBe(holderElement)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).not.toBe(wrapperElement)
+    expect(captureElementAsPng.mock.calls[0]?.[0]).not.toBe(document.getElementById('overflow-card'))
+    expect(slide.addText).toHaveBeenCalledWith('透视示例标题', expect.any(Object))
+    expect(slide.addText).not.toHaveBeenCalledWith('外溢 3D 内容', expect.any(Object))
+  })
+
   it('纯 matrix3d 位移不应触发 3D 截图降级', async () => {
     const slide = createSlideMock()
     const captureElementAsPng = createCaptureElementAsPngMock()

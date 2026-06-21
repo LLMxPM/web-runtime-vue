@@ -4,6 +4,7 @@
 
 import { MEDIA_SELECTORS } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
+import type { MeasuredElementBox } from '@/core/services/pptx/PPTXDomConverter.types'
 
 export const PPTX_3D_SCREENSHOT_REASON = '3D CSS 视觉降级为局部截图'
 
@@ -81,7 +82,11 @@ export class PPTXDomConverterRaster {
     }
 
     const branches = this.collectDirect3dBranches(element)
-    if (branches.length < 2 || this.hasMeaningfulTextOutsideBranches(element, branches)) {
+    if (
+      branches.length < 2 ||
+      branches.some(branch => this.hasMeaningfulTextOutside3dIsland(branch)) ||
+      this.hasMeaningfulTextOutsideBranches(element, branches)
+    ) {
       return null
     }
 
@@ -209,12 +214,49 @@ export class PPTXDomConverterRaster {
   private resolveOwn3dTarget(element: Element, pageElement: HTMLElement): HTMLElement | null {
     if (element instanceof HTMLElement) {
       if (this.isMediaLeafElement(element)) {
-        return this.resolveMediaLeafWrapper(element, pageElement)
+        const target = this.resolveMediaLeafWrapper(element, pageElement)
+        return target ? this.expand3dIslandTargetForVisualOverflow(target, pageElement) : null
       }
-      return element === pageElement ? null : element
+      return this.resolve3dIslandTarget(element, pageElement)
     }
 
     return this.resolveNearestHtmlWrapper(element, pageElement)
+  }
+
+  /**
+   * 将 3D transform 节点提升到包含 perspective 上下文的一层视觉岛宿主。
+   * @param element 当前 3D 元素
+   * @param pageElement 页面根元素
+   */
+  private resolve3dIslandTarget(element: HTMLElement, pageElement: HTMLElement): HTMLElement | null {
+    if (element === pageElement) {
+      return null
+    }
+
+    let target = element
+    let current: HTMLElement = element
+    let climbedThrough3dContext = false
+
+    for (;;) {
+      const parent = current.parentElement
+      if (!parent || parent === pageElement || !this.isSingleElementWrapper(parent, current)) {
+        break
+      }
+
+      if (this.hasOwn3dTrigger(parent)) {
+        target = parent
+        current = parent
+        climbedThrough3dContext = true
+        continue
+      }
+
+      if (climbedThrough3dContext) {
+        target = parent
+      }
+      break
+    }
+
+    return this.expand3dIslandTargetForVisualOverflow(target, pageElement)
   }
 
   /**
@@ -224,10 +266,107 @@ export class PPTXDomConverterRaster {
    */
   private resolveMediaDescendantTarget(element: Element, pageElement: HTMLElement): HTMLElement | null {
     if (element instanceof HTMLElement) {
-      return element === pageElement ? null : element
+      return element === pageElement ? null : this.expand3dIslandTargetForVisualOverflow(element, pageElement)
     }
 
     return this.resolveNearestHtmlWrapper(element, pageElement)
+  }
+
+  /**
+   * 当 3D 后代视觉包围盒超出当前目标时，提升到不含额外文本的外层包裹，避免截图裁剪。
+   * @param target 当前截图目标
+   * @param pageElement 页面根元素
+   */
+  private expand3dIslandTargetForVisualOverflow(target: HTMLElement, pageElement: HTMLElement): HTMLElement {
+    let current = target
+
+    for (;;) {
+      const visualBox = this.measureVisualSubtreeBox(current)
+      if (!visualBox || this.isVisualBoxContained(current, visualBox) || this.hasClippingOverflow(current)) {
+        return current
+      }
+
+      const parent = current.parentElement
+      if (!parent || parent === pageElement || !this.isSingleElementWrapper(parent, current) || this.isNearPageArea(parent, pageElement)) {
+        return current
+      }
+
+      current = parent
+    }
+  }
+
+  /**
+   * 计算当前截图目标及后代的视觉包围盒。
+   * @param element 截图目标
+   */
+  private measureVisualSubtreeBox(element: HTMLElement): MeasuredElementBox | null {
+    const boxes = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
+      .filter(item => this.layout.isVisibleElement(item))
+      .map(item => this.measureRenderedElementBox(item))
+      .filter((box): box is MeasuredElementBox => Boolean(box))
+      .filter(box => box.width > 0 && box.height > 0)
+
+    if (boxes.length === 0) {
+      return null
+    }
+
+    const left = Math.min(...boxes.map(box => box.left))
+    const top = Math.min(...boxes.map(box => box.top))
+    const right = Math.max(...boxes.map(box => box.left + box.width))
+    const bottom = Math.max(...boxes.map(box => box.top + box.height))
+    return {
+      left,
+      top,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top),
+    }
+  }
+
+  /**
+   * 判断视觉包围盒是否仍落在当前截图目标内。
+   * @param element 截图目标
+   * @param visualBox 子树视觉包围盒
+   */
+  private isVisualBoxContained(element: HTMLElement, visualBox: MeasuredElementBox): boolean {
+    const box = this.measureRenderedElementBox(element)
+    if (!box) {
+      return true
+    }
+
+    const tolerancePx = 1
+    return visualBox.left >= box.left - tolerancePx &&
+      visualBox.top >= box.top - tolerancePx &&
+      visualBox.left + visualBox.width <= box.left + box.width + tolerancePx &&
+      visualBox.top + visualBox.height <= box.top + box.height + tolerancePx
+  }
+
+  /**
+   * 读取浏览器真实渲染矩形；没有真实布局时不使用 CSS fallback，避免测试环境误判外溢。
+   * @param element 目标元素
+   */
+  private measureRenderedElementBox(element: HTMLElement): MeasuredElementBox | null {
+    const rect = element.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null
+    }
+
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+
+  /**
+   * 判断元素是否显式裁剪溢出内容，存在裁剪时不应向外扩展截图目标。
+   * @param element 候选元素
+   */
+  private hasClippingOverflow(element: HTMLElement): boolean {
+    const style = window.getComputedStyle(element)
+    return [style.overflow, style.overflowX, style.overflowY].some(value => {
+      return ['hidden', 'clip', 'auto', 'scroll'].includes(String(value || '').trim())
+    })
   }
 
   /**
@@ -310,6 +449,22 @@ export class PPTXDomConverterRaster {
   }
 
   /**
+   * 判断分支里是否存在不属于 3D 视觉岛的有效文本。
+   * @param element 候选分支
+   */
+  private hasMeaningfulTextOutside3dIsland(element: Element): boolean {
+    if (this.hasOwn3dTrigger(element) || (this.isTerminalMediaElement(element) && this.contains3dVisual(element))) {
+      return false
+    }
+
+    if (this.hasMeaningfulDirectText(element)) {
+      return true
+    }
+
+    return Array.from(element.children).some(child => this.hasMeaningfulTextOutside3dIsland(child))
+  }
+
+  /**
    * 判断元素的直属文本节点是否包含有效文本。
    * @param element 候选元素
    */
@@ -333,5 +488,16 @@ export class PPTXDomConverterRaster {
    */
   private collectVisibleChildren(element: HTMLElement): Element[] {
     return Array.from(element.children).filter(child => this.layout.isVisibleElement(child))
+  }
+
+  /**
+   * 判断父级是否只是当前元素的一层结构包裹。
+   * @param parent 候选父元素
+   * @param child 当前子元素
+   */
+  private isSingleElementWrapper(parent: HTMLElement, child: HTMLElement): boolean {
+    return parent.children.length === 1 &&
+      parent.firstElementChild === child &&
+      !this.hasMeaningfulDirectText(parent)
   }
 }
