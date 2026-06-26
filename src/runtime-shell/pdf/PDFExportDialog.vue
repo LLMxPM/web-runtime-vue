@@ -288,9 +288,9 @@ const emit = defineEmits<Emits>()
 
 const methodOptions = [
   {
-    value: 'canvas-pdf' as ExportMethod,
-    label: '截图PDF',
-    description: '截图拼接文件',
+    value: 'pptx-editable' as DialogExportMethod,
+    label: 'HTML转PPTX',
+    description: '可编辑的PPTX文件',
     icon: FileText,
   },
   {
@@ -300,9 +300,9 @@ const methodOptions = [
     icon: Printer,
   },
   {
-    value: 'pptx-editable' as DialogExportMethod,
-    label: 'HTML转PPTX',
-    description: '可编辑的PPTX文件',
+    value: 'canvas-pdf' as ExportMethod,
+    label: '截图PDF',
+    description: '截图拼接文件',
     icon: FileText,
   },
 ]

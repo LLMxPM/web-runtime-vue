@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * 文件用途：验证 PDF 导出弹窗对截图导出与浏览器打印两种生成方式的分发逻辑。
+ * 文件用途：验证 PDF 导出弹窗对截图、浏览器打印和 PPTX 三种生成方式的展示与分发逻辑。
  */
 
 import { createApp, nextTick } from 'vue'
@@ -81,6 +81,23 @@ afterEach(() => {
 })
 
 describe('PDFExportDialog', () => {
+  it('按 PPTX、浏览器打印、截图 PDF 顺序展示生成方式', async () => {
+    const { app, host } = mountDialog()
+    await nextTick()
+
+    const methodValues = Array.from(host.querySelectorAll('input[type="radio"]'))
+      .slice(0, 3)
+      .map(input => (input as HTMLInputElement).value)
+
+    expect(methodValues).toEqual([
+      'pptx-editable',
+      'browser-print',
+      'canvas-pdf',
+    ])
+
+    app.unmount()
+  })
+
   it('默认使用当前截图导出并保留文件名输入', async () => {
     serviceSpies.exportCurrentPage.mockResolvedValue({
       success: true,
