@@ -105,18 +105,35 @@ export class PPTXDomConverter {
     let exportedBackgroundImage = false
     if (element instanceof HTMLElement) {
       exportedBackgroundImage = await this.media.addBackgroundImageElement(this.createMediaExportHost(), element, context)
-      if (exportedBackgroundImage && !this.shouldContinueAfterBackgroundImageExport(element)) {
+      if (exportedBackgroundImage && !this.shouldContinueAfterVisualExport(element)) {
         return
       }
     }
 
-    if (element instanceof HTMLElement && this.gradient.addLinearGradientElement(this.createGradientExportHost(), element, context)) {
-      return
+    let exportedLinearGradient = false
+    if (element instanceof HTMLElement) {
+      exportedLinearGradient = this.gradient.addLinearGradientElement(this.createGradientExportHost(), element, context)
+      if (exportedLinearGradient && !this.shouldContinueAfterVisualExport(element)) {
+        return
+      }
     }
 
-    if (element instanceof HTMLElement && !exportedBackgroundImage && this.layout.shouldScreenshotComplexElement(element)) {
-      await this.addScreenshotBlock(element, 'complex-css', '复杂 CSS 容器降级为局部截图', context)
-      return
+    if (
+      element instanceof HTMLElement &&
+      !exportedBackgroundImage &&
+      !exportedLinearGradient &&
+      this.layout.shouldScreenshotComplexElement(element)
+    ) {
+      if (!this.hasVisibleTextContent(element)) {
+        await this.addScreenshotBlock(element, 'complex-css', '复杂 CSS 容器降级为局部截图', context)
+        return
+      }
+      this.addSkippedItem(
+        'complex-css',
+        this.layout.buildElementLabel(element),
+        '复杂 CSS 容器包含可编辑内容，已展开子元素避免文本丢失',
+        context,
+      )
     }
 
     const textContext = element instanceof HTMLElement
@@ -160,17 +177,33 @@ export class PPTXDomConverter {
   }
 
   /**
-   * 判断背景图容器在导出图片块后，是否仍需继续导出叠加在其上的文本或子元素。
-   * @param element 已完成背景图导出的容器
+   * 判断视觉容器在导出背景或截图兜底后，是否仍需继续导出叠加内容。
+   * @param element 已完成视觉层导出的容器
    * @returns 是否继续遍历子节点
    */
-  private shouldContinueAfterBackgroundImageExport(element: HTMLElement): boolean {
+  private shouldContinueAfterVisualExport(element: HTMLElement): boolean {
     if (this.layout.hasVisibleChildElement(element)) {
       return true
     }
 
     return Array.from(element.childNodes).some(childNode => {
       return childNode instanceof Text && Boolean(this.layout.normalizeText(childNode.textContent || ''))
+    })
+  }
+
+  /**
+   * 判断子树中是否存在可见文本，复杂 CSS 截图会据此避免吞掉可编辑文本。
+   * @param element 候选容器
+   */
+  private hasVisibleTextContent(element: HTMLElement): boolean {
+    return Array.from(element.childNodes).some(childNode => {
+      if (childNode instanceof Text) {
+        return Boolean(this.layout.normalizeText(childNode.textContent || ''))
+      }
+      if (childNode instanceof HTMLElement && this.layout.isVisibleElement(childNode)) {
+        return this.hasVisibleTextContent(childNode)
+      }
+      return false
     })
   }
 

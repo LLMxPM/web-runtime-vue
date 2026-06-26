@@ -479,13 +479,51 @@ describe('PPTXDomConverter', () => {
     ]))
   })
 
-  it('应将复杂 CSS 容器降级为局部截图并写入报告', async () => {
+  it('线性渐变容器包含文本时应继续导出可编辑文本', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    const gradientFills: PptxGradientFillInstruction[] = []
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section style="width: 520px; height: 220px; background-image: linear-gradient(to bottom, #ffffff, #dbeafe);">
+          <h2 style="width: 360px; height: 48px; color: #1d4ed8; font-size: 32px;">渐变卡片标题</h2>
+          <p style="width: 360px; height: 32px; color: #334155; font-size: 20px;">渐变容器说明</p>
+        </section>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng, instruction => gradientFills.push(instruction))
+    const exportedTexts = slide.addText.mock.calls.map(call => String(call[0]))
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(gradientFills).toHaveLength(1)
+    expect(exportedTexts).toEqual(expect.arrayContaining(['渐变卡片标题', '渐变容器说明']))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'shape',
+        result: 'editable-shape',
+        reason: 'linear-gradient 导出为 PPT 原生渐变形状',
+      }),
+      expect.objectContaining({
+        sourceType: 'title',
+        result: 'editable-text',
+        label: '渐变卡片标题',
+      }),
+      expect.objectContaining({
+        sourceType: 'body',
+        result: 'editable-text',
+        label: '渐变容器说明',
+      }),
+    ]))
+  })
+
+  it('无文本复杂 CSS 容器应降级为局部截图并写入报告', async () => {
     const slide = createSlideMock()
     const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
     document.body.innerHTML = `
       <div id="page" style="width: 1920px; height: 1080px;">
         <section style="width: 420px; height: 220px; background-image: radial-gradient(circle, #111827, #2563eb); background-size: cover;">
-          <span style="display: block; width: 200px; height: 32px;">复杂背景</span>
+          <div style="width: 120px; height: 80px; background-color: rgba(255, 255, 255, 0.2);"></div>
         </section>
       </div>
     `
@@ -502,6 +540,37 @@ describe('PPTXDomConverter', () => {
       result: 'screenshot',
       reason: '复杂 CSS 容器降级为局部截图',
     }))
+  })
+
+  it('复杂 CSS 容器包含文本时应优先保留可编辑文本', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <section style="width: 420px; height: 220px; background-image: radial-gradient(circle, #111827, #2563eb); background-size: cover;">
+          <span style="display: block; width: 200px; height: 32px; color: #ffffff; font-size: 24px;">复杂背景</span>
+        </section>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(slide.addText).toHaveBeenCalledWith('复杂背景', expect.objectContaining({
+      color: 'FFFFFF',
+    }))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'complex-css',
+        result: 'skipped',
+        reason: '复杂 CSS 容器包含可编辑内容，已展开子元素避免文本丢失',
+      }),
+      expect.objectContaining({
+        sourceType: 'body',
+        result: 'editable-text',
+        label: '复杂背景',
+      }),
+    ]))
   })
 
   it('应将同一容器下多个 3D 子分支整体截图', async () => {
