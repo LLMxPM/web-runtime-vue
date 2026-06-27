@@ -93,7 +93,7 @@ Accept: application/json
 - `module_resolver` 中必须下发 `remote_component_prefix`、`runtime_kit_alias`、`runtime_kit_manifest_version`、`runtime_kit_exports`
 - 组件预览额外包含 `component_preview`
 - 组件预览页面尺寸由 `app.app.page.width/height` 唯一决定，同时也是 iframe 尺寸和截图视口尺寸
-- 页面内容基础字号与默认图标描边宽度由 `app.app.page.baseFontSize/iconDefaultStrokeWidth` 决定，组件预览可通过 `preview_options.page` 覆盖；Runtime shell UI 不跟随页面基础字号，页面内图标尺寸默认跟随基础字号，局部使用 Tailwind 尺寸类控制
+- 页面内容基础字号与默认图标描边宽度由 `app.app.page.baseFontSize/iconDefaultStrokeWidth` 决定，组件预览可通过 `preview_options.page` 覆盖；`baseFontSize` 替代 Tailwind 默认 16px 基准，语义字号和间距按 `baseFontSize / 16px` 倍率渲染；Runtime shell UI 不跟随页面基础字号，页面内图标尺寸默认跟随页面基础字号，局部使用 Tailwind 尺寸类控制
 
 #### 组件预览片段示例
 

@@ -40,7 +40,7 @@ app:
     iconDefaultStrokeWidth: 2
 ```
 
-Runtime 仍兼容旧 `themes.config.yaml` 中的 `themes.<key>.icon.*` 作为 fallback，用于渲染历史 preview artifact 或旧静态配置；新 Backend 与 Editor 不再生成或编辑这些字段。`baseFontSize` 只影响页面内容与页面内图标的默认尺寸，不影响 Runtime shell UI。
+Runtime 仍兼容旧 `themes.config.yaml` 中的 `themes.<key>.icon.*` 作为 fallback，用于渲染历史 preview artifact 或旧静态配置；新 Backend 与 Editor 不再生成或编辑这些字段。`baseFontSize` 只影响页面内容与页面内图标的默认尺寸，并作为 Tailwind 默认 16px 基准替换值影响语义字号和间距倍率，不影响 Runtime shell UI。
 
 ## 使用示例
 

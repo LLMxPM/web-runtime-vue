@@ -9,7 +9,7 @@
 
 主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。页面需要渲染主题 Logo 时优先使用 Runtime Kit 公开的 `ThemeLogo`。
 
-基础字号与默认图标描边宽度属于项目页面展示配置，不属于主题。新配置从 `app.config.yaml` 的 `app.page.baseFontSize` 和 `app.page.iconDefaultStrokeWidth` 下发；`baseFontSize` 只用于页面内容作用域，Runtime shell 的侧栏、控制按钮、弹窗和 Toast 使用固定外壳字号基准。页面内图标尺寸默认跟随页面基础字号，局部尺寸使用 `size-*` 或 `h-* w-*` Tailwind 类控制。
+基础字号与默认图标描边宽度属于项目页面展示配置，不属于主题。新配置从 `app.config.yaml` 的 `app.page.baseFontSize` 和 `app.page.iconDefaultStrokeWidth` 下发；`baseFontSize` 只用于页面内容作用域，是 Tailwind 默认 `16px` 基准的替换值，`text-*`、`p-*`、`m-*`、`gap-*`、`space-*` 等语义尺度会按 `baseFontSize / 16px` 的倍率渲染。Runtime shell 的侧栏、控制按钮、弹窗和 Toast 使用固定外壳字号基准。页面内图标尺寸默认跟随页面基础字号，局部尺寸使用 `size-*` 或 `h-* w-*` Tailwind 类控制。
 
 ### 背景色类名
 ```html
@@ -302,7 +302,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
 --tw-font-size-base
 ```
 
-`--tw-font-size-base` 在 `:root` 中固定为 Runtime shell 基准 `16px`；页面内容容器会按 `app.page.baseFontSize` 覆写为页面基础字号，不再根据页面宽高做额外缩放。
+`--tw-font-size-base` 在 `:root` 中固定为 Runtime shell 基准 `16px`；页面内容容器会按 `app.page.baseFontSize` 覆写为页面基础字号，相当于替换 Tailwind 默认 16px 基准，不再根据页面宽高做额外缩放。
 
 ### 在样式中使用变量
 ```vue
