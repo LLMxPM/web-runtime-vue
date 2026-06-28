@@ -1,5 +1,5 @@
 <!--
-  文件用途：PDF 导出弹窗，负责选择导出方式、导出范围并展示导出或打印进度。
+  文件用途：页面导出弹窗，负责选择导出方式、导出范围并展示导出或打印进度。
 -->
 
 <template>
@@ -324,7 +324,7 @@ const rangeOptions = [
 const router = useRouter()
 const isVisible = ref(props.visible)
 const exportMode = ref<'current' | 'all'>('current')
-const exportMethod = ref<DialogExportMethod>('canvas-pdf')
+const exportMethod = ref<DialogExportMethod>('pptx-editable')
 const filename = ref('')
 const isExporting = ref(false)
 const exportResult = ref<DialogExportResult | null>(null)

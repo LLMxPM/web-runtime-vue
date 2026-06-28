@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * 文件用途：验证 PDF 导出弹窗对截图、浏览器打印和 PPTX 三种生成方式的展示与分发逻辑。
+ * 文件用途：验证页面导出弹窗对 PPTX、浏览器打印和截图 PDF 三种生成方式的展示与分发逻辑。
  */
 
 import { createApp, nextTick } from 'vue'
@@ -98,12 +98,12 @@ describe('PDFExportDialog', () => {
     app.unmount()
   })
 
-  it('默认使用当前截图导出并保留文件名输入', async () => {
-    serviceSpies.exportCurrentPage.mockResolvedValue({
+  it('默认使用当前 PPTX 导出并保留文件名输入', async () => {
+    serviceSpies.exportPptxCurrentPage.mockResolvedValue({
       success: true,
-      taskId: 'pdf-task',
-      method: 'canvas-pdf',
-      filename: 'demo.pdf',
+      taskId: 'pptx-task',
+      method: 'pptx-editable',
+      filename: 'demo.pptx',
       pageCount: 1,
       duration: 10,
     })
@@ -117,10 +117,10 @@ describe('PDFExportDialog', () => {
     await nextTick()
     await nextTick()
 
-    expect(serviceSpies.exportCurrentPage).toHaveBeenCalledWith(expect.objectContaining({
+    expect(serviceSpies.exportPptxCurrentPage).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'current',
-      method: 'canvas-pdf',
     }))
+    expect(serviceSpies.exportCurrentPage).not.toHaveBeenCalled()
     expect(serviceSpies.printCurrentPage).not.toHaveBeenCalled()
 
     app.unmount()
