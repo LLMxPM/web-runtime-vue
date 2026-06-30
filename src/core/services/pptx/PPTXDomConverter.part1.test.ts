@@ -44,10 +44,88 @@ describe('PPTXDomConverter', () => {
       fill: expect.objectContaining({ color: 'F8FAFC' }),
       line: expect.objectContaining({ color: 'CBD5E1' }),
     }))
-    expect(slide.addShape).toHaveBeenCalledWith('line', expect.any(Object))
+    expect(slide.addShape).toHaveBeenCalledWith('rect', expect.objectContaining({
+      fill: expect.objectContaining({ color: '0F172A' }),
+    }))
     expect(report.items.filter(item => item.result === 'editable-text')).toHaveLength(3)
     expect(report.items.filter(item => item.result === 'editable-shape')).toHaveLength(2)
     expect(report.items.map(item => item.sourceType)).toEqual(expect.arrayContaining(['title', 'body', 'number', 'shape']))
+  })
+
+  it('应为纯背景细线保留非零 PPT 盒模型', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #0f172a;">
+        <div style="display: flex; align-items: center; width: 900px; height: 80px;">
+          <div style="width: 120px; height: 48px;"></div>
+          <div style="width: 1px; height: 48px; background-color: rgba(255, 255, 255, 0.5);"></div>
+          <span style="display: inline-block; width: 520px; height: 48px; font-size: 32px; color: #ffffff;">警用装备智能管理平台建设方案</span>
+        </div>
+        <div style="position: absolute; left: 160px; top: 120px; width: 48px; height: 1px; background-color: rgba(255, 255, 255, 0.5);"></div>
+      </div>
+    `
+
+    await convert(slide)
+
+    const rectOptions = slide.addShape.mock.calls
+      .filter(([shapeName, options]) => {
+        return shapeName === 'rect' && (options as Record<string, Record<string, unknown>>)?.fill?.color === 'FFFFFF'
+      })
+      .map(([, options]) => options as Record<string, unknown>)
+    expect(rectOptions).toHaveLength(2)
+    rectOptions.forEach(options => {
+      expect(options.w).toBeGreaterThan(0)
+      expect(options.h).toBeGreaterThan(0)
+      expect(options.fill).toEqual(expect.objectContaining({
+        color: 'FFFFFF',
+        transparency: 50,
+      }))
+      expect(options.line).toEqual(expect.objectContaining({ transparency: 100 }))
+    })
+  })
+
+  it('应导出页面缩放后测量宽度不足 1px 的背景竖线', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #0f172a;">
+        <div id="divider" class="h-10 w-px bg-white/50" style="width: 1px; height: 40px; background-color: rgba(255, 255, 255, 0.5);"></div>
+      </div>
+    `
+    const page = document.getElementById('page') as HTMLElement
+    const divider = document.getElementById('divider') as HTMLElement
+    vi.spyOn(page, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 960,
+      bottom: 540,
+      width: 960,
+      height: 540,
+      toJSON: () => ({}),
+    } as DOMRect)
+    vi.spyOn(divider, 'getBoundingClientRect').mockReturnValue({
+      x: 80,
+      y: 120,
+      left: 80,
+      top: 120,
+      right: 80.5,
+      bottom: 140,
+      width: 0.5,
+      height: 20,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    await convert(slide)
+
+    expect(slide.addShape).toHaveBeenCalledWith('rect', expect.objectContaining({
+      w: expect.any(Number),
+      h: expect.any(Number),
+      fill: expect.objectContaining({
+        color: 'FFFFFF',
+        transparency: 50,
+      }),
+    }))
   })
 
   it('应将 Runtime Kit 表格导出为 PPT 原生可编辑表格', async () => {

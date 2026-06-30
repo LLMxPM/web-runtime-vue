@@ -347,8 +347,8 @@ const primaryActionLabel = computed(() => {
 const filenamePlaceholder = computed(() => {
   if (isPptxEditable.value) {
     return exportMode.value === 'all'
-      ? '留空使用项目标题 + 本地时间，扩展名 .pptx'
-      : '留空使用页面标题 + 本地时间，扩展名 .pptx'
+      ? '留空使用项目标题 + 本地时间，扩展名'
+      : '留空使用页面标题 + 本地时间，扩展名'
   }
 
   return exportMode.value === 'all'

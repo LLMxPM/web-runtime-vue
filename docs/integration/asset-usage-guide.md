@@ -24,7 +24,7 @@ Backend 创建 artifact 时应在资源元数据中提供 `asset_metadata[name].
 
 如果需要自定义 DOM 或 CSS 结构，使用 `useAssetSrc`、`useAssetBackground`、`useAssetFontFamily` 或 `resolveResourcePath` 取得运行时资源引用，再由页面源码自行组织样式。
 
-资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容始终位于该边框内；框内显示效果通过 `fit` 和 `position` 控制。
+资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明明确宽高、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；实际页面不要使用 `min-h` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容始终位于该边框内；框内显示效果通过 `fit` 和 `position` 控制。
 
 ## 3. 显式资源组件
 
@@ -38,7 +38,7 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -65,7 +65,7 @@ import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
 </script>
 
 <template>
-  <AssetVideo name="demo-video" poster-name="demo-poster" controls class="w-full h-80 min-h-44 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetVideo name="demo-video" poster-name="demo-poster" controls class="w-full h-80 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -91,7 +91,7 @@ import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vu
 </script>
 
 <template>
-  <AssetDrawio name="architecture" class="w-full h-96 min-h-56 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetDrawio name="architecture" class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -115,7 +115,7 @@ import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.
 </script>
 
 <template>
-  <AssetMermaid name="process-flow" class="w-full h-96 min-h-56 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetMermaid name="process-flow" class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -139,7 +139,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
-  <AssetChart name="sales-chart" class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetChart name="sales-chart" class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
@@ -163,7 +163,7 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.
 </script>
 
 <template>
-  <AssetFormula name="equation" display-mode class="w-fit max-w-full min-h-14 rounded-lg border border-border bg-transparent p-0 text-primary" />
+  <AssetFormula name="equation" display-mode class="w-full h-20 rounded-lg border border-border bg-transparent p-0 text-primary overflow-hidden" />
 </template>
 ```
 
@@ -172,7 +172,7 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.
 - `name`：公式文本资源逻辑名。
 - `fallback`：未命中时的兜底 URL。
 - `fit`：公式整体适配模式，默认 `contain`，会把公式组等比放大或缩小到容器内；需要旧的自然尺寸和滚动行为时传 `fit="none"`。
-- `class`：容器样式、公式颜色和字号，例如 `w-fit max-w-full min-h-14 text-primary text-5xl`。
+- `class`：容器样式、公式颜色和字号，例如 `w-full h-20 text-primary text-5xl overflow-hidden`；块级公式应同时设置明确宽高，避免 `min-h` 或自由高度。
 - `displayMode`：块级公式模式。
 
 失败表现：资源请求失败时内容为空；LaTeX 解析失败由内部公式渲染器处理。
@@ -191,7 +191,7 @@ const src = useAssetSrc('product-hero')
 </script>
 
 <template>
-  <img :src="src" alt="产品图" />
+  <img :src="src" alt="产品图" class="w-full h-64 object-contain" />
 </template>
 ```
 
@@ -205,7 +205,7 @@ const backgroundStyle = useAssetBackground('cover')
 </script>
 
 <template>
-  <section :style="backgroundStyle" class="h-full bg-cover bg-center">
+  <section :style="backgroundStyle" class="w-full h-[480px] bg-cover bg-center bg-no-repeat">
     <!-- 布局和内容由页面源码控制 -->
   </section>
 </template>
@@ -219,7 +219,7 @@ import { resolveResourcePath } from '@runtime-kit/public/utils/assets.v1'
 const logoSrc = resolveResourcePath('img/logo/ppt-e.png')
 ```
 
-适用于非响应式代码或 Runtime public 静态资源路径解析。Vue 模板中需要响应式资源时优先使用 `useAssetSrc`。
+适用于非响应式代码或 Runtime public 静态资源路径解析。Vue 模板中需要响应式资源时优先使用 `useAssetSrc`。解析出的 URL 用于图片、视频或背景容器时，消费方仍应同时设置明确宽度和高度。
 
 ### useAssetFontFamily
 

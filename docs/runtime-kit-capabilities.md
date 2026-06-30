@@ -35,6 +35,7 @@
 - Backend/Agent 优先读取 `asset_metadata.render_type`。
 - `image/video/drawio/mermaid/chart/formula` 分别选择显式组件。
 - 需要自定义 DOM 结构时使用 `useAssetSrc`、`useAssetBackground` 或 `useAssetFontFamily`。
+- 实际页面中的资源渲染容器应同时声明明确宽度和高度；避免使用 `min-h` 或内容自由高度作为尺寸来源。
 - 非主题字体应使用静态字体资源名声明，例如 `useAssetFontFamily('BrandSerif')`，Backend 会据此下发字体包。
 - 不要让页面源码引用 `@runtime-kit/internal/renderers/*`。
 

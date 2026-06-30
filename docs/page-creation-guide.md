@@ -121,12 +121,12 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </script>
 
 <template>
-  <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 min-h-40 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
-  <AssetChart name="sales-chart" class="w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  <AssetChart name="sales-chart" class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
 
-资源组件的容器样式只通过 `class` 配置。使用完整静态 Tailwind 类写宽高、最小高度、圆角、边框、内边距、背景和裁剪，例如 `w-full h-96 min-h-60 rounded-lg border border-border bg-transparent p-0 overflow-hidden`；公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容在该边框内显示；用 `fit` 控制 `contain`、`cover` 等填充方式，用 `position` 控制框内图片位置。
+资源组件的容器样式只通过 `class` 配置。使用完整静态 Tailwind 类写明确宽高、圆角、边框、内边距、背景和裁剪，例如 `w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden`；实际页面不要使用 `min-h` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容在该边框内显示；用 `fit` 控制 `contain`、`cover` 等填充方式，用 `position` 控制框内图片位置。
 
 支持的资源能力：
 

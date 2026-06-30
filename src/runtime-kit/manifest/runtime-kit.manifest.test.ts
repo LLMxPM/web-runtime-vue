@@ -174,11 +174,11 @@ describe('runtime kit manifest', () => {
   })
 
   it('可预览组件 schema 应覆盖真实可调字段和首屏示例输入', () => {
-    const assetImageClass = 'w-full h-64 min-h-40 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
-    const assetVideoClass = 'w-full h-80 min-h-44 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
-    const assetDiagramClass = 'w-full h-96 min-h-56 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
-    const assetChartClass = 'w-full h-96 min-h-60 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
-    const assetFormulaClass = 'w-fit max-w-full min-h-14 rounded-lg border border-border p-0 bg-transparent text-primary'
+    const assetImageClass = 'w-full h-64 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetVideoClass = 'w-full h-80 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetDiagramClass = 'w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetChartClass = 'w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden'
+    const assetFormulaClass = 'w-full h-20 rounded-lg border border-border p-0 bg-transparent text-primary overflow-hidden'
     const hiddenSurfaceProps = [
       'width',
       'height',
@@ -275,6 +275,7 @@ describe('runtime kit manifest', () => {
     expect(assetFormulaProps.fit.options?.map(option => option.value)).toEqual(['contain', 'none'])
     expect(assetFormulaProps.class.default).toBe(assetFormulaClass)
     expect(assetFormulaProps.class.description).toContain('公式颜色和字号')
+    expect(assetFormulaProps.class.description).toContain('避免用 min-h')
     expect(assetFormulaProps).not.toHaveProperty('throwOnError')
     expect(assetFormulaProps).not.toHaveProperty('strict')
     expect(assetFormulaProps).not.toHaveProperty('trust')
@@ -376,6 +377,48 @@ describe('runtime kit manifest', () => {
     })
   })
 
+  it('资源能力 usage 应使用明确宽高并避免 min-h', () => {
+    const renderAssetNames = [
+      'AssetImage',
+      'AssetVideo',
+      'AssetDrawio',
+      'AssetMermaid',
+      'AssetChart',
+      'AssetFormula',
+    ]
+
+    renderAssetNames.forEach((baseName) => {
+      const item = getManifestItem(baseName)
+      const usageText = (item.capability?.usage || []).join('\n')
+      const returnExampleText = (item.capability?.return_example || []).join('\n')
+      const constraintsText = (item.capability?.constraints || []).join('\n')
+      const classDescription = getPreviewProps(baseName).class?.description || ''
+
+      expect(usageText, `${baseName} usage 缺少明确宽高提示`).toContain('明确宽度和高度')
+      expect(usageText, `${baseName} usage 缺少 min-h 禁用提示`).toContain('避免使用 min-h')
+      expect(usageText, `${baseName} usage 示例不应包含 min-h 类`).not.toMatch(/\bmin-h-/)
+      expect(returnExampleText, `${baseName} return_example 应提供 h- 高度示例`).toMatch(/\bh-[^\s"]+/)
+      expect(returnExampleText, `${baseName} return_example 不应包含 min-h 类`).not.toMatch(/\bmin-h-/)
+      expect(constraintsText, `${baseName} constraints 缺少明确宽高提示`).toContain('明确 width 和 height')
+      expect(constraintsText, `${baseName} constraints 缺少 min-h 禁用提示`).toContain('避免用 min-h')
+      expect(classDescription, `${baseName} class 描述缺少 min-h 禁用提示`).toContain('避免用 min-h')
+    })
+
+    ;[
+      'useAssetSrc',
+      'useAssetBackground',
+      'resolveResourcePath',
+    ].forEach((baseName) => {
+      const item = getManifestItem(baseName)
+      const usageText = (item.capability?.usage || []).join('\n')
+      const constraintsText = (item.capability?.constraints || []).join('\n')
+
+      expect(usageText, `${baseName} usage 缺少消费侧宽高提示`).toContain('明确宽度和高度')
+      expect(usageText, `${baseName} usage 缺少自由高度提示`).toContain('自由高度')
+      expect(constraintsText, `${baseName} constraints 缺少调用方宽高提示`).toContain('width 和 height')
+    })
+  })
+
   it('所有公开能力都应包含面向 Backend/Agent 的说明字段', () => {
     manifest.exports.forEach((item) => {
       expect(
@@ -412,9 +455,14 @@ function getPresetLabels(componentName: string): string[] {
 }
 
 function getPreviewSchema(componentName: string): PreviewSchema {
-  const item = manifest.exports.find((exportItem) => exportItem.base_name === componentName)
-  expect(item, `未找到 Runtime Kit 能力 ${componentName}`).toBeTruthy()
+  const item = getManifestItem(componentName)
   const schema = item?.capability?.preview_schema
   expect(schema, `${componentName} 缺少 preview_schema`).toEqual(expect.any(Object))
   return schema as PreviewSchema
+}
+
+function getManifestItem(componentName: string) {
+  const item = manifest.exports.find((exportItem) => exportItem.base_name === componentName)
+  expect(item, `未找到 Runtime Kit 能力 ${componentName}`).toBeTruthy()
+  return item!
 }

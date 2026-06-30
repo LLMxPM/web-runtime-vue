@@ -48,7 +48,7 @@ export class PPTXDomConverterText {
   shouldAddShape(element: HTMLElement): boolean {
     const style = window.getComputedStyle(element)
     const box = this.layout.measureElementPixels(element)
-    if (box.width < 1 || box.height < 1) {
+    if (box.width <= 0 || box.height <= 0) {
       return false
     }
 
@@ -84,11 +84,32 @@ export class PPTXDomConverterText {
     const isVerticalLine = box.w <= 0.04 && box.h > box.w
 
     if (isHorizontalLine || isVerticalLine) {
+      const minLineWidth = this.layout.roundInch(this.layout.inchPerPxX())
+      const minLineHeight = this.layout.roundInch(this.layout.inchPerPxY())
+      const lineWidth = isHorizontalLine ? box.w : Math.max(box.w, minLineWidth)
+      const lineHeight = isVerticalLine ? box.h : Math.max(box.h, minLineHeight)
+      const lineX = isVerticalLine ? Math.max(0, box.x + box.w / 2 - lineWidth / 2) : box.x
+      const lineY = isHorizontalLine ? Math.max(0, box.y + box.h / 2 - lineHeight / 2) : box.y
+
+      if (fillColor && borders.length === 0) {
+        host.options.slide.addShape(host.options.shapeTypes.rect, {
+          x: lineX,
+          y: lineY,
+          w: lineWidth,
+          h: lineHeight,
+          fill: this.buildFillOptions(fillColor),
+          line: this.buildTransparentLineOptions(),
+          ...host.buildPptObjectMeta(context, 'shape', label),
+        })
+        host.addReportItem('shape', 'editable-shape', true, label, '背景色分隔线转为 PPT rect', context)
+        return
+      }
+
       host.options.slide.addShape(host.options.shapeTypes.line, {
-        x: box.x,
-        y: isHorizontalLine ? box.y + box.h / 2 : box.y,
-        w: isHorizontalLine ? box.w : 0,
-        h: isVerticalLine ? box.h : 0,
+        x: lineX,
+        y: lineY,
+        w: lineWidth,
+        h: lineHeight,
         line: this.buildLineOptions(
           uniformBorder,
           fillColor,
