@@ -57,6 +57,9 @@ export interface RuntimePreviewAssetMetadata {
   asset_role?: 'foundation' | 'content'
   render_type?: 'icon' | 'font' | 'image' | 'drawio' | 'mermaid' | 'chart' | 'formula' | 'video'
   content_type?: string
+  approx_aspect_ratio?: string
+  approx_aspect_ratio_value?: number
+  aspect_ratio_source?: 'auto' | 'manual' | 'agent' | string
 }
 
 export interface RuntimePreviewArtifactManifest {

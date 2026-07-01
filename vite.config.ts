@@ -7,6 +7,7 @@ import { defineConfig, loadEnv, type Logger, type LogErrorOptions } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 import runtimeHealth from './src/core/plugins/runtime-health'
+import runtimeAssetRenderHintMeasurer from './src/core/plugins/runtime-asset-render-hint-measurer'
 import runtimeBuildRunner from './src/core/plugins/runtime-build-runner'
 import runtimeSaaSPreview from './src/core/plugins/runtime-saas-preview'
 import runtimeStandalonePreviewGate, {
@@ -50,6 +51,10 @@ export default defineConfig(({ command, mode }) => {
       runtimeBuildRunner({
         jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
         backendApiBaseUrl: env.RUNTIME_BACKEND_API_BASE_URL,
+      }),
+      runtimeAssetRenderHintMeasurer({
+        jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
+        serviceAudience: env.RUNTIME_SERVICE_TOKEN_AUDIENCE,
       }),
       runtimeSaaSPreview({
         jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
