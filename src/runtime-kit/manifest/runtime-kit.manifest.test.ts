@@ -205,6 +205,8 @@ describe('runtime kit manifest', () => {
     expect(assetImageProps.class.default).toBe(assetImageClass)
     expect(assetImageProps.class.description).toContain('完整静态 Tailwind 类')
     expect(assetImageProps.class.description).toContain('外层图片框')
+    expect(assetImageProps.class.description).toContain('max-h-*')
+    expect(assetImageProps.class.description).toContain('object-contain')
     expect(assetImageProps.fit.description).toContain('边框框体内')
     expect(assetImageProps.position.description).toContain('object-position')
     expect(assetImageProps).not.toHaveProperty('showFallbackPlaceholder')
@@ -397,12 +399,22 @@ describe('runtime kit manifest', () => {
       expect(usageText, `${baseName} usage 缺少明确宽高提示`).toContain('明确宽度和高度')
       expect(usageText, `${baseName} usage 缺少 min-h 禁用提示`).toContain('避免使用 min-h')
       expect(usageText, `${baseName} usage 示例不应包含 min-h 类`).not.toMatch(/\bmin-h-/)
+      expect(usageText, `${baseName} usage 不应暗示可用等效 style`).not.toContain('等效 style')
       expect(returnExampleText, `${baseName} return_example 应提供 h- 高度示例`).toMatch(/\bh-[^\s"]+/)
       expect(returnExampleText, `${baseName} return_example 不应包含 min-h 类`).not.toMatch(/\bmin-h-/)
       expect(constraintsText, `${baseName} constraints 缺少明确宽高提示`).toContain('明确 width 和 height')
       expect(constraintsText, `${baseName} constraints 缺少 min-h 禁用提示`).toContain('避免用 min-h')
       expect(classDescription, `${baseName} class 描述缺少 min-h 禁用提示`).toContain('避免用 min-h')
     })
+
+    const assetImage = getManifestItem('AssetImage')
+    const assetImageGuidance = [
+      ...(assetImage.capability?.usage || []),
+      ...(assetImage.capability?.constraints || []),
+    ].join('\n')
+    expect(assetImageGuidance).toContain('不要把 object-contain/object-cover 写进 AssetImage 的 class')
+    expect(assetImageGuidance).toContain('style="max-height:..."')
+    expect(assetImageGuidance).toContain('AssetImage 自身必须有确定高度')
 
     ;[
       'useAssetSrc',

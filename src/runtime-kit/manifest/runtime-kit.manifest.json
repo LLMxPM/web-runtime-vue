@@ -19,8 +19,9 @@
         "tags": ["image"],
         "usage": [
           "import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-64 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
-          "<AssetImage name=\"product-hero\" alt=\"产品主图\" fit=\"contain\" position=\"center\" class=\"w-full h-64 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
+          "布局提示：实际页面中的 AssetImage 必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-[500px]，或 h-full 且父级高度明确），避免使用 min-h、内联 style、max-height 或外层 overflow-hidden 作为尺寸来源。",
+          "高图完整展示时使用 fit=\"contain\"；不要把 object-contain/object-cover 写进 AssetImage 的 class，class 作用于外层图片框。",
+          "<AssetImage name=\"product-hero\" alt=\"产品主图\" fit=\"contain\" position=\"center\" class=\"w-full h-[500px] rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 img 或图片占位内容。",
         "return_example": ["<AssetImage name=\"product-hero\" alt=\"产品主图\" class=\"w-full h-64 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"],
@@ -28,9 +29,11 @@
           "适用于 asset_metadata.render_type=image 的资源。",
           "Backend/Agent 应根据资源元数据显式选择该组件，不再通过 AssetRenderer 自动分发。",
           "资源名应为 manifest.assets 中的逻辑名；无法渲染时展示兜底文案。",
-          "实际页面使用时应为资源容器设置明确 width 和 height；避免用 min-h 或内容自由高度作为尺寸来源。",
+          "实际页面使用时应为资源容器设置明确 width 和 height；避免用 min-h、max-height 或内容自由高度作为尺寸来源。",
           "AssetImage 的 class 作用于外层图片框，边框、圆角、宽高、内边距、背景和裁剪都通过完整静态 Tailwind 类控制。",
-          "图片内容位于该边框框体内，使用 fit 控制 object-fit（contain/cover/fill/none），使用 position 控制 object-position；不要通过额外包裹层或内联 style 改边框尺寸。"
+          "图片内容位于该边框框体内，使用 fit 控制 object-fit（contain/cover/fill/none），使用 position 控制 object-position；不要通过额外包裹层或内联 style 改边框尺寸。",
+          "AssetImage 的 class 不是 img class；不要写 object-contain/object-cover 类，改用 fit=\"contain\" 或 fit=\"cover\"。",
+          "纵向长图要完整展示时，AssetImage 自身必须有确定高度；不要只用 max-h-*、style=\"max-height:...\" 或外层 overflow-hidden 裁剪。"
         ],
         "audiences": ["backend", "agent"],
         "preview_schema": {
@@ -58,7 +61,7 @@
             "class": {
               "type": "string",
               "label": "Tailwind 类",
-              "description": "外层图片框的唯一样式入口。使用完整静态 Tailwind 类声明明确宽高、圆角、边框、内边距、背景和裁剪；实际页面必须同时包含明确 w-/h- 或等效宽高，避免用 min-h 或自由高度作为尺寸来源。图片本身会在这个边框框体内显示，框内缩放和裁切不要写在 class 里，而应使用 fit 与 position。例如：w-full h-64 rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
+              "description": "外层图片框的唯一样式入口。使用完整静态 Tailwind 类声明明确宽高、圆角、边框、内边距、背景和裁剪；实际页面必须同时包含明确 w-/h-，避免用 min-h、max-h-*、内联 style 或自由高度作为尺寸来源。图片本身会在这个边框框体内显示，框内缩放和裁切不要写在 class 里，不要写 object-contain/object-cover 类，而应使用 fit 与 position。例如：w-full h-[500px] rounded-lg border border-border p-0 bg-transparent overflow-hidden。",
               "default": "w-full h-64 rounded-lg border border-border p-0 bg-transparent overflow-hidden"
             },
             "fit": {
@@ -145,7 +148,7 @@
         "tags": ["video"],
         "usage": [
           "import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-80 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
+          "布局提示：实际页面中的资源渲染容器必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-80），不要用内联 style 替代 class，避免使用 min-h 或内容自由高度作为尺寸来源。",
           "<AssetVideo name=\"demo-video\" poster-name=\"demo-poster\" controls class=\"w-full h-80 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
         ],
         "returns": "Vue 组件；渲染 video 播放区域。",
@@ -319,7 +322,7 @@
         "tags": ["drawio", "diagram"],
         "usage": [
           "import AssetDrawio from '@runtime-kit/public/components/assets/AssetDrawio.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-96 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
+          "布局提示：实际页面中的资源渲染容器必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-96），不要用内联 style 替代 class，避免使用 min-h 或内容自由高度作为尺寸来源。",
           "<AssetDrawio name=\"architecture\" class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
           "const drawioXml = '<mxfile>...</mxfile>'",
           "<AssetDrawio :content=\"drawioXml\" class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
@@ -403,7 +406,7 @@
         "tags": ["mermaid", "diagram"],
         "usage": [
           "import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-96 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
+          "布局提示：实际页面中的资源渲染容器必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-96），不要用内联 style 替代 class，避免使用 min-h 或内容自由高度作为尺寸来源。",
           "<AssetMermaid name=\"process-flow\" class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
           "const mermaidSource = `flowchart TD\\n  A --> B`",
           "<AssetMermaid :content=\"mermaidSource\" class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
@@ -527,7 +530,7 @@
         "tags": ["chart", "echarts"],
         "usage": [
           "import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-96 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
+          "布局提示：实际页面中的资源渲染容器必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-96），不要用内联 style 替代 class，避免使用 min-h 或内容自由高度作为尺寸来源。",
           "<AssetChart name=\"sales-chart\" class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />",
           "const chartOptionJson = JSON.stringify({ xAxis: { type: 'category', data: ['Q1', 'Q2'] }, yAxis: { type: 'value' }, series: [{ type: 'bar', data: [120, 200] }] })",
           "<AssetChart :content='chartOptionJson' class=\"w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden\" />"
@@ -647,7 +650,7 @@
         "tags": ["latex", "formula"],
         "usage": [
           "import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.vue'",
-          "布局提示：实际页面中的资源渲染容器必须声明明确宽度和高度（如 Tailwind w-full h-20 或等效 style），避免使用 min-h 或内容自由高度作为尺寸来源。",
+          "布局提示：实际页面中的资源渲染容器必须通过 class 声明明确宽度和高度（如 Tailwind w-full h-20），不要用内联 style 替代 class，避免使用 min-h 或内容自由高度作为尺寸来源。",
           "<AssetFormula name=\"equation\" display-mode class=\"w-full h-20 rounded-lg border border-border p-0 bg-transparent text-primary overflow-hidden\" />",
           "<AssetFormula content=\"\\\\frac{a^2 + b^2}{c}\" display-mode class=\"w-full h-20 rounded-lg border border-border p-0 bg-transparent text-primary overflow-hidden\" />"
         ],

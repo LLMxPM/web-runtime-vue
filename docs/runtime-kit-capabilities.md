@@ -35,7 +35,8 @@
 - Backend/Agent 优先读取 `asset_metadata.render_type`。
 - `image/video/drawio/mermaid/chart/formula` 分别选择显式组件。
 - 需要自定义 DOM 结构时使用 `useAssetSrc`、`useAssetBackground` 或 `useAssetFontFamily`。
-- 实际页面中的资源渲染容器应同时声明明确宽度和高度；避免使用 `min-h` 或内容自由高度作为尺寸来源。
+- 实际页面中的资源渲染容器应通过 `class` 同时声明明确宽度和高度；避免使用 `style`、`min-h`、`max-height` 或内容自由高度作为尺寸来源。
+- `AssetImage` 的 `class` 控制外层图片框，不是内部 `img` 的 class；完整展示高图时使用 `fit="contain"` 和明确的 `h-*` 图片框，不要写 `object-contain` 类或用外层 `overflow-hidden` 裁剪。
 - 非主题字体应使用静态字体资源名声明，例如 `useAssetFontFamily('BrandSerif')`，Backend 会据此下发字体包。
 - 不要让页面源码引用 `@runtime-kit/internal/renderers/*`。
 

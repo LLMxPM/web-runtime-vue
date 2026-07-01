@@ -24,7 +24,7 @@ Backend 创建 artifact 时应在资源元数据中提供 `asset_metadata[name].
 
 如果需要自定义 DOM 或 CSS 结构，使用 `useAssetSrc`、`useAssetBackground`、`useAssetFontFamily` 或 `resolveResourcePath` 取得运行时资源引用，再由页面源码自行组织样式。
 
-资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明明确宽高、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；实际页面不要使用 `min-h` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容始终位于该边框内；框内显示效果通过 `fit` 和 `position` 控制。
+资源组件的容器样式只使用 `class`。用完整静态 Tailwind 类声明明确宽高、圆角、边框、内边距、背景和裁剪，例如 `class="w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden"`；实际页面不要使用 `style`、`min-h`、`max-height` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，不是内部 `img` 的 class；图片内容始终位于该边框内，框内显示效果通过 `fit` 和 `position` 控制。
 
 ## 3. 显式资源组件
 
@@ -41,6 +41,18 @@ import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
   <AssetImage name="product-hero" alt="产品主图" fit="contain" position="center" class="w-full h-64 rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
 </template>
 ```
+
+纵向长图需要完整展示时，给 `AssetImage` 自身明确的图片框高度，并使用 `fit="contain"`：
+
+```vue
+<template>
+  <div class="flex min-h-0 items-center justify-center">
+    <AssetImage name="paper-figure" alt="论文图示" fit="contain" position="center" class="w-full h-[500px] rounded-lg border border-border bg-transparent p-0 overflow-hidden" />
+  </div>
+</template>
+```
+
+不要写成 `class="object-contain"` 或 `style="max-height: 500px"`；这些属性会落在 `AssetImage` 外层图片框上，不能控制内部 `img` 的缩放。也不要用外层 `overflow-hidden` 加 `max-height` 代替图片框高度，否则高图会被外框裁切。
 
 常用输入：
 

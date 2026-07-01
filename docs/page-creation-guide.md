@@ -126,7 +126,7 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 </template>
 ```
 
-资源组件的容器样式只通过 `class` 配置。使用完整静态 Tailwind 类写明确宽高、圆角、边框、内边距、背景和裁剪，例如 `w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden`；实际页面不要使用 `min-h` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，图片内容在该边框内显示；用 `fit` 控制 `contain`、`cover` 等填充方式，用 `position` 控制框内图片位置。
+资源组件的容器样式只通过 `class` 配置。使用完整静态 Tailwind 类写明确宽高、圆角、边框、内边距、背景和裁剪，例如 `w-full h-96 rounded-lg border border-border bg-transparent p-0 overflow-hidden`；实际页面不要使用 `style`、`min-h`、`max-height` 或内容自由高度作为尺寸来源。公式颜色和字号使用 `text-*` 类，例如 `text-primary text-5xl`。`AssetImage` 的 `class` 控制外层图片框和边框尺寸，不是内部 `img` 的 class；图片内容在该边框内显示，用 `fit` 控制 `contain`、`cover` 等填充方式，用 `position` 控制框内图片位置。纵向长图需要完整展示时，在 `AssetImage` 自身 class 上给出确定高度，例如 `w-full h-[500px]` 或 `h-full` 且父级高度明确，不要用 `object-contain` 类、内联 `style="max-height: ..."` 或外层 `overflow-hidden` 裁切图片。
 
 支持的资源能力：
 
