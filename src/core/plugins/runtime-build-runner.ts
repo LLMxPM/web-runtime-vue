@@ -3,11 +3,10 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'http'
-import { mkdtemp, mkdir, rm, symlink, writeFile, cp, access, readdir, readFile } from 'fs/promises'
+import { mkdir, rm, writeFile, access, readdir, readFile } from 'fs/promises'
 import { constants as fsConstants } from 'fs'
 import { createHash } from 'crypto'
-import os from 'os'
-import { join, resolve, sep } from 'path'
+import { resolve, sep } from 'path'
 
 import { zipSync } from 'fflate'
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
@@ -31,8 +30,25 @@ import {
 import {
   RuntimeBuildWorkerProcessError,
   RuntimeBuildWorkerViteError,
+  normalizeDiagnosticsWorkerTimeoutMs,
+  normalizeWorkerTimeoutMs,
   runRuntimeViteBuildInWorker,
 } from './runtime-build-worker'
+import {
+  RuntimeDiagnosticsWorkspaceError,
+  RuntimeDiagnosticsWorkspacePool,
+  createDisposableRuntimeWorkspace,
+  resolveWritableRuntimeModulePath,
+} from './runtime-diagnostics-workspace-pool'
+import {
+  RuntimeViteTaskScheduler,
+  RuntimeViteTaskSchedulerError,
+} from './runtime-vite-task-scheduler'
+import {
+  RuntimeTaskDeadlineError,
+  runWithRuntimeTaskDeadline,
+  type RuntimeTaskDeadline,
+} from './runtime-task-deadline'
 
 interface RuntimeBuildRunnerOptions {
   endpointPath?: string
@@ -184,6 +200,8 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
   const endpointPath = options.endpointPath || DEFAULT_BUILD_ENDPOINT
   const diagnosticsEndpointPath = options.diagnosticsEndpointPath || DEFAULT_DIAGNOSTICS_ENDPOINT
   const serviceTokenHeaderName = (options.serviceTokenHeaderName || DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER).toLowerCase()
+  const scheduler = new RuntimeViteTaskScheduler()
+  let diagnosticsWorkspacePool: RuntimeDiagnosticsWorkspacePool | null = null
   let runtimeRoot = ''
 
   return {
@@ -192,9 +210,23 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
 
     configResolved(resolvedConfig) {
       runtimeRoot = resolvedConfig.root
+      diagnosticsWorkspacePool = new RuntimeDiagnosticsWorkspacePool({
+        runtimeRoot,
+        size: scheduler.snapshot().concurrency,
+      })
     },
 
     configureServer(server: ViteDevServer) {
+      const workspacePool = diagnosticsWorkspacePool
+      if (!workspacePool) {
+        throw new Error('Runtime 诊断工作区池尚未初始化。')
+      }
+      // 工作区采用首次诊断时的惰性预热：创建动作位于 diagnostics scheduler 槽位内，
+      // 避免服务启动时与正式构建并发复制完整 Runtime 源码。
+      server.httpServer?.once('close', () => {
+        scheduler.close()
+        void workspacePool.close()
+      })
       server.middlewares.use(async (req, res, next) => {
         const requestPath = (req.url || '').split('?')[0]
         if (requestPath === diagnosticsEndpointPath) {
@@ -211,6 +243,8 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
             jwksUrl: options.jwksUrl || process.env.RUNTIME_PREVIEW_JWKS_URL || '',
             diagnosticsAudience: options.diagnosticsAudience || process.env.RUNTIME_DIAGNOSTICS_TOKEN_AUDIENCE || DEFAULT_DIAGNOSTICS_AUDIENCE,
             backendApiBaseUrl: options.backendApiBaseUrl || process.env.RUNTIME_BACKEND_API_BASE_URL || '',
+            scheduler,
+            workspacePool,
           })
         }
 
@@ -256,23 +290,41 @@ export default function runtimeBuildRunner(options: RuntimeBuildRunnerOptions = 
             serviceToken,
           })
 
-          logRuntimeBuild('snapshot.fetch.start', buildContext)
-          const manifest = await backendClient.fetchManifest(payload.artifact_id)
-          const configBundle = await backendClient.fetchConfigBundle(payload.artifact_id)
-          logRuntimeBuild('snapshot.fetch.done', {
+          const queuedAt = Date.now()
+          logRuntimeBuild('queue.entered', {
             ...buildContext,
-            moduleCount: Object.keys(manifest.modules || {}).length,
-            assetCount: Object.keys(manifest.assets || {}).length,
+            taskKind: 'project',
+            ...scheduler.snapshot(),
           })
-          const buildSummary = await runProjectBuild({
-            runtimeRoot,
-            jobId: String(verifiedClaims.job_id),
-            artifactId: payload.artifact_id,
-            buildToken,
-            baseUrl: normalizedBaseUrl,
-            manifest,
-            configBundle,
-            backendClient,
+          const buildSummary = await scheduler.schedule('project', async () => {
+            logRuntimeBuild('queue.acquired', {
+              ...buildContext,
+              taskKind: 'project',
+              queueWaitMs: Date.now() - queuedAt,
+              ...scheduler.snapshot(),
+            })
+            return runWithRuntimeTaskDeadline('project', normalizeWorkerTimeoutMs(), async deadline => {
+              logRuntimeBuild('snapshot.fetch.start', buildContext)
+              const manifest = await backendClient.fetchManifest(payload.artifact_id, deadline.signal)
+              const configBundle = await backendClient.fetchConfigBundle(payload.artifact_id, deadline.signal)
+              deadline.throwIfExpired()
+              logRuntimeBuild('snapshot.fetch.done', {
+                ...buildContext,
+                moduleCount: Object.keys(manifest.modules || {}).length,
+                assetCount: Object.keys(manifest.assets || {}).length,
+              })
+              return runProjectBuild({
+                runtimeRoot,
+                jobId: String(verifiedClaims.job_id),
+                artifactId: payload.artifact_id,
+                buildToken,
+                baseUrl: normalizedBaseUrl,
+                manifest,
+                configBundle,
+                backendClient,
+                deadline,
+              })
+            })
           })
 
           sendJson(res, 200, {
@@ -374,6 +426,8 @@ async function handleRuntimeDiagnosticsRequest(
     jwksUrl: string
     diagnosticsAudience: string
     backendApiBaseUrl: string
+    scheduler: RuntimeViteTaskScheduler
+    workspacePool: RuntimeDiagnosticsWorkspacePool
   },
 ): Promise<void> {
   try {
@@ -404,14 +458,33 @@ async function handleRuntimeDiagnosticsRequest(
       backendApiBaseUrl: options.backendApiBaseUrl,
       serviceToken,
     })
-    const manifest = await backendClient.fetchManifest(payload.artifact_id)
-    const configBundle = await backendClient.fetchConfigBundle(payload.artifact_id)
-    const diagnosticsSummary = await runArtifactDiagnostics({
-      runtimeRoot: options.runtimeRoot,
-      artifactId: payload.artifact_id,
-      manifest,
-      configBundle,
-      backendClient,
+    const queuedAt = Date.now()
+    logRuntimeBuild('diagnostics.queue.entered', {
+      ...diagnosticsContext,
+      taskKind: 'diagnostics',
+      ...options.scheduler.snapshot(),
+    })
+    const diagnosticsSummary = await options.scheduler.schedule('diagnostics', async () => {
+      logRuntimeBuild('diagnostics.queue.acquired', {
+        ...diagnosticsContext,
+        taskKind: 'diagnostics',
+        queueWaitMs: Date.now() - queuedAt,
+        ...options.scheduler.snapshot(),
+      })
+      return runWithRuntimeTaskDeadline('diagnostics', normalizeDiagnosticsWorkerTimeoutMs(), async deadline => {
+        const manifest = await backendClient.fetchManifest(payload.artifact_id, deadline.signal)
+        const configBundle = await backendClient.fetchConfigBundle(payload.artifact_id, deadline.signal)
+        deadline.throwIfExpired()
+        return runArtifactDiagnostics({
+          runtimeRoot: options.runtimeRoot,
+          artifactId: payload.artifact_id,
+          manifest,
+          configBundle,
+          backendClient,
+          workspacePool: options.workspacePool,
+          deadline,
+        })
+      })
     })
 
     sendJson(res, 200, {
@@ -508,41 +581,54 @@ function createBuildBackendClient(options: {
   }
 
   return {
-    async fetchManifest(artifactId: string): Promise<RuntimePreviewArtifactManifest> {
+    async fetchManifest(artifactId: string, signal?: AbortSignal): Promise<RuntimePreviewArtifactManifest> {
       return requestJson<RuntimePreviewArtifactManifest>(
         `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/manifest`,
         defaultHeaders,
+        signal,
       )
     },
 
-    async fetchConfigBundle(artifactId: string): Promise<RuntimePreloadedConfigBundle> {
+    async fetchConfigBundle(artifactId: string, signal?: AbortSignal): Promise<RuntimePreloadedConfigBundle> {
       return requestJson<RuntimePreloadedConfigBundle>(
         `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/config-bundle`,
         defaultHeaders,
+        signal,
       )
     },
 
-    async fetchModuleSource(artifactId: string, modulePath: string): Promise<string> {
+    async fetchModuleSource(artifactId: string, modulePath: string, signal?: AbortSignal): Promise<string> {
       const url = `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/modules?path=${encodeURIComponent(modulePath)}`
-      const response = await fetch(url, {
-        headers: {
-          ...defaultHeaders,
-          Accept: 'text/plain, application/json;q=0.9',
-        },
-      })
+      let response: Response
+      try {
+        response = await fetch(url, {
+          headers: {
+            ...defaultHeaders,
+            Accept: 'text/plain, application/json;q=0.9',
+          },
+          signal,
+        })
+      } catch (error) {
+        throw buildBackendRequestNetworkError(url, error)
+      }
       if (!response.ok) {
         throw await toBuildError(response, 'MODULE_FETCH_FAILED')
       }
-      return response.text()
+      try {
+        return await response.text()
+      } catch (error) {
+        throw buildBackendRequestNetworkError(url, error)
+      }
     },
 
-    async fetchAssetBinary(assetUrl: string, context?: BuildAssetFetchContext): Promise<Buffer> {
+    async fetchAssetBinary(assetUrl: string, context?: BuildAssetFetchContext, signal?: AbortSignal): Promise<Buffer> {
       let response: Response
       try {
         response = await fetch(assetUrl, {
           headers: {
             Accept: '*/*',
           },
+          signal,
         })
       } catch (error) {
         throw buildAssetFetchNetworkError(assetUrl, error, context)
@@ -562,13 +648,17 @@ function createBuildBackendClient(options: {
       }
     },
 
-    async uploadBuildArtifact(params: BuildArtifactUploadParams): Promise<UploadedBuildArtifactSummary> {
+    async uploadBuildArtifact(params: BuildArtifactUploadParams, signal?: AbortSignal): Promise<UploadedBuildArtifactSummary> {
       const uploadUrl = `${apiBaseUrl}/internal/runtime/build-jobs/${encodeURIComponent(params.jobId)}/artifact`
-      const response = await uploadBuildArtifactWithRetry(uploadUrl, params)
+      const response = await uploadBuildArtifactWithRetry(uploadUrl, params, signal)
       if (!response.ok) {
         throw await toBuildError(response, 'BUILD_ARTIFACT_UPLOAD_FAILED')
       }
-      return response.json() as Promise<UploadedBuildArtifactSummary>
+      try {
+        return await response.json() as UploadedBuildArtifactSummary
+      } catch (error) {
+        throw buildBackendRequestNetworkError(uploadUrl, error)
+      }
     },
   }
 }
@@ -577,14 +667,17 @@ function createBuildBackendClient(options: {
  * 带网络重试地上传构建产物，规避 Backend 热重载或本地连接瞬断。
  * @param uploadUrl Backend 构建产物上传地址
  * @param params 上传参数
+ * @param signal 端到端 deadline 的取消信号
  * @returns 上传响应
  */
 async function uploadBuildArtifactWithRetry(
   uploadUrl: string,
   params: BuildArtifactUploadParams,
+  signal?: AbortSignal,
 ): Promise<Response> {
   let lastError: unknown = null
   for (let attempt = 1; attempt <= DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    throwIfAborted(signal)
     try {
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -592,9 +685,13 @@ async function uploadBuildArtifactWithRetry(
           Authorization: `Bearer ${params.buildToken}`,
         },
         body: buildArtifactUploadFormData(params),
+        signal,
       })
       return response
     } catch (error) {
+      if (signal?.aborted) {
+        throw error
+      }
       lastError = error
       if (attempt >= DEFAULT_ARTIFACT_UPLOAD_MAX_ATTEMPTS) {
         break
@@ -607,7 +704,7 @@ async function uploadBuildArtifactWithRetry(
         error: formatUnknownError(error),
         cause: formatUnknownError((error as { cause?: unknown } | null)?.cause),
       })
-      await sleep(DEFAULT_ARTIFACT_UPLOAD_RETRY_BASE_MS * attempt)
+      await sleep(DEFAULT_ARTIFACT_UPLOAD_RETRY_BASE_MS * attempt, signal)
     }
   }
 
@@ -637,19 +734,42 @@ function buildArtifactUploadFormData(params: BuildArtifactUploadParams): FormDat
  * 请求 JSON 接口并统一处理错误。
  * @param url 请求地址
  * @param headers 请求头
+ * @param signal 端到端 deadline 的取消信号
  * @returns 解析后的 JSON
  */
-async function requestJson<T>(url: string, headers: Record<string, string>): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      ...headers,
-      Accept: 'application/json',
-    },
-  })
+async function requestJson<T>(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        ...headers,
+        Accept: 'application/json',
+      },
+      signal,
+    })
+  } catch (error) {
+    throw buildBackendRequestNetworkError(url, error)
+  }
   if (!response.ok) {
     throw await toBuildError(response, 'BACKEND_REQUEST_FAILED')
   }
-  return response.json() as Promise<T>
+  try {
+    return await response.json() as T
+  } catch (error) {
+    throw buildBackendRequestNetworkError(url, error)
+  }
+}
+
+/**
+ * 将读取 preview artifact 时的网络异常保持为可重试的基础设施错误。
+ */
+function buildBackendRequestNetworkError(url: string, error: unknown): RuntimeBuildError {
+  const message = error instanceof Error ? error.message : String(error || '未知网络错误')
+  return new RuntimeBuildError(
+    502,
+    'RUNTIME_BACKEND_REQUEST_FAILED',
+    `读取 Backend Runtime artifact 失败：${message}。URL ${url}`,
+  )
 }
 
 /**
@@ -751,8 +871,28 @@ function formatUnknownError(error: unknown): string {
  * 等待指定时间后继续执行。
  * @param ms 等待毫秒数
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal)
+  return new Promise((resolveSleep, rejectSleep) => {
+    const onAbort = () => {
+      clearTimeout(timeoutHandle)
+      rejectSleep(signal?.reason || new Error('Runtime 任务已取消。'))
+    }
+    const timeoutHandle = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolveSleep()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * 在重试循环等同步边界主动感知 deadline 已取消，避免继续发起后续网络请求。
+ */
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason || new Error('Runtime 任务已取消。')
+  }
 }
 
 /**
@@ -769,8 +909,10 @@ async function runProjectBuild(params: {
   manifest: RuntimePreviewArtifactManifest
   configBundle: RuntimePreloadedConfigBundle
   backendClient: ReturnType<typeof createBuildBackendClient>
+  deadline: RuntimeTaskDeadline
 }): Promise<BuildArtifactSummary> {
-  const tempRoot = await createBuildWorkspace(params.runtimeRoot)
+  params.deadline.throwIfExpired()
+  const tempRoot = await createDisposableRuntimeWorkspace(params.runtimeRoot)
   const distRoot = resolve(tempRoot, 'dist')
   const buildContext: RuntimeBuildLogContext = {
     jobId: params.jobId,
@@ -782,9 +924,11 @@ async function runProjectBuild(params: {
   }
 
   try {
+    params.deadline.throwIfExpired()
     logRuntimeBuild('workspace.created', buildContext)
     logRuntimeBuild('modules.inject.start', buildContext)
-    await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient)
+    await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient, params.deadline)
+    params.deadline.throwIfExpired()
     logRuntimeBuild('modules.inject.done', {
       ...buildContext,
       moduleCount: Object.keys(params.manifest.modules || {}).length,
@@ -792,11 +936,18 @@ async function runProjectBuild(params: {
 
     logRuntimeBuild('workspace.validate.start', buildContext)
     await validateBuildWorkspaceSources(tempRoot)
+    params.deadline.throwIfExpired()
     validateConfigAssetReferences(params.manifest, params.configBundle)
     logRuntimeBuild('workspace.validate.done', buildContext)
 
     logRuntimeBuild('assets.materialize.start', buildContext)
-    const staticAssetMapping = await materializeSnapshotAssets(tempRoot, params.manifest, params.backendClient)
+    const staticAssetMapping = await materializeSnapshotAssets(
+      tempRoot,
+      params.manifest,
+      params.backendClient,
+      params.deadline,
+    )
+    params.deadline.throwIfExpired()
     logRuntimeBuild('assets.materialize.done', {
       ...buildContext,
       materializedAssetCount: Object.keys(staticAssetMapping).length,
@@ -812,6 +963,7 @@ async function runProjectBuild(params: {
         assets: staticAssetMapping,
       },
     })
+    params.deadline.throwIfExpired()
     logRuntimeBuild('entry.write.done', buildContext)
 
     logRuntimeBuild('vite.build.start', buildContext)
@@ -820,11 +972,14 @@ async function runProjectBuild(params: {
       base: params.baseUrl,
       mode: 'project',
       outDir: distRoot,
+      timeoutMs: params.deadline.remainingMs(),
     })
+    params.deadline.throwIfExpired()
     logRuntimeBuild('vite.build.done', buildContext)
 
     logRuntimeBuild('artifact.archive.start', buildContext)
     const archiveBuffer = await createZipArchiveFromDirectory(distRoot)
+    params.deadline.throwIfExpired()
     const artifactSha256 = createHash('sha256').update(archiveBuffer).digest('hex')
     const artifactSizeBytes = archiveBuffer.length
     logRuntimeBuild('artifact.archive.done', {
@@ -845,7 +1000,8 @@ async function runProjectBuild(params: {
       entryFile: 'index.html',
       sha256: artifactSha256,
       sizeBytes: artifactSizeBytes,
-    })
+    }, params.deadline.signal)
+    params.deadline.throwIfExpired()
     logRuntimeBuild('artifact.upload.done', {
       ...buildContext,
       artifactStorageKey: uploadSummary.artifact_storage_key,
@@ -882,8 +1038,12 @@ async function runArtifactDiagnostics(params: {
   manifest: RuntimePreviewArtifactManifest
   configBundle: RuntimePreloadedConfigBundle
   backendClient: ReturnType<typeof createBuildBackendClient>
+  workspacePool: RuntimeDiagnosticsWorkspacePool
+  deadline: RuntimeTaskDeadline
 }): Promise<RuntimeDiagnosticsSummary> {
-  const tempRoot = await createBuildWorkspace(params.runtimeRoot)
+  params.deadline.throwIfExpired()
+  const workspaceLease = await params.workspacePool.acquire()
+  const tempRoot = workspaceLease.tempRoot
   const diagnosticsContext: RuntimeBuildLogContext = {
     artifactId: params.artifactId,
     runtimeRoot: params.runtimeRoot,
@@ -891,10 +1051,12 @@ async function runArtifactDiagnostics(params: {
   }
 
   try {
+    params.deadline.throwIfExpired()
     logRuntimeBuild('diagnostics.workspace.created', diagnosticsContext)
-    await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient)
-    await injectEntryModuleIfNeeded(tempRoot, params.artifactId, params.manifest, params.backendClient)
+    await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient, params.deadline)
+    await injectEntryModuleIfNeeded(tempRoot, params.artifactId, params.manifest, params.backendClient, params.deadline)
     await validateBuildWorkspaceSources(tempRoot)
+    params.deadline.throwIfExpired()
     validateConfigAssetReferences(params.manifest, params.configBundle)
     await writeBuildEntryFiles(tempRoot, {
       ...params.configBundle,
@@ -903,12 +1065,10 @@ async function runArtifactDiagnostics(params: {
         artifact_kind: 'build_release',
       },
     }, { mode: 'diagnostics' })
+    params.deadline.throwIfExpired()
 
-    await runRuntimeViteBuildInWorker({
-      tempRoot,
-      base: './',
-      mode: 'diagnostics',
-    })
+    await workspaceLease.runViteBuild('./', params.deadline.remainingMs())
+    params.deadline.throwIfExpired()
     return {
       success: true,
       status: 'passed',
@@ -918,11 +1078,14 @@ async function runArtifactDiagnostics(params: {
     }
   } catch (error) {
     logRuntimeBuildError('diagnostics.run.failed', error, diagnosticsContext)
+    if (isRuntimeDiagnosticsInfrastructureError(error)) {
+      throw error
+    }
     return buildFailedDiagnostics(params.artifactId, error)
   } finally {
-    logRuntimeBuild('diagnostics.workspace.cleanup.start', diagnosticsContext)
-    await rm(tempRoot, { recursive: true, force: true })
-    logRuntimeBuild('diagnostics.workspace.cleanup.done', diagnosticsContext)
+    logRuntimeBuild('diagnostics.workspace.reset.start', diagnosticsContext)
+    await workspaceLease.release()
+    logRuntimeBuild('diagnostics.workspace.reset.done', diagnosticsContext)
   }
 }
 
@@ -941,6 +1104,41 @@ function buildFailedDiagnostics(artifactId: string, error: unknown): RuntimeDiag
     summary: `发现 ${diagnostic.severity === 'error' ? 1 : 0} 个错误。`,
     diagnostics: [diagnostic],
   }
+}
+
+/**
+ * 判断诊断异常是否属于可重试的 Runtime 基础设施故障。
+ * 源码 Vite 错误必须继续作为 HTTP 200 的结构化诊断返回，不能被误判为服务故障。
+ */
+export function isRuntimeDiagnosticsInfrastructureError(error: unknown): boolean {
+  if (error instanceof RuntimeBuildWorkerViteError) {
+    return false
+  }
+  if (
+    error instanceof RuntimeBuildWorkerProcessError
+    || error instanceof RuntimeViteTaskSchedulerError
+    || error instanceof RuntimeTaskDeadlineError
+  ) {
+    return true
+  }
+  if (error instanceof RuntimeDiagnosticsWorkspaceError || error instanceof RuntimeBuildError) {
+    return error.statusCode >= 500
+  }
+  const code = String((error as { code?: unknown } | null)?.code || '')
+  return [
+    'EACCES',
+    'EAI_AGAIN',
+    'ECONNABORTED',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'EIO',
+    'EMFILE',
+    'ENFILE',
+    'ENOSPC',
+    'ENOTFOUND',
+    'EPIPE',
+    'ETIMEDOUT',
+  ].includes(code)
 }
 
 /**
@@ -998,63 +1196,6 @@ function normalizeDiagnosticNumber(value: unknown): number | undefined {
 }
 
 /**
- * 在系统临时目录中创建构建工作区，并复制 Runtime 壳层代码。
- * @param runtimeRoot 当前 Runtime 根目录
- * @returns 临时工作区路径
- */
-async function createBuildWorkspace(runtimeRoot: string): Promise<string> {
-  const tempRoot = await mkdtemp(join(os.tmpdir(), 'web-presentation-runtime-build-'))
-  const copyTargets = [
-    'src',
-    'index.html',
-    'postcss.config.js',
-    'tailwind.config.js',
-    'tsconfig.json',
-    'tsconfig.app.json',
-    'tsconfig.node.json',
-  ]
-
-  for (const relativePath of copyTargets) {
-    const sourcePath = resolve(runtimeRoot, relativePath)
-    if (!await pathExists(sourcePath)) {
-      continue
-    }
-    const targetPath = resolve(tempRoot, relativePath)
-    await cp(sourcePath, targetPath, {
-      recursive: true,
-      filter: (source) => shouldCopyRuntimePath(source),
-    })
-  }
-
-  const sourceNodeModules = resolve(runtimeRoot, 'node_modules')
-  if (await pathExists(sourceNodeModules)) {
-    const targetNodeModules = resolve(tempRoot, 'node_modules')
-    await symlink(
-      sourceNodeModules,
-      targetNodeModules,
-      process.platform === 'win32' ? 'junction' : 'dir',
-    )
-  }
-
-  await mkdir(resolve(tempRoot, 'public'), { recursive: true })
-  return tempRoot
-}
-
-/**
- * 判断 Runtime 模板中的路径是否允许复制到构建工作区。
- * @param source 当前待复制路径
- * @returns 是否允许复制
- */
-function shouldCopyRuntimePath(source: string): boolean {
-  const normalized = source.replace(/\\/g, '/')
-  return !normalized.includes('/node_modules/')
-    && !normalized.includes('/dist/')
-    && !normalized.includes('/.git/')
-    && !normalized.includes('/__tests__/')
-    && !/\.(test|spec)\.[^/]+$/i.test(normalized)
-}
-
-/**
  * 将 build snapshot 的远程模块写入临时工作区。
  * @param tempRoot 临时工作区
  * @param artifactId build snapshot artifact ID
@@ -1066,12 +1207,25 @@ async function injectSnapshotModules(
   artifactId: string,
   manifest: RuntimePreviewArtifactManifest,
   backendClient: ReturnType<typeof createBuildBackendClient>,
+  deadline: RuntimeTaskDeadline,
 ): Promise<void> {
+  const injectedPaths = new Set<string>()
   for (const logicalPath of Object.keys(manifest.modules || {})) {
-    const content = await backendClient.fetchModuleSource(artifactId, logicalPath)
-    const targetPath = resolve(tempRoot, logicalPath.split('/').join(sep))
+    deadline.throwIfExpired()
+    const resolvedModule = resolveWritableRuntimeModulePath(tempRoot, logicalPath)
+    if (injectedPaths.has(resolvedModule.logicalPath)) {
+      throw new RuntimeDiagnosticsWorkspaceError(
+        409,
+        'RUNTIME_DIAGNOSTICS_MODULE_PATH_DUPLICATED',
+        `多个诊断模块映射到同一路径：${resolvedModule.logicalPath}`,
+      )
+    }
+    injectedPaths.add(resolvedModule.logicalPath)
+    const content = await backendClient.fetchModuleSource(artifactId, logicalPath, deadline.signal)
+    const targetPath = resolvedModule.targetPath
     await mkdir(resolve(targetPath, '..'), { recursive: true })
     await writeFile(targetPath, content, 'utf-8')
+    deadline.throwIfExpired()
   }
 }
 
@@ -1087,6 +1241,7 @@ async function injectEntryModuleIfNeeded(
   artifactId: string,
   manifest: RuntimePreviewArtifactManifest,
   backendClient: ReturnType<typeof createBuildBackendClient>,
+  deadline: RuntimeTaskDeadline,
 ): Promise<void> {
   if (manifest.entry_descriptor?.entry_type !== 'module') {
     return
@@ -1095,10 +1250,12 @@ async function injectEntryModuleIfNeeded(
   if (!entryModulePath || manifest.modules?.[entryModulePath]) {
     return
   }
-  const content = await backendClient.fetchModuleSource(artifactId, entryModulePath)
-  const targetPath = resolve(tempRoot, entryModulePath.split('/').join(sep))
+  deadline.throwIfExpired()
+  const content = await backendClient.fetchModuleSource(artifactId, entryModulePath, deadline.signal)
+  const targetPath = resolveWritableRuntimeModulePath(tempRoot, entryModulePath).targetPath
   await mkdir(resolve(targetPath, '..'), { recursive: true })
   await writeFile(targetPath, content, 'utf-8')
+  deadline.throwIfExpired()
 }
 
 /**
@@ -1218,6 +1375,7 @@ async function materializeSnapshotAssets(
   tempRoot: string,
   manifest: RuntimePreviewArtifactManifest,
   backendClient: ReturnType<typeof createBuildBackendClient>,
+  deadline: RuntimeTaskDeadline,
 ): Promise<Record<string, string>> {
   const staticAssetMapping: Record<string, string> = {}
   const assetBaseUrl = String(manifest.asset_base_url || '').replace(/\/+$/, '')
@@ -1226,6 +1384,7 @@ async function materializeSnapshotAssets(
   }
 
   for (const [logicalName, mappedValue] of Object.entries(manifest.assets || {})) {
+    deadline.throwIfExpired()
     const metadata = manifest.asset_metadata?.[logicalName]
     const fileHash = String(metadata?.file_hash || mappedValue || '').trim()
     if (!fileHash) {
@@ -1238,9 +1397,10 @@ async function materializeSnapshotAssets(
       logicalName,
       fileHash,
       originalName: metadata?.original_name,
-    })
+    }, deadline.signal)
 
     await writePublicBinary(tempRoot, staticPath, content)
+    deadline.throwIfExpired()
     staticAssetMapping[logicalName] = staticPath
   }
 
@@ -1382,7 +1542,12 @@ function sendJson(res: RuntimeNodeResponse, statusCode: number, payload: Record<
  * @param error 原始错误
  */
 function sendBuildError(res: RuntimeNodeResponse, error: unknown): void {
-  if (error instanceof RuntimeBuildError) {
+  if (
+    error instanceof RuntimeBuildError
+    || error instanceof RuntimeViteTaskSchedulerError
+    || error instanceof RuntimeDiagnosticsWorkspaceError
+    || error instanceof RuntimeTaskDeadlineError
+  ) {
     return sendJson(res, error.statusCode, {
       success: false,
       code: error.code,
@@ -1416,7 +1581,7 @@ function sendBuildError(res: RuntimeNodeResponse, error: unknown): void {
 /**
  * Runtime 内部整项目构建错误。
  */
-class RuntimeBuildError extends Error {
+export class RuntimeBuildError extends Error {
   statusCode: number
   code: string
 

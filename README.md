@@ -106,6 +106,17 @@ Backend 触发整项目构建时，Runtime 会使用专用的 `build-release-mai
 - `RUNTIME_PREVIEW_TOKEN_AUDIENCE`
 - `RUNTIME_BUILD_TOKEN_AUDIENCE`
 - `RUNTIME_DIAGNOSTICS_TOKEN_AUDIENCE`
+- `RUNTIME_VITE_TASK_CONCURRENCY`：诊断与正式构建共享并发数，lite/SQLite 建议保持 `1`，普通部署可设为 `2`。
+- `RUNTIME_VITE_TASK_QUEUE_SIZE`：等待队列上限，默认 `16`；队列满或等待超时返回结构化 HTTP 429。
+- `RUNTIME_VITE_TASK_QUEUE_WAIT_TIMEOUT_MS`：排队超时，默认 `30000`。
+- `RUNTIME_VITE_DIAGNOSTICS_WEIGHT`：诊断相对正式构建的调度权重，默认 `3`，即双方均等待时按 3:1 调度。
+- `RUNTIME_BUILD_WORKER_MAX_OLD_SPACE_MB`：Node/Vite worker 堆内存上限，lite 默认 `1024`，资源充足部署可设为 `2048`。
+- `RUNTIME_BUILD_WORKER_TIMEOUT_MS`：正式构建 worker 超时，默认 `600000`。
+- `RUNTIME_DIAGNOSTICS_WORKER_TIMEOUT_MS`：单次诊断 worker 超时，默认 `120000`。
+- `RUNTIME_DIAGNOSTICS_WORKER_REUSE_ENABLED`：是否复用预热工作区与长期诊断 worker，默认 `true`，故障回退时可设为 `false`。
+- `RUNTIME_DIAGNOSTICS_WORKER_MAX_TASKS`：常驻诊断 worker 最大任务数，默认 `25`。
+- `RUNTIME_DIAGNOSTICS_WORKER_MAX_AGE_MS`：常驻诊断 worker 最大寿命，默认 `1800000`。
+- `RUNTIME_DIAGNOSTICS_WORKER_RSS_RECYCLE_RATIO`：RSS 相对堆上限的回收阈值，默认 `0.75`。
 - `RUNTIME_BACKEND_API_BASE_URL`
 - `RUNTIME_SERVER_HOST`
 - `RUNTIME_SERVER_PORT`
