@@ -70,6 +70,14 @@ docker run --rm -p 7373:7373 --env-file .env.example web-runtime-vue:local
 
 Backend 触发整项目构建时，Runtime 会使用专用的 `build-release-main` 入口和 manifest 生成的页面模块映射。构建产物保留演示外壳能力，包括导航、翻页、全屏、侧栏/缩略图与 PDF 导出；组件预览宿主、资源预览宿主、Standalone 单页预览、本地 examples/fixture 页面和默认 Runtime Shell 静态示例资源不会进入 build release 依赖图。
 
+### 7. 页面可视化编辑 v1（平台内部）
+
+- Backend 通过受服务令牌保护的 `POST /__runtime_internal/v1/visual-edit/analyze` 与 `POST /__runtime_internal/v1/visual-edit/apply` 调用 Runtime；analyze 返回 canonical Manifest 和派生插桩源码，apply 只返回候选源码、hash 与差异，Runtime 不持久化页面 canonical 源码。
+- 插桩源码只允许进入 `page_visual_edit_preview` artifact；普通预览不安装 DOM 选区监听，保存后由 Backend 生成新的 artifact，不在 iframe 中接收实时源码更新。
+- v1 支持静态文本、组件参数、受控 class，以及 `const` / `ref` / `reactive` 数组字面量的单层 stable-key `v-for`；动态数据源、缺少稳定 key 和嵌套循环保持只读。
+- 与节点直接关联的顶层静态 JSON 数组/对象和组件内联 JSON 参数会在 Manifest 中按 source 去重，并通过 `set_json` 执行受大小、深度和节点数限制的原子替换；不支持的循环不会生成缺少稳定 key 的 `loopItemActions`。
+- `style` 与复杂 CSS 不进入编辑协议；Tailwind 仅允许选择 Runtime safelist 内带中文语义标签的有限互斥组，已有未知类、variant 和任意值类会保留但不可由可视化面板新增。
+
 ## CI/CD
 
 - `.github/workflows/ci.yml` 在 push、pull request 与手动触发时执行 `pnpm check`、`pnpm test`、`pnpm build`，并构建 Runtime 镜像 smoke，不推送。

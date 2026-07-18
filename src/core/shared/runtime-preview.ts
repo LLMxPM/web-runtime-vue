@@ -2,7 +2,7 @@
  * 文件用途：定义无状态预览运行时共享契约、远程模块标识与资源路径解析辅助函数。
  */
 
-export type RuntimeArtifactKind = 'preview_artifact' | 'build_snapshot' | 'build_release'
+export type RuntimeArtifactKind = 'preview_artifact' | 'page_visual_edit_preview' | 'build_snapshot' | 'build_release'
 export type PreviewKind = 'project' | 'page' | 'component' | 'asset'
 export type PreviewScopeType = 'project' | 'workspace_component' | 'runtime_kit_component' | 'workspace_asset'
 export type PreviewEntryType = 'route' | 'module' | 'component_host' | 'asset_host'
@@ -77,6 +77,21 @@ export interface RuntimePreviewArtifactManifest {
   asset_metadata?: Record<string, RuntimePreviewAssetMetadata>
   version?: string
   published_at?: string
+  visual_edit?: RuntimePageVisualEditArtifactMetadata
+}
+
+/**
+ * Backend 写入页面可视化编辑专用 artifact 的版本化源码身份与只读 Manifest。
+ */
+export interface RuntimePageVisualEditArtifactMetadata {
+  protocol_version: 1
+  page_id: string | number
+  page_version_id?: string | number
+  base_version_no: number
+  source_hash: string
+  module_path: string
+  manifest?: unknown
+  warnings?: unknown[]
 }
 
 export interface RuntimeFontBundleItem {

@@ -6,6 +6,7 @@ import { createApp, nextTick } from 'vue'
 
 import App from './App.vue'
 import { loadThemeConfigs } from './core/composables/useTheme'
+import { registerPageVisualEditSelectionBridge } from './core/visual-edit/browser/selection-bridge'
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFaviconSync } from './core/utils/favicon'
@@ -74,6 +75,10 @@ async function initializeApp(): Promise<void> {
 
     await router.isReady()
     app.mount('#app')
+    const disposeVisualEditSelectionBridge = registerPageVisualEditSelectionBridge()
+    if (disposeVisualEditSelectionBridge) {
+      window.addEventListener('beforeunload', disposeVisualEditSelectionBridge, { once: true })
+    }
     await waitForPreviewStabilized()
     setEditorRuntimePreviewReady(true)
   } catch (error) {

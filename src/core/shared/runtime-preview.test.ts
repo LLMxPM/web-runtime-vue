@@ -16,6 +16,7 @@ import {
   resolvePreviewEntryModulePath,
   toAliasModulePath,
   toAliasViewPath,
+  type RuntimePreviewArtifactManifest,
 } from './runtime-preview'
 
 describe('runtime preview shared helpers', () => {
@@ -111,5 +112,34 @@ describe('runtime preview shared helpers', () => {
   it('应将资源路径规范化为 manifest key', () => {
     expect(normalizeAssetKey('./img/logo/demo.png')).toBe('img/logo/demo.png')
     expect(normalizeAssetKey('\\fonts\\demo.woff2')).toBe('fonts/demo.woff2')
+  })
+
+  it('应接受页面可视化编辑专用 artifact 与版本化元数据', () => {
+    const manifest: RuntimePreviewArtifactManifest = {
+      artifact_id: 'artifact-visual-edit',
+      artifact_kind: 'page_visual_edit_preview',
+      tenant_id: 'tenant_1',
+      preview_kind: 'page',
+      owner_scope: {
+        scope_type: 'project',
+        workspace_id: '1',
+        project_id: '2',
+      },
+      entry_descriptor: { entry_type: 'module', module_path: 'src/views/PGdemo.vue' },
+      modules: {},
+      assets: {},
+      visual_edit: {
+        protocol_version: 1,
+        page_id: 12,
+        base_version_no: 3,
+        source_hash: 'a'.repeat(64),
+        module_path: 'src/views/PGdemo.vue',
+        manifest: { protocolVersion: 1 },
+      },
+    }
+
+    expect(manifest.artifact_kind).toBe('page_visual_edit_preview')
+    expect(manifest.visual_edit?.protocol_version).toBe(1)
+    expect(manifest.visual_edit?.module_path).toBe('src/views/PGdemo.vue')
   })
 })

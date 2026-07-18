@@ -13,6 +13,7 @@ import runtimeSaaSPreview from './src/core/plugins/runtime-saas-preview'
 import runtimeStandalonePreviewGate, {
   resolveStandalonePreviewEnabled,
 } from './src/core/plugins/runtime-standalone-preview-gate'
+import runtimeVisualEdit from './src/core/plugins/runtime-visual-edit'
 import { logRuntimeServer } from './src/core/utils/runtime-logger'
 
 export default defineConfig(({ command, mode }) => {
@@ -53,6 +54,10 @@ export default defineConfig(({ command, mode }) => {
         backendApiBaseUrl: env.RUNTIME_BACKEND_API_BASE_URL,
       }),
       runtimeAssetRenderHintMeasurer({
+        jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
+        serviceAudience: env.RUNTIME_SERVICE_TOKEN_AUDIENCE,
+      }),
+      runtimeVisualEdit({
         jwksUrl: env.RUNTIME_PREVIEW_JWKS_URL,
         serviceAudience: env.RUNTIME_SERVICE_TOKEN_AUDIENCE,
       }),

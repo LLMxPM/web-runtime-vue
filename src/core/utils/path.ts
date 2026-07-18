@@ -237,6 +237,7 @@ function getRuntimeArtifactKind(rawArtifactKind: unknown): RuntimeArtifactKind |
   const normalizedValue = String(rawArtifactKind || '').trim()
   if (
     normalizedValue === 'preview_artifact'
+    || normalizedValue === 'page_visual_edit_preview'
     || normalizedValue === 'build_snapshot'
     || normalizedValue === 'build_release'
   ) {

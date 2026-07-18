@@ -92,6 +92,42 @@ describe('runtime path helpers', () => {
     expect(resolveResourcePath('img/logo/ppt-e.png')).toBe('https://assets.example/releases/release_1/hashed/logo-a1b2c3.png')
   })
 
+  it('页面可视化编辑 artifact 应沿用预览资源回源策略', () => {
+    setRuntimePreviewContext({
+      artifactId: 'artifact_visual_edit',
+      tenantId: 'tenant_1',
+      previewKind: 'page',
+      scopeType: 'project',
+      workspaceId: 'workspace_1',
+      projectId: 'project_1',
+      entryDescriptor: { entry_type: 'module', module_path: 'src/views/PGdemo.vue' },
+      assetBaseUrl: 'https://assets.example/visual-edit',
+      traceId: 'trace_visual_edit',
+    })
+    setRuntimePreloadedConfig({
+      manifest: {
+        artifact_id: 'artifact_visual_edit',
+        artifact_kind: 'page_visual_edit_preview',
+        tenant_id: 'tenant_1',
+        preview_kind: 'page',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_1',
+          workspace_id: 'workspace_1',
+        },
+        entry_descriptor: { entry_type: 'module', module_path: 'src/views/PGdemo.vue' },
+        modules: {},
+        assets: {
+          'img/hero.png': 'hashed/hero-visual-edit.png',
+        },
+      },
+    })
+
+    expect(resolveResourcePath('img/hero.png')).toBe(
+      'https://assets.example/visual-edit/hashed/hero-visual-edit.png',
+    )
+  })
+
   it('manifest key 大小写不一致时不应命中映射，而是按原路径回退', () => {
     setRuntimePreviewContext({
       artifactId: 'artifact_case',
