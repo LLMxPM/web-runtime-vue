@@ -2,7 +2,11 @@
   文件用途：提供资源预览宿主页，按 Backend 下发的 asset_preview 配置复用 Runtime 渲染器展示单个资源。
 -->
 <template>
-  <main class="asset-preview-view">
+  <main
+    class="asset-preview-view"
+    :class="`asset-preview-view--${previewBackground}`"
+    :data-preview-background="previewBackground"
+  >
     <div v-if="!assetConfig" class="asset-preview-view__state">
       资源预览配置缺失。
     </div>
@@ -15,7 +19,7 @@
       height="100%"
       min-height="0"
       fit="contain"
-      background-color="#ffffff"
+      :background-color="rendererBackgroundColor"
     />
     <AssetDrawio
       v-else-if="renderType === 'drawio'"
@@ -24,7 +28,7 @@
       width="100%"
       height="100%"
       min-height="0"
-      background-color="#ffffff"
+      :background-color="rendererBackgroundColor"
       :show-border="false"
     />
     <AssetMermaid
@@ -34,7 +38,7 @@
       width="100%"
       height="100%"
       min-height="0"
-      background-color="#ffffff"
+      :background-color="rendererBackgroundColor"
       :show-border="false"
     />
     <AssetChart
@@ -44,7 +48,7 @@
       width="100%"
       height="100%"
       min-height="0"
-      background-color="#ffffff"
+      :background-color="rendererBackgroundColor"
       :show-border="false"
     />
     <AssetFormula
@@ -54,7 +58,7 @@
       width="100%"
       height="100%"
       min-height="0"
-      background-color="#ffffff"
+      :background-color="rendererBackgroundColor"
       :show-border="false"
       :display-mode="true"
     />
@@ -84,8 +88,16 @@ import AssetFormula from '@runtime-kit/public/components/assets/AssetFormula.v1.
 import AssetImage from '@runtime-kit/public/components/assets/AssetImage.v1.vue'
 import AssetMermaid from '@runtime-kit/public/components/assets/AssetMermaid.v1.vue'
 import AssetVideo from '@runtime-kit/public/components/assets/AssetVideo.v1.vue'
+import {
+  normalizeAssetPreviewBackground,
+  resolveAssetPreviewRendererBackground,
+} from './asset-preview-background'
 
 const assetConfig = computed(() => getRuntimePreloadedConfig()?.asset_preview ?? null)
+const previewBackground = computed(() => normalizeAssetPreviewBackground(
+  new URLSearchParams(window.location.search).get('preview_background'),
+))
+const rendererBackgroundColor = computed(() => resolveAssetPreviewRendererBackground(previewBackground.value))
 const renderType = computed(() => String(assetConfig.value?.render_type || '').trim())
 const contentType = computed(() => String(assetConfig.value?.content_type || '').split(';', 1)[0].trim().toLowerCase())
 const originalName = computed(() => String(assetConfig.value?.original_name || '').trim().toLowerCase())
@@ -103,7 +115,25 @@ const isImageLike = computed(() => (
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.asset-preview-view--light {
   background: #ffffff;
+}
+
+.asset-preview-view--dark {
+  background: #0f172a;
+}
+
+.asset-preview-view--checker {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
 }
 
 .asset-preview-view__state {
