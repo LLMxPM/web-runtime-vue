@@ -283,6 +283,97 @@ const mappedItems = rawItems.map(item => ({ ...item }))
     )
   })
 
+  it('自闭合富文本候选应保留节点与 class 绑定，且不生成富文本 binding', () => {
+    const source = `<template>
+  <main>
+    <span class="dot" />
+    <span v-for="n in 6" :key="n" class="indicator" />
+    <span></span>
+    <span>正文</span>
+  </main>
+</template>`
+    const manifest = analyzeVisualEditSfc(source, {
+      modulePath: 'src/views/SelfClosingRichText.vue',
+    })
+    const spans = findNodes(manifest.root, 'span')
+
+    expect(manifest.diagnostics).toEqual([])
+    expect(spans).toHaveLength(4)
+    expect(spans[0]?.bindings).toEqual([
+      expect.objectContaining({ kind: 'class', value: 'dot', editable: true }),
+    ])
+    expect(spans[1]?.loopContext).toMatchObject({
+      itemAlias: 'n',
+      editable: false,
+      readonlyReason: 'LOOP_SOURCE_UNSUPPORTED',
+    })
+    expect(spans[1]?.bindings).toEqual([
+      expect.objectContaining({
+        kind: 'class',
+        value: 'indicator',
+        editable: true,
+      }),
+    ])
+    expect(
+      spans
+        .slice(0, 2)
+        .flatMap((node) => node?.bindings || [])
+        .some((binding) => binding.kind === 'rich_text')
+    ).toBe(false)
+
+    const emptyBinding = spans[2]?.bindings[0]
+    expect(emptyBinding).toMatchObject({
+      kind: 'rich_text',
+      value: '',
+      editable: true,
+      source: { kind: 'template-rich-text' },
+    })
+    expect(emptyBinding?.sourceRange.start).toBe(emptyBinding?.sourceRange.end)
+    const textBinding = spans[3]?.bindings[0]
+    expect(textBinding).toMatchObject({
+      kind: 'rich_text',
+      value: '正文',
+      editable: true,
+    })
+    expect(
+      source.slice(textBinding?.sourceRange.start, textBinding?.sourceRange.end)
+    ).toBe('正文')
+  })
+
+  it('无法定位内部范围的富文本候选应降级为节点级诊断，不中断整页分析', () => {
+    const source =
+      '<template><section><p>第一段<p>第二段</section></template>'
+    const manifest = analyzeVisualEditSfc(source, {
+      modulePath: 'src/views/ImpliedEndTag.vue',
+    })
+    const paragraphs = findNodes(manifest.root, 'p')
+
+    expect(paragraphs.length).toBeGreaterThan(0)
+    for (const paragraph of paragraphs) {
+      expect(
+        paragraph.bindings.some((binding) => binding.kind === 'rich_text')
+      ).toBe(false)
+      expect(
+        paragraph.bindings.some(
+          (binding) =>
+            binding.source?.kind === 'template-rich-text' && binding.editable
+        )
+      ).toBe(false)
+    }
+    const degraded = manifest.diagnostics.filter(
+      (diagnostic) => diagnostic.code === 'RICH_TEXT_SOURCE_RANGE_UNRESOLVED'
+    )
+    expect(degraded.length).toBeGreaterThan(0)
+    for (const diagnostic of degraded) {
+      expect(diagnostic.severity).toBe('warning')
+      expect(diagnostic.sourceRange).toBeDefined()
+    }
+    // 首段静态文本仍以普通 text binding 保留编辑能力。
+    expect(
+      paragraphs[0]?.bindings.find((binding) => binding.kind === 'text')
+    ).toMatchObject({ value: '第一段', editable: true })
+  })
+
   it('动态混排应合并只读，静态 class 应随内联语义结构聚合', () => {
     const source = `<template>
       <p>你好 <strong>{{ user.name }}</strong><br>欢迎</p>

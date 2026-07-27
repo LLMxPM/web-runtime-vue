@@ -53,6 +53,7 @@ interface RuntimeDiagramProbe {
 }
 
 const DEFAULT_VISUAL_READY_TIMEOUT_MS = 25000
+const ANIMATION_SETTLE_TIMEOUT_MS = 5000
 const VIEW_PREVIEW_STATE_SELECTOR = '[data-runtime-view-preview-state]'
 const DRAWIO_STATE_SELECTOR = '[data-runtime-drawio-state]'
 const MERMAID_STATE_SELECTOR = '[data-runtime-mermaid-state]'
@@ -127,6 +128,8 @@ export async function waitForEditorVisualAssets(
   failed.push(...fontResult.failed)
   pending.push(...fontResult.pending)
   timedOut = timedOut || fontResult.timedOut
+
+  await waitForFiniteAnimationsSettled(deadlineAt)
 
   await waitForAnimationFrame()
   await waitForAnimationFrame()
@@ -508,6 +511,55 @@ async function waitForFontsReady(deadlineAt: number): Promise<{
     }
   }
   return { failed: [], pending: [], timedOut: false }
+}
+
+/**
+ * 尽力等待文档中有限次动画自然结束，让入场动画和 animationend 链路跑完。
+ * 无限循环动画直接跳过；超时不计入失败，由截图侧 animations="disabled" 兜底快进。
+ * @param deadlineAt 整体截止时间戳
+ */
+async function waitForFiniteAnimationsSettled(deadlineAt: number): Promise<void> {
+  if (typeof document.getAnimations !== 'function') {
+    return
+  }
+
+  // 动画等待单独设较短上限，避免超长动画拖慢截图队列吞吐。
+  const settleDeadlineAt = Math.min(deadlineAt, Date.now() + ANIMATION_SETTLE_TIMEOUT_MS)
+  const awaited = new WeakSet<Animation>()
+
+  while (Date.now() <= settleDeadlineAt) {
+    // 循环重新收集，覆盖交错动画链中等待期间新启动的动画。
+    const running = document.getAnimations().filter(
+      animation => !awaited.has(animation) && isWaitableFiniteAnimation(animation),
+    )
+    if (running.length === 0) {
+      return
+    }
+    running.forEach(animation => awaited.add(animation))
+
+    const remainingMs = Math.max(0, settleDeadlineAt - Date.now())
+    await Promise.race([
+      // 动画被取消时 finished 会 reject，这里视为已结束。
+      Promise.all(running.map(animation => animation.finished.catch(() => undefined))),
+      sleep(remainingMs),
+    ])
+  }
+}
+
+/**
+ * 判断动画是否为值得等待的有限次运行中动画。
+ * @param animation Web Animations 对象
+ * @returns 是否应等待其 finished
+ */
+function isWaitableFiniteAnimation(animation: Animation): boolean {
+  if (animation.playState === 'finished' || animation.playState === 'idle') {
+    return false
+  }
+  const timing = animation.effect?.getTiming()
+  if (!timing) {
+    return false
+  }
+  return Number.isFinite(Number(timing.iterations ?? 1))
 }
 
 /**

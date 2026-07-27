@@ -77,6 +77,8 @@ Backend 触发整项目构建时，Runtime 会使用专用的 `build-release-mai
 - v1 支持静态文本、组件参数、受控 class，以及 `const` / `ref` / `reactive` 数组字面量的单层 stable-key `v-for`；动态数据源、缺少稳定 key 和嵌套循环保持只读。
 - 与节点直接关联的顶层静态 JSON 数组/对象和组件内联 JSON 参数会在 Manifest 中按 source 去重，并通过 `set_json` 执行受大小、深度和节点数限制的原子替换；不支持的循环不会生成缺少稳定 key 的 `loopItemActions`。
 - `style` 与复杂 CSS 不进入编辑协议；Tailwind 仅允许选择 Runtime safelist 内带中文语义标签的有限互斥组，已有未知类、variant 和任意值类会保留但不可由可视化面板新增。
+- 富文本候选标签（`p`、`span`、标题、`li`、`blockquote`、`label`）只在具有成对 opening/closing tag 时才聚合为 `rich_text` binding；自闭合写法（如 `<span class="dot" />`）按普通元素分析，保留节点、class binding 和 `v-for` 循环定位，不生成富文本插入点；成对空容器 `<span></span>` 仍生成 `start === end` 的零长度可编辑插入范围。
+- 单个富文本候选节点无法定位内部源码范围时（如隐式闭合标签），分析器不再中断整页 Manifest，而是降级为只读节点并在 `diagnostics` 中输出 `RICH_TEXT_SOURCE_RANGE_UNRESOLVED` 警告，诊断 `sourceRange` 指向整个元素。
 
 ## CI/CD
 

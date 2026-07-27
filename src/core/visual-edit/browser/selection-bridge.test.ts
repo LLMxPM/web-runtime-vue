@@ -213,6 +213,46 @@ describe('registerPageVisualEditSelectionBridge', () => {
     dispose?.()
   })
 
+  it('悬停应使用独立轮廓，离开后清理悬停但保留已选中轮廓', () => {
+    const fixture = buildFixture()
+    const postMessage = vi.fn()
+    const selected = document.createElement('a')
+    const hovered = document.createElement('a')
+    selected.className = 'selected-canonical-class'
+    hovered.className = 'hovered-canonical-class'
+    hovered.style.color = 'red'
+    applyLoopMarkers(selected, fixture.anchor.nodeId, fixture.loop.nodeId, JSON.stringify('alpha'), '0')
+    applyLoopMarkers(hovered, fixture.anchor.nodeId, fixture.loop.nodeId, JSON.stringify(7), '1')
+    document.body.append(selected, hovered)
+    const dispose = registerPageVisualEditSelectionBridge({
+      preloadedConfig: fixture.config,
+      previewContext: fixture.previewContext,
+      referrer: EDITOR_REFERRER,
+      postMessageTarget: { postMessage },
+    })
+
+    selected.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: selected }))
+
+    const selectionOverlay = document.body.querySelector<HTMLElement>('[data-page-visual-overlay="selection"]')
+    const hoverOverlay = document.body.querySelector<HTMLElement>('[data-page-visual-overlay="hover"]')
+    expect(selectionOverlay).not.toBeNull()
+    expect(hoverOverlay).not.toBeNull()
+    expect(selectionOverlay?.style.border).not.toBe(hoverOverlay?.style.border)
+    expect(selectionOverlay?.style.pointerEvents).toBe('none')
+    expect(hoverOverlay?.style.pointerEvents).toBe('none')
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(selected.className).toBe('selected-canonical-class')
+    expect(hovered.className).toBe('hovered-canonical-class')
+    expect(hovered.style.color).toBe('red')
+
+    hovered.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))
+
+    expect(document.body.querySelector('[data-page-visual-overlay="hover"]')).toBeNull()
+    expect(document.body.querySelector('[data-page-visual-overlay="selection"]')).not.toBeNull()
+    dispose?.()
+  })
+
   it('应拒绝来源不可信或 artifact 不匹配的主动选区消息', () => {
     const fixture = buildFixture()
     const marker = document.createElement('article')

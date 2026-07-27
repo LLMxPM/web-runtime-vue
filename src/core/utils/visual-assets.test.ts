@@ -24,6 +24,7 @@ afterEach(() => {
   document.head.innerHTML = ''
   document.body.innerHTML = ''
   Reflect.deleteProperty(document, 'fonts')
+  Reflect.deleteProperty(document, 'getAnimations')
   Reflect.deleteProperty(Document.prototype, 'fonts')
   vi.unstubAllGlobals()
 })
@@ -207,12 +208,80 @@ describe('visual asset readiness probe', () => {
     })
   })
 
+  it('应等待有限次动画结束后再返回', async () => {
+    let finished = false
+    const animation = createFakeAnimation({
+      finished: new Promise(resolve => window.setTimeout(() => {
+        finished = true
+        resolve()
+      }, 20)),
+    })
+    stubDocumentAnimations([animation])
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 1000 })
+
+    expect(finished).toBe(true)
+    expect(result.ok).toBe(true)
+    expect(result.timedOut).toBe(false)
+  })
+
+  it('应跳过无限循环动画不阻塞截图', async () => {
+    const animation = createFakeAnimation({ iterations: Infinity })
+    stubDocumentAnimations([animation])
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 1000 })
+
+    expect(result.ok).toBe(true)
+    expect(result.waitedMs).toBeLessThan(500)
+  })
+
+  it('有限动画等待超时不应计入失败', async () => {
+    const animation = createFakeAnimation({})
+    stubDocumentAnimations([animation])
+
+    const result = await waitForEditorVisualAssets({ timeoutMs: 50 })
+
+    expect(result.ok).toBe(true)
+    expect(result.timedOut).toBe(false)
+    expect(result.pending).toHaveLength(0)
+  })
+
   it('应注册全局视觉资源等待函数', () => {
     registerEditorVisualAssetProbe()
 
     expect(window.__EDITOR_RUNTIME_WAIT_FOR_VISUAL_ASSETS__).toBe(waitForEditorVisualAssets)
   })
 })
+
+/**
+ * 构造可控的动画对象替身，用于模拟有限/无限次动画。
+ * @param options 动画行为配置
+ * @returns Animation 替身
+ */
+function createFakeAnimation(options: {
+  playState?: AnimationPlayState
+  iterations?: number
+  finished?: Promise<void>
+}): Animation {
+  return {
+    playState: options.playState ?? 'running',
+    effect: {
+      getTiming: () => ({ iterations: options.iterations ?? 1 }),
+    },
+    finished: options.finished ?? new Promise<void>(() => {}),
+  } as unknown as Animation
+}
+
+/**
+ * 在 jsdom 上注入 document.getAnimations 替身。
+ * @param animations 返回的动画列表
+ */
+function stubDocumentAnimations(animations: Animation[]): void {
+  Object.defineProperty(document, 'getAnimations', {
+    value: () => animations,
+    configurable: true,
+  })
+}
 
 /**
  * 构造可控的 Image 类，用于模拟背景图加载结果。

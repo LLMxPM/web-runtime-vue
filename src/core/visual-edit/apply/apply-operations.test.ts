@@ -252,6 +252,64 @@ describe('applyVisualEditOperations', () => {
     expect(result.nextSource).toContain('<p>第一行<br><em>第二行</em></p>')
   })
 
+  it('自闭合节点不提供富文本写入目标，伪造 set_rich_text 应被拒绝', () => {
+    const source = `<template>
+  <main>
+    <span class="dot" />
+    <span>正文</span>
+  </main>
+</template>`
+    const manifest = analyzeVisualEditSfc(source, {
+      modulePath: 'src/views/SelfClosingApply.vue',
+    })
+    const [selfClosing, paired] = collectNodes(manifest, 'span')
+
+    // 自闭合节点没有任何 rich_text binding，可写目标集合中不存在它。
+    expect(
+      selfClosing?.bindings.some((binding) => binding.kind === 'rich_text')
+    ).toBe(false)
+
+    // 伪造 bindingId 直接指向自闭合节点时，apply 重新分析后应定位失败。
+    expect(() =>
+      applyVisualEditOperations(source, manifest.modulePath, manifest.sourceHash, [
+        {
+          type: 'set_rich_text',
+          nodeId: selfClosing!.nodeId,
+          bindingId: 'binding-forged-rich-text',
+          instancePath: [],
+          html: '注入文本',
+        },
+      ])
+    ).toThrow(/未找到/)
+
+    // 借用自闭合节点的 class binding 伪造富文本写入时，应被操作类型校验拒绝。
+    expect(() =>
+      applyVisualEditOperations(source, manifest.modulePath, manifest.sourceHash, [
+        setRichText(
+          selfClosing!,
+          requireBinding(selfClosing!, (binding) => binding.kind === 'class'),
+          '注入文本'
+        ),
+      ])
+    ).toThrow(/只能用于可编辑的模板富文本/)
+
+    // 同页成对容器的正常富文本替换不受降级影响，且自闭合节点源码保持原样。
+    const result = applyVisualEditOperations(
+      source,
+      manifest.modulePath,
+      manifest.sourceHash,
+      [
+        setRichText(
+          paired!,
+          requireBinding(paired!, (binding) => binding.kind === 'rich_text'),
+          '新正文'
+        ),
+      ]
+    )
+    expect(result.nextSource).toContain('<span>新正文</span>')
+    expect(result.nextSource).toContain('<span class="dot" />')
+  })
+
   it('应复制和删除普通节点，并按稳定 key 复制、删除循环数据项', () => {
     const manifest = analyzeVisualEditSfc(SOURCE, {
       modulePath: 'src/views/StructureDemo.vue',
@@ -515,6 +573,23 @@ function setTailwind(
     instancePath: segment ? [segment] : [],
     changes,
   }
+}
+
+/**
+ * 收集指定标签的全部节点（按遍历顺序）。
+ */
+function collectNodes(
+  manifest: VisualEditSfcManifest,
+  tag: string
+): VisualEditTemplateNode[] {
+  const result: VisualEditTemplateNode[] = []
+  const pending = [manifest.root]
+  while (pending.length > 0) {
+    const node = pending.shift()
+    if (node?.tag === tag) result.push(node)
+    pending.push(...(node?.children || []))
+  }
+  return result
 }
 
 /**

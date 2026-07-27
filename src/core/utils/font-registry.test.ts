@@ -120,6 +120,83 @@ describe('runtime font registry', () => {
     expect(cssText).toContain("font-weight: 100 900;")
   })
 
+  it('应为同一字体族的多个 face 生成多条 @font-face 并原样写入范围字重', () => {
+    setRuntimePreviewContext({
+      artifactId: 'artifact_family',
+      tenantId: 'tenant_family',
+      previewKind: 'project',
+      scopeType: 'project',
+      workspaceId: 'workspace_family',
+      projectId: 'project_family',
+      entryDescriptor: { entry_type: 'route', route: '/home' },
+      assetBaseUrl: 'https://assets.example/runtime-family',
+      traceId: 'trace_family',
+    })
+    setRuntimePreloadedConfig({
+      manifest: {
+        artifact_id: 'artifact_family',
+        artifact_kind: 'preview_artifact',
+        tenant_id: 'tenant_family',
+        preview_kind: 'project',
+        asset_base_url: 'https://assets.example/runtime-family',
+        owner_scope: {
+          scope_type: 'project',
+          project_id: 'project_family',
+          workspace_id: 'workspace_family',
+        },
+        entry_descriptor: { entry_type: 'route', route: '/home' },
+        project_id: 'project_family',
+        modules: {},
+        assets: {
+          'SourceHanSans-Regular': 'hash-han-regular',
+          'SourceHanSans-Bold': 'hash-han-bold',
+          'SourceHanSans-VF': 'hash-han-vf',
+        },
+      },
+      fonts: {
+        items: {
+          'SourceHanSans-Regular': {
+            asset_name: 'SourceHanSans-Regular',
+            font_family: '思源黑体',
+            font_format: 'woff2',
+            font_weight: '400',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+          'SourceHanSans-Bold': {
+            asset_name: 'SourceHanSans-Bold',
+            font_family: '思源黑体',
+            font_format: 'woff2',
+            font_weight: '700',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+          'SourceHanSans-VF': {
+            asset_name: 'SourceHanSans-VF',
+            font_family: '思源黑体',
+            font_format: 'woff2',
+            font_weight: '100 900',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+        },
+      },
+    })
+
+    const cssText = initializeRuntimeFontRegistry()
+
+    // 同一字体族的三个 face 应各自生成一条 @font-face
+    expect(cssText.match(/@font-face/g)).toHaveLength(3)
+    expect(cssText.match(/font-family: '思源黑体';/g)).toHaveLength(3)
+    expect(cssText).toContain("url('https://assets.example/runtime-family/hash-han-regular')")
+    expect(cssText).toContain("url('https://assets.example/runtime-family/hash-han-bold')")
+    expect(cssText).toContain("url('https://assets.example/runtime-family/hash-han-vf')")
+    // 每个 face 的字重原样写入，范围字重不被拆分或改写
+    expect(cssText).toContain('font-weight: 400;')
+    expect(cssText).toContain('font-weight: 700;')
+    expect(cssText).toContain('font-weight: 100 900;')
+  })
+
   it('应先按 asset_name 再按历史 font_family 解析主题字体引用', () => {
     setRuntimePreloadedConfig({
       fonts: {
@@ -139,6 +216,36 @@ describe('runtime font registry', () => {
     expect(resolveThemeFontFamily('SourceHanSansSC-VF')).toBe('思源黑体')
     expect(resolveThemeFontFamily('思源黑体')).toBe('思源黑体')
     expect(resolveThemeFontFamily('system-ui')).toBe('system-ui')
+  })
+
+  it('主题 token 为字体族名时应命中该族下任意 face 并解析为族名', () => {
+    setRuntimePreloadedConfig({
+      fonts: {
+        items: {
+          'SourceHanSans-Regular': {
+            asset_name: 'SourceHanSans-Regular',
+            font_family: '思源黑体',
+            font_format: 'woff2',
+            font_weight: '400',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+          'SourceHanSans-Bold': {
+            asset_name: 'SourceHanSans-Bold',
+            font_family: '思源黑体',
+            font_format: 'woff2',
+            font_weight: '700',
+            font_style: 'normal',
+            font_display: 'swap',
+          },
+        },
+      },
+    })
+
+    // 主题下发字体族名，Runtime 无需改动即可命中该族并解析为族名
+    expect(resolveThemeFontFamily('思源黑体')).toBe('思源黑体')
+    // 仍兼容按单个 face 的 asset_name 命中
+    expect(resolveThemeFontFamily('SourceHanSans-Bold')).toBe('思源黑体')
   })
 
   it('应按字体资源逻辑名解析页面显式声明字体', () => {

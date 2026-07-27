@@ -12,7 +12,7 @@ interface PreviewField {
   type?: string
   description?: string
   default?: unknown
-  options?: Array<{ value: unknown }>
+  options?: Array<{ label?: string; value: unknown }>
   agent_visible?: boolean
 }
 
@@ -208,6 +208,12 @@ describe('runtime kit manifest', () => {
     expect(assetImageProps.class.description).toContain('max-h-*')
     expect(assetImageProps.class.description).toContain('object-contain')
     expect(assetImageProps.fit.description).toContain('边框框体内')
+    expect(assetImageProps.fit.options).toEqual([
+      { label: '完整显示', value: 'contain' },
+      { label: '填满并裁切', value: 'cover' },
+      { label: '拉伸填满', value: 'fill' },
+      { label: '原始尺寸', value: 'none' },
+    ])
     expect(assetImageProps.position.description).toContain('object-position')
     expect(assetImageProps).not.toHaveProperty('showFallbackPlaceholder')
     expect(getPresetKeys('AssetImage')).toEqual(expect.arrayContaining(['contain-preview', 'cover-banner']))

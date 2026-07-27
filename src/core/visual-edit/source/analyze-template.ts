@@ -5,6 +5,7 @@
 import type {
   VisualEditBinding,
   VisualEditBindingKind,
+  VisualEditDiagnostic,
   VisualEditJsonSource,
   VisualEditLoopContext,
   VisualEditReadonlyReason,
@@ -39,10 +40,9 @@ import {
   toSourceRange,
 } from './template-expression'
 import {
-  classifyRichTextContent,
-  isRichTextContainer,
   normalizeRichTextFragment,
   resolveElementInnerRange,
+  resolveRichTextContainerKind,
   type VisualEditRichTextContentKind,
 } from './rich-text'
 import { parseJsonExpressionText } from './json-literal'
@@ -51,6 +51,7 @@ interface TemplateWalkContext {
   modulePath: string
   collections: Map<string, ScriptCollectionDefinition>
   jsonSources: Map<string, VisualEditJsonSource>
+  diagnostics: VisualEditDiagnostic[]
   activeLoop?: VisualEditLoopContext
   loopDepth: number
 }
@@ -59,6 +60,7 @@ export interface AnalyzeTemplateOptions {
   modulePath: string
   collections: Map<string, ScriptCollectionDefinition>
   jsonSources: Map<string, VisualEditJsonSource>
+  diagnostics: VisualEditDiagnostic[]
   rootNodeId: string
 }
 
@@ -73,6 +75,7 @@ export function analyzeTemplate(
     modulePath: options.modulePath,
     collections: options.collections,
     jsonSources: options.jsonSources,
+    diagnostics: options.diagnostics,
     loopDepth: 0,
   }
   return {
@@ -130,12 +133,24 @@ function analyzeElementNode(
     activeLoop,
     loopDepth: parentContext.loopDepth + (ownLoop ? 1 : 0),
   }
-  const richTextKind = isRichTextContainer(element)
-    ? classifyRichTextContent(element.children)
-    : null
-  const richTextBinding = richTextKind
-    ? buildRichTextBinding(element, path, nodeId, richTextKind)
-    : null
+  const richText = resolveRichTextContainerKind(element)
+  if (richText.mode === 'unresolved') {
+    parentContext.diagnostics.push(buildRichTextRangeDiagnostic(element))
+  }
+  const richTextResult =
+    richText.mode === 'aggregate'
+      ? buildRichTextBinding(element, path, nodeId, richText.contentKind)
+      : null
+  if (richTextResult?.diagnostic) {
+    parentContext.diagnostics.push(richTextResult.diagnostic)
+  }
+  const richTextBinding = richTextResult?.binding ?? null
+  const aggregatesChildren =
+    richTextBinding !== null &&
+    richText.mode === 'aggregate' &&
+    (richText.contentKind === 'static' ||
+      richText.contentKind === 'locked' ||
+      richText.contentKind === 'dynamic')
   return {
     nodeId,
     kind: element.tagType === TEMPLATE_TAG_COMPONENT ? 'component' : 'element',
@@ -158,12 +173,9 @@ function analyzeElementNode(
         ? [richTextBinding]
         : collectContentBindings(element.children, nodeId, path, childContext)),
     ],
-    children:
-      richTextKind === 'static' ||
-      richTextKind === 'locked' ||
-      richTextKind === 'dynamic'
-        ? []
-        : collectElementChildren(element.children, path, childContext),
+    children: aggregatesChildren
+      ? []
+      : collectElementChildren(element.children, path, childContext),
   }
 }
 
@@ -252,16 +264,38 @@ function hasStructuralControlFlow(element: CompilerElementNode): boolean {
   )
 }
 
+/** 富文本 binding 构建结果；定位失败时 binding 为 null 并附带降级诊断。 */
+interface RichTextBindingResult {
+  binding: VisualEditBinding | null
+  diagnostic?: VisualEditDiagnostic
+}
+
+/** 构造富文本范围无法定位的节点级只读降级诊断，sourceRange 指向整个元素。 */
+function buildRichTextRangeDiagnostic(
+  element: CompilerElementNode
+): VisualEditDiagnostic {
+  return {
+    severity: 'warning',
+    code: 'RICH_TEXT_SOURCE_RANGE_UNRESOLVED',
+    message: `无法定位富文本容器 <${element.tag}> 的内部源码范围，该节点已降级为只读。`,
+    sourceRange: toSourceRange(element.loc),
+  }
+}
+
 /**
  * 把文本容器内部内容聚合为一个富文本 binding；复杂静态标签锁定外壳后仍可编辑文本。
+ * 内部范围无法定位时不中断分析，返回降级诊断由调用方记入 Manifest diagnostics。
  */
 function buildRichTextBinding(
   element: CompilerElementNode,
   path: string,
   nodeId: string,
   contentKind: VisualEditRichTextContentKind
-): VisualEditBinding {
+): RichTextBindingResult {
   const sourceRange = resolveElementInnerRange(element)
+  if (!sourceRange) {
+    return { binding: null, diagnostic: buildRichTextRangeDiagnostic(element) }
+  }
   const relativeStart = sourceRange.start - element.loc.start.offset
   const relativeEnd = sourceRange.end - element.loc.start.offset
   const rawValue = element.loc.source.slice(relativeStart, relativeEnd)
@@ -273,19 +307,21 @@ function buildRichTextBinding(
     (contentKind === 'static' || contentKind === 'locked') &&
     normalizedValue !== null
   return {
-    bindingId: createStableId('binding', nodeId, path, 'rich_text'),
-    nodeId,
-    kind: 'rich_text',
-    valueType: 'string',
-    value: normalizedValue ?? rawValue,
-    sourceRange,
-    editable,
-    readonlyReason: editable
-      ? undefined
-      : contentKind === 'dynamic'
-        ? 'RICH_TEXT_DYNAMIC_CONTENT'
-        : 'RICH_TEXT_UNSUPPORTED_STRUCTURE',
-    source: editable ? { kind: 'template-rich-text' } : undefined,
+    binding: {
+      bindingId: createStableId('binding', nodeId, path, 'rich_text'),
+      nodeId,
+      kind: 'rich_text',
+      valueType: 'string',
+      value: normalizedValue ?? rawValue,
+      sourceRange,
+      editable,
+      readonlyReason: editable
+        ? undefined
+        : contentKind === 'dynamic'
+          ? 'RICH_TEXT_DYNAMIC_CONTENT'
+          : 'RICH_TEXT_UNSUPPORTED_STRUCTURE',
+      source: editable ? { kind: 'template-rich-text' } : undefined,
+    },
   }
 }
 

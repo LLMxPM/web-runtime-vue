@@ -22,7 +22,7 @@ import {
   VISUAL_EDIT_LOOP_KEY_ATTRIBUTE,
   VISUAL_EDIT_NODE_ATTRIBUTE,
 } from '../instrumentation/markers'
-import { createSelectionOverlay } from './selection-overlay'
+import { createHoverOverlay, createSelectionOverlay } from './selection-overlay'
 
 interface VisualEditMessageTarget {
   postMessage(message: unknown, targetOrigin: string): void
@@ -66,7 +66,40 @@ export function registerPageVisualEditSelectionBridge(
     return null
   }
 
-  const overlay = createSelectionOverlay(runtimeWindow, runtimeDocument)
+  const selectionOverlay = createSelectionOverlay(runtimeWindow, runtimeDocument)
+  const hoverOverlay = createHoverOverlay(runtimeWindow, runtimeDocument)
+  let selectedTargets: Element[] = []
+  let hoveredTarget: Element | null = null
+
+  /** 更新悬停提示；非法 marker 与已选中节点不重复绘制。 */
+  const updateHoveredTarget = (target: EventTarget | null): void => {
+    const markerElement = findMarkerElement(target)
+    if (
+      !markerElement
+      || !resolveMarkerSelection(markerElement, context)
+      || selectedTargets.includes(markerElement)
+    ) {
+      hoveredTarget = null
+      hoverOverlay.clear()
+      return
+    }
+    if (hoveredTarget === markerElement) {
+      return
+    }
+    hoveredTarget = markerElement
+    hoverOverlay.show([markerElement])
+  }
+
+  /** 显示选区并清理与选区重合的悬停提示。 */
+  const showSelection = (targets: Element[]): void => {
+    selectedTargets = targets
+    selectionOverlay.show(targets)
+    if (hoveredTarget && selectedTargets.includes(hoveredTarget)) {
+      hoveredTarget = null
+      hoverOverlay.clear()
+    }
+  }
+
   const handleClick = (event: MouseEvent): void => {
     const markerElement = findMarkerElement(event.target)
     if (!markerElement) {
@@ -80,8 +113,16 @@ export function registerPageVisualEditSelectionBridge(
     event.preventDefault()
     event.stopPropagation()
     event.stopImmediatePropagation()
-    overlay.show([markerElement])
+    showSelection([markerElement])
     context.postMessageTarget.postMessage(selection, context.parentOrigin)
+  }
+
+  const handleMouseOver = (event: MouseEvent): void => {
+    updateHoveredTarget(event.target)
+  }
+
+  const handleMouseOut = (event: MouseEvent): void => {
+    updateHoveredTarget(event.relatedTarget)
   }
 
   const handleMessage = (event: MessageEvent<unknown>): void => {
@@ -90,19 +131,25 @@ export function registerPageVisualEditSelectionBridge(
     if (!message) return
     const targets = findSelectionTargets(runtimeDocument, message, context)
     if (!targets.length) {
-      overlay.clear()
+      selectedTargets = []
+      selectionOverlay.clear()
       return
     }
     targets[0]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-    overlay.show(targets)
+    showSelection(targets)
   }
 
   runtimeDocument.addEventListener('click', handleClick, true)
+  runtimeDocument.addEventListener('mouseover', handleMouseOver, true)
+  runtimeDocument.addEventListener('mouseout', handleMouseOut, true)
   runtimeWindow.addEventListener('message', handleMessage)
   return () => {
     runtimeDocument.removeEventListener('click', handleClick, true)
+    runtimeDocument.removeEventListener('mouseover', handleMouseOver, true)
+    runtimeDocument.removeEventListener('mouseout', handleMouseOut, true)
     runtimeWindow.removeEventListener('message', handleMessage)
-    overlay.dispose()
+    selectionOverlay.dispose()
+    hoverOverlay.dispose()
   }
 }
 

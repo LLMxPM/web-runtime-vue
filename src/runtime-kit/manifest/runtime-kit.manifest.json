@@ -71,19 +71,19 @@
               "default": "contain",
               "options": [
                 {
-                  "label": "contain",
+                  "label": "完整显示",
                   "value": "contain"
                 },
                 {
-                  "label": "cover",
+                  "label": "填满并裁切",
                   "value": "cover"
                 },
                 {
-                  "label": "fill",
+                  "label": "拉伸填满",
                   "value": "fill"
                 },
                 {
-                  "label": "none",
+                  "label": "原始尺寸",
                   "value": "none"
                 }
               ]

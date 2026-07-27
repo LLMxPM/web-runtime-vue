@@ -83,6 +83,7 @@ export function analyzeVisualEditSfc(
       modulePath,
       collections: scriptAnalysis.collections,
       jsonSources: scriptAnalysis.jsonSources,
+      diagnostics,
       rootNodeId: root.nodeId,
     }
   )
