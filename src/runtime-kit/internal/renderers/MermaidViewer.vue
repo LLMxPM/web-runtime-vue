@@ -107,7 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
   src: '',
   theme: 'default',
   config: () => ({}),
-  previewEnabled: false
+  previewEnabled: true
 })
 
 /**

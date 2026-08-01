@@ -470,7 +470,7 @@
             "previewEnabled": {
               "type": "boolean",
               "label": "点击放大",
-              "default": false
+              "default": true
             }
           },
           "presets": [
@@ -481,7 +481,7 @@
                 "content": "flowchart TD\n  A[Input] --> B{Check}\n  B --> C[Output]",
                 "class": "w-full h-96 rounded-lg border border-border p-0 bg-transparent overflow-hidden",
                 "theme": "default",
-                "previewEnabled": false
+                "previewEnabled": true
               }
             },
             {
@@ -491,7 +491,7 @@
                 "content": "flowchart TD\n  A[Input] --> B{Check}\n  B --> C[Output]",
                 "class": "w-full h-96 rounded-lg border border-border p-0 bg-background-invert overflow-hidden",
                 "theme": "dark",
-                "previewEnabled": false
+                "previewEnabled": true
               }
             }
           ]

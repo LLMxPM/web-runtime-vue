@@ -50,13 +50,11 @@ describe('MermaidViewer', () => {
     host.remove()
   })
 
-  it('放大预览尺寸应与 DrawioViewer 保持一致', async () => {
+  it('默认应开启放大预览，且尺寸与 DrawioViewer 保持一致', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
 
-    const app = createApp(MermaidViewer, {
-      previewEnabled: true,
-    })
+    const app = createApp(MermaidViewer)
     app.mount(host)
     await nextTick()
 

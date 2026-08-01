@@ -109,7 +109,6 @@ const viewerRoot = ref<HTMLElement | null>(null)
 const diagramContainer = ref<HTMLElement | null>(null)
 const previewContainer = ref<HTMLElement | null>(null)
 const intrinsicHeight = ref<string | null>(null)
-const sourceContentBounds = ref<DiagramBounds | null>(null)
 const isPreviewOpen = ref(false)
 const hasPreviewContent = ref(false)
 
@@ -248,88 +247,6 @@ const preprocessDrawioXml = (xmlContent: string): string => {
 }
 
 /**
- * 从 Draw.io XML 中提取真实图形内容边界，避免 pageWidth/pageHeight 空白影响居中。
- *
- * @param xmlContent 预处理后的 Draw.io XML
- * @returns 内容边界；无法解析时返回 null
- */
-const extractDrawioContentBounds = (xmlContent: string): DiagramBounds | null => {
-  if (typeof DOMParser === 'undefined') return null
-
-  try {
-    const documentXml = new DOMParser().parseFromString(xmlContent, 'text/xml')
-    if (documentXml.querySelector('parsererror')) return null
-
-    const rects: DiagramBounds[] = []
-    documentXml.querySelectorAll('mxCell').forEach((cell) => {
-      const geometry = Array.from(cell.children).find(child => child.nodeName === 'mxGeometry')
-      if (!geometry) return
-
-      if (cell.getAttribute('vertex') === '1') {
-        const x = parseFiniteNumber(geometry.getAttribute('x'), 0)
-        const y = parseFiniteNumber(geometry.getAttribute('y'), 0)
-        const width = parseFiniteNumber(geometry.getAttribute('width'), 0)
-        const height = parseFiniteNumber(geometry.getAttribute('height'), 0)
-        if (width > 0 && height > 0) rects.push({ x, y, width, height })
-        return
-      }
-
-      if (cell.getAttribute('edge') === '1') {
-        const points = Array.from(geometry.querySelectorAll('mxPoint'))
-          .map(point => ({
-            x: parseFiniteNumber(point.getAttribute('x'), NaN),
-            y: parseFiniteNumber(point.getAttribute('y'), NaN),
-          }))
-          .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
-        if (points.length > 0) {
-          const minX = Math.min(...points.map(point => point.x))
-          const minY = Math.min(...points.map(point => point.y))
-          const maxX = Math.max(...points.map(point => point.x))
-          const maxY = Math.max(...points.map(point => point.y))
-          rects.push({ x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) })
-        }
-      }
-    })
-
-    return mergeDiagramBounds(rects)
-  } catch {
-    return null
-  }
-}
-
-/**
- * 将字符串数值解析为有限数字。
- *
- * @param value 原始字符串
- * @param fallback 解析失败时的兜底值
- * @returns 有限数字
- */
-const parseFiniteNumber = (value: string | null, fallback: number): number => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-/**
- * 合并多个图形边界。
- *
- * @param rects 图形边界列表
- * @returns 合并后的边界
- */
-const mergeDiagramBounds = (rects: DiagramBounds[]): DiagramBounds | null => {
-  if (rects.length === 0) return null
-
-  const minX = Math.min(...rects.map(rect => rect.x))
-  const minY = Math.min(...rects.map(rect => rect.y))
-  const maxX = Math.max(...rects.map(rect => rect.x + rect.width))
-  const maxY = Math.max(...rects.map(rect => rect.y + rect.height))
-  const width = maxX - minX
-  const height = maxY - minY
-  if (width <= 0 || height <= 0) return null
-
-  return { x: minX, y: minY, width, height }
-}
-
-/**
  * 处理图片路径
  */
 const processImagePath = (src: string): string => {
@@ -419,8 +336,91 @@ const normalizeSvgViewport = (
   svgElement.removeAttribute('height')
   svgElement.style.width = '100%'
   svgElement.style.height = '100%'
+  // GraphViewer 会按自身内容写入 min-width/min-height；若不清理，SVG 会突破
+  // Runtime Kit 容器尺寸，导致以容器宽高计算的缩放出现水平或垂直偏移。
+  svgElement.style.minWidth = '0'
+  svgElement.style.minHeight = '0'
+  svgElement.style.maxWidth = '100%'
+  svgElement.style.maxHeight = '100%'
+  svgElement.style.left = '0'
+  svgElement.style.top = '0'
   svgElement.style.overflow = 'visible'
 }
+
+/**
+ * 计算 Draw.io 实际 SVG 图元在内容根节点坐标系中的联合边界。
+ *
+ * GraphViewer 的富文本标签使用 width/height=100% 的 foreignObject，直接读取
+ * 根 g 的 getBBox 会把不可见标签视口计入边界，造成图形主体向左或向上偏移。
+ * 这里仅合并可绘制 SVG 图元，并通过 CTM 把嵌套变换统一到根节点坐标系。
+ *
+ * @param rootElement GraphViewer 输出的内容根节点
+ * @returns 实际图元边界；浏览器不支持 CTM 或没有图元时返回 null
+ */
+const measureSvgGraphicsBounds = (rootElement: SVGGElement): DiagramBounds | null => {
+  if (typeof rootElement.getCTM !== 'function') return null
+  const rootMatrix = rootElement.getCTM()
+  if (!rootMatrix) return null
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  let measuredCount = 0
+
+  const elements = rootElement.querySelectorAll<SVGGraphicsElement>(
+    'path, rect, circle, ellipse, line, polyline, polygon, image, text',
+  )
+  elements.forEach((element) => {
+    if (element.closest('defs, clipPath, mask, marker, pattern, symbol')) return
+    if (typeof element.getCTM !== 'function') return
+
+    const elementMatrix = element.getCTM()
+    if (!elementMatrix) return
+
+    let bbox: DOMRect
+    try {
+      bbox = element.getBBox()
+    } catch {
+      return
+    }
+    if (!Number.isFinite(bbox.x) || !Number.isFinite(bbox.y) || bbox.width < 0 || bbox.height < 0) return
+
+    const matrix = rootMatrix.inverse().multiply(elementMatrix)
+    const corners = [
+      transformSvgPoint(matrix, bbox.x, bbox.y),
+      transformSvgPoint(matrix, bbox.x + bbox.width, bbox.y),
+      transformSvgPoint(matrix, bbox.x, bbox.y + bbox.height),
+      transformSvgPoint(matrix, bbox.x + bbox.width, bbox.y + bbox.height),
+    ]
+    minX = Math.min(minX, ...corners.map(point => point.x))
+    minY = Math.min(minY, ...corners.map(point => point.y))
+    maxX = Math.max(maxX, ...corners.map(point => point.x))
+    maxY = Math.max(maxY, ...corners.map(point => point.y))
+    measuredCount += 1
+  })
+
+  const width = maxX - minX
+  const height = maxY - minY
+  if (measuredCount === 0 || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null
+  }
+
+  return { x: minX, y: minY, width, height }
+}
+
+/**
+ * 使用二维变换矩阵把 SVG 点转换到目标坐标系。
+ *
+ * @param matrix SVG 坐标变换矩阵
+ * @param x 原始横坐标
+ * @param y 原始纵坐标
+ * @returns 变换后的坐标
+ */
+const transformSvgPoint = (matrix: DOMMatrix, x: number, y: number): { x: number; y: number } => ({
+  x: matrix.a * x + matrix.c * y + matrix.e,
+  y: matrix.b * x + matrix.d * y + matrix.f,
+})
 
 /**
  * 清理 GraphViewer 注入的外链入口，避免触发 diagrams.net 自带 lightbox。
@@ -449,8 +449,9 @@ const applyManualZoom = (renderToken = renderGeneration): boolean => {
   currentSvg = svgElement
   currentG = gElement
 
-  // 优先使用 XML 中真实内容边界，避免 Draw.io 页面空白参与居中。
-  const bbox = sourceContentBounds.value || gElement.getBBox()
+  // 优先使用实际 SVG 图元边界，排除 GraphViewer 富文本 foreignObject
+  // 注入的 100% 视口；测试环境或旧浏览器缺少 CTM 时回退到根节点边界。
+  const bbox = measureSvgGraphicsBounds(gElement) || gElement.getBBox()
   if (!bbox.width || !bbox.height) return false
 
   if (updateIntrinsicHeight(bbox)) {
@@ -697,7 +698,6 @@ const renderDiagramContent = async (xmlContent: string) => {
     diagramContainer.value.innerHTML = ''
     hasPreviewContent.value = false
     const xml = preprocessDrawioXml(xmlContent)
-    sourceContentBounds.value = extractDrawioContentBounds(xml)
 
     // 配置：禁用工具栏，不依赖 viewer 的 zoom
     const data: Record<string, string> = {
@@ -779,7 +779,6 @@ const reloadDiagram = async () => {
 const clearDiagram = () => {
   renderGeneration += 1
   if (diagramContainer.value) diagramContainer.value.innerHTML = ''
-  sourceContentBounds.value = null
   hasPreviewContent.value = false
   closePreview()
   error.value = null

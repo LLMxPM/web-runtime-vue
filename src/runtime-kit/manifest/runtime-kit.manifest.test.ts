@@ -254,6 +254,7 @@ describe('runtime kit manifest', () => {
     expect(assetMermaidProps.fallback.default).toBe('Mermaid 资源无法渲染，请检查资源名称或图表源码。')
     expect(assetMermaidProps.fallback.agent_visible).toBe(false)
     expect(assetMermaidProps.class.default).toBe(assetDiagramClass)
+    expect(assetMermaidProps.previewEnabled.default).toBe(true)
 
     const assetChartProps = getPreviewProps('AssetChart')
     expect(Object.keys(assetChartProps)).toEqual(expect.arrayContaining([

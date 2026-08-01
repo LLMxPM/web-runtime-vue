@@ -67,6 +67,8 @@ describe('DrawioViewer', () => {
         document.querySelectorAll('.mxgraph').forEach(element => {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+          svg.style.minWidth = '406px'
+          svg.style.minHeight = '206px'
           svg.appendChild(group)
           element.appendChild(svg)
         })
@@ -105,7 +107,10 @@ describe('DrawioViewer', () => {
     await waitForDrawioRender()
 
     expect(fetchSpy).not.toHaveBeenCalled()
-    expect(host.querySelector<SVGSVGElement>('.drawio-viewer svg')).not.toBeNull()
+    const svg = host.querySelector<SVGSVGElement>('.drawio-viewer svg')
+    expect(svg).not.toBeNull()
+    expect(svg?.style.minWidth).toBe('0px')
+    expect(svg?.style.minHeight).toBe('0px')
     expect(host.querySelector<HTMLElement>('.drawio-viewer')?.dataset.runtimeDrawioState).toBe('ready')
 
     app.unmount()
@@ -187,7 +192,7 @@ describe('DrawioViewer', () => {
     heightSpy.mockRestore()
   })
 
-  it('Draw.io 页面尺寸大于真实内容时，应按 XML 内容边界居中', async () => {
+  it('XML 几何边界与 SVG 实际边界不同时，应按被变换节点的坐标系居中', async () => {
     const widthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function getClientWidth() {
       if ((this as HTMLElement).classList?.contains('drawio-viewer')) return 400
       if ((this as HTMLElement).classList?.contains('drawio-viewer__container')) return 400
@@ -198,21 +203,37 @@ describe('DrawioViewer', () => {
       if ((this as HTMLElement).classList?.contains('drawio-viewer__container')) return 200
       return 200
     })
-    Object.defineProperty(SVGElement.prototype, 'getBBox', {
-      value: vi.fn(() => ({
-        x: 0,
-        y: 0,
-        width: 1600,
-        height: 900,
-      }) as DOMRect),
-      configurable: true,
-    })
+    const identityMatrix = {
+      a: 1,
+      b: 0,
+      c: 0,
+      d: 1,
+      e: 0,
+      f: 0,
+      inverse: vi.fn(),
+      multiply: vi.fn(),
+    } as unknown as DOMMatrix
+    vi.mocked(identityMatrix.inverse).mockReturnValue(identityMatrix)
+    vi.mocked(identityMatrix.multiply).mockReturnValue(identityMatrix)
 
     window.GraphViewer = {
       processElements: vi.fn(() => {
         document.querySelectorAll('.mxgraph').forEach(element => {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
           const group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+          const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
+          foreignObject.setAttribute('width', '100%')
+          foreignObject.setAttribute('height', '100%')
+          Object.defineProperty(group, 'getCTM', { value: vi.fn(() => identityMatrix) })
+          Object.defineProperty(group, 'getBBox', {
+            value: vi.fn(() => ({ x: 0, y: 0, width: 1600, height: 900 }) as DOMRect),
+          })
+          Object.defineProperty(rect, 'getCTM', { value: vi.fn(() => identityMatrix) })
+          Object.defineProperty(rect, 'getBBox', {
+            value: vi.fn(() => ({ x: 5, y: 10, width: 1380, height: 660 }) as DOMRect),
+          })
+          group.append(rect, foreignObject)
           svg.appendChild(group)
           element.appendChild(svg)
         })
@@ -235,9 +256,9 @@ describe('DrawioViewer', () => {
     const matched = transform.match(/^translate\(([-\de.]+), ([-\de.]+)\) scale\(([-\de.]+)\)$/)
 
     expect(matched).not.toBeNull()
-    expect(Number(matched?.[1])).toBeCloseTo(-2.941, 3)
-    expect(Number(matched?.[2])).toBeCloseTo(0, 3)
-    expect(Number(matched?.[3])).toBeCloseTo(0.294, 3)
+    expect(Number(matched?.[1])).toBeCloseTo(-1.449, 3)
+    expect(Number(matched?.[2])).toBeCloseTo(1.449, 3)
+    expect(Number(matched?.[3])).toBeCloseTo(0.29, 3)
 
     app.unmount()
     host.remove()
