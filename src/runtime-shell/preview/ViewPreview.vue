@@ -20,14 +20,23 @@
       :design-height="effectiveDesignHeight"
     >
       <div class="runtime-view-preview-source" :style="previewContentStyles">
-        <component :is="previewComponent" :key="refreshKey" />
+        <div v-if="previewState === 'loading'" class="runtime-view-preview-placeholder">
+          正在加载页面预览...
+        </div>
+        <div v-else-if="previewState === 'empty'" class="runtime-view-preview-placeholder">
+          未找到可预览页面
+        </div>
+        <div v-else-if="previewState === 'error'" class="runtime-view-preview-placeholder runtime-view-preview-placeholder--error">
+          {{ previewStateMessage || '页面预览加载失败' }}
+        </div>
+        <component v-else-if="previewComponent" :is="previewComponent" :key="refreshKey" />
       </div>
     </ScaledCanvasViewport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onUnmounted, ref, shallowRef, watch, type Component } from 'vue'
+import { computed, nextTick, onUnmounted, ref, shallowRef, watch, type Component } from 'vue'
 
 import ScaledCanvasViewport from '@runtime-kit/internal/components/viewport/ScaledCanvasViewport.vue'
 import { appPageConfig } from '@/core/utils/config'
@@ -50,11 +59,15 @@ const props = withDefaults(defineProps<Props>(), {
   refreshToken: 0
 })
 
-const previewComponent = shallowRef<Component>(buildEmptyComponent('未找到可预览页面'))
+const emit = defineEmits<{
+  'state-change': [payload: { state: 'loading' | 'ready' | 'error' | 'empty'; message: string }]
+}>()
+
+const previewComponent = shallowRef<Component | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 const scale = ref(1)
 const refreshKey = ref(0)
-const previewState = ref<'loading' | 'ready' | 'error'>('loading')
+const previewState = ref<'loading' | 'ready' | 'error' | 'empty'>('loading')
 const previewStateMessage = ref('')
 let resizeObserver: ResizeObserver | null = null
 
@@ -118,51 +131,48 @@ function computeScale(): void {
  * 加载预览页面模块。
  */
 async function loadPreviewComponent(): Promise<void> {
-  previewState.value = 'loading'
-  previewStateMessage.value = ''
+  setPreviewState('loading')
+  emitPreviewState()
+  previewComponent.value = null
   if (!props.filePath) {
-    previewComponent.value = buildEmptyComponent('未找到可预览页面')
-    previewState.value = 'error'
-    previewStateMessage.value = '未找到可预览页面'
+    setPreviewState('empty', '未找到可预览页面')
+    emitPreviewState()
     refreshKey.value += 1
     return
   }
 
   try {
     const module = await importViewModule(props.filePath)
-    previewComponent.value = module?.default || buildEmptyComponent('页面模块缺少默认导出')
-    previewState.value = module?.default ? 'ready' : 'error'
-    previewStateMessage.value = module?.default ? '' : '页面模块缺少默认导出'
+    if (!module?.default) {
+      setPreviewState('error', '页面模块缺少默认导出')
+      return
+    }
+    previewComponent.value = module.default
+    setPreviewState('ready')
   } catch (error) {
     console.error('缩略预览加载失败：', error)
-    previewComponent.value = buildEmptyComponent(`页面加载失败：${props.filePath}`)
-    previewState.value = 'error'
-    previewStateMessage.value = error instanceof Error ? error.message : `页面加载失败：${props.filePath}`
+    setPreviewState('error', error instanceof Error ? error.message : `页面加载失败：${props.filePath}`)
   } finally {
     refreshKey.value += 1
     await nextTick()
     computeScale()
+    emitPreviewState()
   }
 }
 
 /**
- * 构造简单占位组件。
- * @param text 占位文案
- * @returns Vue 组件
+ * 统一更新预览状态。
+ * @param state 最新状态
+ * @param message 可展示的状态说明
  */
-function buildEmptyComponent(text: string) {
-  return defineComponent({
-    name: 'ViewPreviewPlaceholder',
-    setup() {
-      return () => h(
-        'div',
-        {
-          class: 'w-full h-full flex items-center justify-center text-[12px] text-slate-500 bg-slate-50'
-        },
-        text
-      )
-    }
-  })
+function setPreviewState(state: 'loading' | 'ready' | 'error' | 'empty', message = ''): void {
+  previewState.value = state
+  previewStateMessage.value = message
+}
+
+/** 在 DOM 状态提交后把当前预览状态通知给宿主页。 */
+function emitPreviewState(): void {
+  emit('state-change', { state: previewState.value, message: previewStateMessage.value })
 }
 
 watch(() => props.filePath, () => {
@@ -188,5 +198,24 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   overflow: auto;
+}
+
+.runtime-view-preview-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 14px;
+  text-align: center;
+}
+
+.runtime-view-preview-placeholder--error {
+  color: #b91c1c;
+  background: #fef2f2;
 }
 </style>

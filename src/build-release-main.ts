@@ -9,7 +9,7 @@ import { loadThemeConfigs } from './core/composables/useTheme'
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFaviconSync } from './core/utils/favicon'
-import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
+import { initializeRuntimeFontRegistry, waitForRequiredPlatformFonts } from './core/utils/font-registry'
 import { createProjectRouter } from './core/router/project-router'
 
 import './styles/global.css'
@@ -36,6 +36,7 @@ async function waitForBuildReleaseStabilized(): Promise<void> {
     })
   })
 
+  await waitForRequiredPlatformFonts()
   if (document.fonts?.ready) {
     await document.fonts.ready
   }

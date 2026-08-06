@@ -146,9 +146,9 @@ function buildDefaultThemeConfig(): ResolvedThemeConfigFile {
           accent: ['#6366f1', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#a78bfa']
         },
         typography: {
-          headingfont: 'Noto Sans SC',
-          bodyfont: 'Noto Sans SC',
-          codefont: 'Fira Code',
+          headingfont: 'platform-sans',
+          bodyfont: 'platform-sans',
+          codefont: 'platform-mono',
           baseFontSize: DEFAULT_PAGE_CONFIG.baseFontSize
         },
         icon: {

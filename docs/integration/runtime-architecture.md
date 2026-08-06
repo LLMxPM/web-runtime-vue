@@ -82,6 +82,9 @@ sequenceDiagram
 - `entry_descriptor.entry_type=module`
 - Runtime 进入 `StandalonePreviewView`
 - 入口模块允许脱离 `manifest.modules` 白名单，但仅对 `entry_descriptor.module_path` 生效
+- `StandalonePreviewView` 在页面模块首帧完成后向父窗口发送 `page-preview:ready`
+- 页面模块或 Runtime 初始化失败时发送 `page-preview:error`
+- 两类消息均使用 `version=1` 并携带当前 `artifactId`；Editor 负责校验来源窗口、origin、版本和 artifact
 
 ### 组件预览
 

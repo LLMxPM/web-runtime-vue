@@ -39,9 +39,9 @@
   --tw-color-accent6: var(--theme-accent-6, #a78bfa);
   
   /* 字体映射 */
-  --tw-font-heading: var(--theme-font-heading, 'system-ui');
-  --tw-font-body: var(--theme-font-body, 'system-ui');
-  --tw-font-code: var(--theme-font-code, 'monospace');
+  --tw-font-heading: var(--theme-font-heading, 'Web Presentation Sans', sans-serif);
+  --tw-font-body: var(--theme-font-body, 'Web Presentation Sans', sans-serif);
+  --tw-font-code: var(--theme-font-code, 'Web Presentation Mono', monospace);
   /* Runtime shell 使用固定字号基准；页面内容会在自身作用域内覆写该变量。 */
   --tw-font-size-base: 16px;
   --tw-spacing-unit: 0.25rem;

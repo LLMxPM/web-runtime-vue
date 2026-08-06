@@ -44,6 +44,40 @@ afterEach(() => {
 })
 
 describe('ViewPreview screenshot state marker', () => {
+  it('页面模块尚未返回时应展示加载态且不误报未找到页面', async () => {
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    const deferred = createDeferred<{ default: { name: string; setup: () => () => null } }>()
+    mockImportViewModule.mockReturnValue(deferred.promise)
+
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const app = createApp(ViewPreview, { filePath: 'src/views/slow.vue' })
+    app.mount(host)
+    await nextTick()
+
+    expect(host.textContent).toContain('正在加载页面预览')
+    expect(host.textContent).not.toContain('未找到可预览页面')
+    expect(host.querySelector<HTMLElement>('[data-runtime-view-preview-state]')?.dataset.runtimeViewPreviewState).toBe('loading')
+
+    deferred.resolve({ default: { name: 'SlowPreviewPage', setup: () => () => null } })
+    await waitForState(host, 'ready')
+    app.unmount()
+  })
+
+  it('仅空路径应展示未找到可预览页面', async () => {
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const app = createApp(ViewPreview, { filePath: '' })
+    app.mount(host)
+
+    const marker = await waitForState(host, 'empty')
+    expect(marker?.dataset.runtimeViewPreviewMessage).toBe('未找到可预览页面')
+    expect(host.textContent).toContain('未找到可预览页面')
+    expect(mockImportViewModule).not.toHaveBeenCalled()
+    app.unmount()
+  })
+
   it('页面模块加载成功后应标记为 ready', async () => {
     vi.stubGlobal('ResizeObserver', MockResizeObserver)
     mockImportViewModule.mockResolvedValue({
@@ -86,6 +120,15 @@ describe('ViewPreview screenshot state marker', () => {
     app.unmount()
   })
 })
+
+/** 创建可由测试控制完成时机的 Promise。 */
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
 
 /**
  * 等待组件状态属性变为目标值。

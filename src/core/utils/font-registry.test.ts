@@ -8,7 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { reloadThemeConfigs, useTheme } from '@/core/composables/useTheme'
 
-import { initializeRuntimeFontRegistry, resolveAssetFontFamily, resolveThemeFontFamily } from './font-registry'
+import {
+  initializeRuntimeFontRegistry,
+  resolveAssetFontFamily,
+  resolveThemeFontFamily,
+  waitForRequiredPlatformFonts,
+} from './font-registry'
 import { loadAppConfig } from './config'
 import { setRuntimePreloadedConfig, setRuntimePreviewContext } from './path'
 
@@ -19,6 +24,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+  Reflect.deleteProperty(document, 'fonts')
   setRuntimePreviewContext(undefined)
   setRuntimePreloadedConfig({
     app: {
@@ -66,6 +72,45 @@ afterEach(async () => {
 })
 
 describe('runtime font registry', () => {
+  it('应通过 Runtime 模块地址注册固定平台字体，避免相对预览文档 origin 加载', () => {
+    const cssText = initializeRuntimeFontRegistry()
+    const styleElement = document.getElementById('runtime-dynamic-fonts')
+
+    expect(styleElement).not.toBeNull()
+    expect(cssText).toContain("font-family: 'Web Presentation Sans'")
+    expect(cssText).toContain('SourceHanSansSC-VF.otf.woff2')
+    expect(cssText).toContain("font-family: 'Web Presentation Mono'")
+    expect(cssText).toContain('SourceCodePro-Regular.ttf.woff2')
+    expect(cssText).not.toContain("url('/src/assets/runtime-shell/fonts/")
+  })
+
+  it('应主动加载主题引用的平台字体并验证可用性', async () => {
+    const load = vi.fn().mockResolvedValue([])
+    const check = vi.fn().mockReturnValue(true)
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { load, check },
+    })
+    setRuntimePreloadedConfig({
+      themes: {
+        themes: {
+          lightblue: {
+            typography: {
+              headingfont: 'platform-sans',
+              bodyfont: 'platform-sans',
+              codefont: 'platform-mono',
+            },
+          },
+        },
+      },
+    })
+
+    await waitForRequiredPlatformFonts()
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(check).toHaveBeenCalledTimes(2)
+  })
+
   it('应根据预加载字体配置注入动态 @font-face', () => {
     setRuntimePreviewContext({
       artifactId: 'artifact_font',
@@ -186,7 +231,7 @@ describe('runtime font registry', () => {
     const cssText = initializeRuntimeFontRegistry()
 
     // 同一字体族的三个 face 应各自生成一条 @font-face
-    expect(cssText.match(/@font-face/g)).toHaveLength(3)
+    expect(cssText.match(/@font-face/g)).toHaveLength(5)
     expect(cssText.match(/font-family: '思源黑体';/g)).toHaveLength(3)
     expect(cssText).toContain("url('https://assets.example/runtime-family/hash-han-regular')")
     expect(cssText).toContain("url('https://assets.example/runtime-family/hash-han-bold')")
@@ -216,6 +261,8 @@ describe('runtime font registry', () => {
     expect(resolveThemeFontFamily('SourceHanSansSC-VF')).toBe('思源黑体')
     expect(resolveThemeFontFamily('思源黑体')).toBe('思源黑体')
     expect(resolveThemeFontFamily('system-ui')).toBe('system-ui')
+    expect(resolveThemeFontFamily('platform-sans')).toBe("'Web Presentation Sans', sans-serif")
+    expect(resolveThemeFontFamily('platform-mono')).toBe("'Web Presentation Mono', monospace")
   })
 
   it('主题 token 为字体族名时应命中该族下任意 face 并解析为族名', () => {

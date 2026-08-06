@@ -29,9 +29,9 @@ themes:
         - "#a78bfa"
         - "#facc15"
     typography:
-      headingfont: 思源黑体
-      bodyfont: 思源黑体
-      codefont: SourceCodePro
+      headingfont: platform-sans
+      bodyfont: platform-sans
+      codefont: platform-mono
   lightblue:
     name: 白底蓝色
     description: 白底蓝色主题，简约经典
@@ -62,8 +62,8 @@ themes:
         - "#A110AB"
         - "#C5003C"
     typography:
-      headingfont: 思源黑体
-      bodyfont: 思源黑体
-      codefont: SourceCodePro
+      headingfont: platform-sans
+      bodyfont: platform-sans
+      codefont: platform-mono
 default:
   theme: lightblue

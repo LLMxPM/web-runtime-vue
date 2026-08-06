@@ -10,8 +10,9 @@ import { registerPageVisualEditSelectionBridge } from './core/visual-edit/browse
 import { initializeStaticIcons } from './core/utils/static-icons'
 import { initializeConfig } from './core/utils/config'
 import { initializeRuntimeFaviconSync } from './core/utils/favicon'
-import { initializeRuntimeFontRegistry } from './core/utils/font-registry'
+import { initializeRuntimeFontRegistry, waitForRequiredPlatformFonts } from './core/utils/font-registry'
 import { getPreviewEntryNavigationPath, shouldNavigateToPreviewEntryPath } from './core/utils/path'
+import { notifyParentPagePreviewError } from './core/utils/page-preview-parent'
 import { registerEditorVisualAssetProbe } from './core/utils/visual-assets'
 import { installRuntimeClientLogger, reportRuntimeClientError } from './core/utils/client-logger'
 
@@ -42,6 +43,7 @@ async function waitForPreviewStabilized(): Promise<void> {
     })
   })
 
+  await waitForRequiredPlatformFonts()
   if (document.fonts?.ready) {
     await document.fonts.ready
   }
@@ -84,6 +86,7 @@ async function initializeApp(): Promise<void> {
   } catch (error) {
     setEditorRuntimePreviewReady(false)
     reportRuntimeClientError(error, { message: '应用初始化失败', component: 'runtime-main' })
+    notifyParentPagePreviewError(error)
     document.body.innerHTML = `
       <div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:Segoe UI,PingFang SC,sans-serif;background:#f8fafc;">
         <div style="max-width:720px;padding:32px;text-align:center;color:#dc2626;background:#ffffff;border:1px solid #fecaca;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,.08);">

@@ -7,6 +7,22 @@ import { normalizeAssetKey, type RuntimeFontBundleItem } from '@/core/shared/run
 import { getRuntimePreloadedConfig, resolveResourcePath } from './path'
 
 const RUNTIME_FONT_STYLE_ID = 'runtime-dynamic-fonts'
+const PLATFORM_SANS_FONT_URL = new URL(
+  '../../assets/runtime-shell/fonts/SourceHanSansSC-VF.otf.woff2',
+  import.meta.url,
+).href
+const PLATFORM_MONO_FONT_URL = new URL(
+  '../../assets/runtime-shell/fonts/SourceCodePro-Regular.ttf.woff2',
+  import.meta.url,
+).href
+const BUILTIN_THEME_FONT_FAMILIES = {
+  'platform-sans': "'Web Presentation Sans', sans-serif",
+  'platform-mono': "'Web Presentation Mono', monospace",
+} as const
+const BUILTIN_FONT_LOAD_DESCRIPTORS = {
+  'platform-sans': { descriptor: "16px 'Web Presentation Sans'", sample: '演示文稿 Aa 0123' },
+  'platform-mono': { descriptor: "16px 'Web Presentation Mono'", sample: 'Code 0123' },
+} as const
 
 /**
  * 读取运行时预加载字体配置。
@@ -48,6 +64,13 @@ export function resolveThemeFontFamily(rawReference: string): string {
     return normalizedReference
   }
 
+  const builtinFamily = BUILTIN_THEME_FONT_FAMILIES[
+    normalizedReference as keyof typeof BUILTIN_THEME_FONT_FAMILIES
+  ]
+  if (builtinFamily) {
+    return builtinFamily
+  }
+
   const fontItems = getRuntimeFontItems()
   const byAssetName = fontItems[normalizedReference]
   if (byAssetName) {
@@ -56,6 +79,26 @@ export function resolveThemeFontFamily(rawReference: string): string {
 
   const matchedByFamily = Object.values(fontItems).find(item => item.font_family === normalizedReference)
   return matchedByFamily?.font_family ?? normalizedReference
+}
+
+/**
+ * 主动加载当前预加载主题引用的平台字体，并在加载失败时阻止截图进入就绪态。
+ * @returns 所有必需平台字体均已可用时完成
+ */
+export async function waitForRequiredPlatformFonts(): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return
+  }
+
+  const serializedThemes = JSON.stringify(getRuntimePreloadedConfig()?.themes ?? {})
+  const requiredTokens = Object.keys(BUILTIN_FONT_LOAD_DESCRIPTORS).filter(token => serializedThemes.includes(token))
+  for (const token of requiredTokens) {
+    const item = BUILTIN_FONT_LOAD_DESCRIPTORS[token as keyof typeof BUILTIN_FONT_LOAD_DESCRIPTORS]
+    await document.fonts.load(item.descriptor, item.sample)
+    if (!document.fonts.check(item.descriptor, item.sample)) {
+      throw new Error(`平台字体加载失败：${token}`)
+    }
+  }
 }
 
 /**
@@ -70,24 +113,42 @@ export function initializeRuntimeFontRegistry(): string {
   const fontItems = Object.values(getRuntimeFontItems())
   let styleElement = document.getElementById(RUNTIME_FONT_STYLE_ID) as HTMLStyleElement | null
 
-  if (!fontItems.length) {
-    styleElement?.remove()
-    return ''
-  }
-
   if (!styleElement) {
     styleElement = document.createElement('style')
     styleElement.id = RUNTIME_FONT_STYLE_ID
     document.head.appendChild(styleElement)
   }
 
-  const cssText = fontItems
-    .map(item => buildFontFaceRule(item))
-    .filter(Boolean)
-    .join('\n')
+  const cssText = [
+    buildPlatformFontFaceRules(),
+    ...fontItems.map(item => buildFontFaceRule(item)),
+  ].filter(Boolean).join('\n')
 
   styleElement.textContent = cssText
   return cssText
+}
+
+/**
+ * 生成 Runtime 内置平台字体规则；字体 URL 以当前模块为基准，避免代理预览文档把根路径解析到 Backend。
+ * @returns 固定平台无衬线与等宽字体的 @font-face 规则
+ */
+function buildPlatformFontFaceRules(): string {
+  return [
+    '@font-face {',
+    "  font-family: 'Web Presentation Sans';",
+    `  src: url('${escapeCssUrl(PLATFORM_SANS_FONT_URL)}') format('woff2');`,
+    '  font-weight: 100 900;',
+    '  font-style: normal;',
+    '  font-display: swap;',
+    '}',
+    '@font-face {',
+    "  font-family: 'Web Presentation Mono';",
+    `  src: url('${escapeCssUrl(PLATFORM_MONO_FONT_URL)}') format('woff2');`,
+    '  font-weight: 400;',
+    '  font-style: normal;',
+    '  font-display: swap;',
+    '}',
+  ].join('\n')
 }
 
 /**
@@ -102,7 +163,7 @@ function buildFontFaceRule(item: RuntimeFontBundleItem): string {
   }
 
   const escapedFamily = escapeCssString(item.font_family)
-  const escapedUrl = fontUrl.replace(/'/g, "\\'")
+  const escapedUrl = escapeCssUrl(fontUrl)
   return [
     '@font-face {',
     `  font-family: '${escapedFamily}';`,
@@ -112,6 +173,15 @@ function buildFontFaceRule(item: RuntimeFontBundleItem): string {
     `  font-display: ${item.font_display};`,
     '}',
   ].join('\n')
+}
+
+/**
+ * 转义 CSS url() 单引号字符串，避免资源地址破坏动态字体规则。
+ * @param value 字体资源 URL
+ * @returns 可安全写入单引号 url() 的字符串
+ */
+function escapeCssUrl(value: string): string {
+  return String(value || '').replace(/'/g, "\\'")
 }
 
 /**

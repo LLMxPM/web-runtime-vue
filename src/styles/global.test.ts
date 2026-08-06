@@ -15,4 +15,15 @@ describe('global runtime shell styles', () => {
     expect(rootBlock).not.toContain('--theme-font-size-base')
     expect(rootBlock).not.toContain('--tw-font-size-base: var(--theme-font-size-base')
   })
+
+  it('应加载固定平台字体并作为主题变量默认值', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf-8')
+    const fontRegistry = readFileSync(resolve(process.cwd(), 'src/core/utils/font-registry.ts'), 'utf-8')
+
+    expect(css).not.toContain("@import './platform-fonts.css';")
+    expect(css).toContain("'Web Presentation Sans', sans-serif")
+    expect(css).toContain("'Web Presentation Mono', monospace")
+    expect(fontRegistry).toContain("SourceHanSansSC-VF.otf.woff2")
+    expect(fontRegistry).toContain('font-weight: 100 900;')
+  })
 })
