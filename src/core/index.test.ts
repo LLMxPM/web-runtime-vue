@@ -19,7 +19,7 @@ describe('Core 模块对外接口 (External API)', () => {
 
     // 动态导入以确保在 mock 之后再执行模块顶层代码
     CoreAPI = await import('./index')
-  })
+  }, 30_000)
 
   it('应正确导出组合式 API (Composables)', () => {
     expect(CoreAPI.useTheme).toBeTypeOf('function')

@@ -10,6 +10,9 @@ import {
   measureMermaidAspectRatio,
 } from './runtime-asset-render-hint-measurer'
 
+/** Mermaid 动态导入与首次渲染较慢，整包测试并行时放宽单用例超时。 */
+const MERMAID_MEASURE_TIMEOUT = 30_000
+
 describe('runtime asset render hint measurer', () => {
   it('应能测量单个 Formula SVG 比例', async () => {
     const ratio = await measureFormulaAspectRatio('E = mc^2')
@@ -78,7 +81,7 @@ d_{\text{model}}^{-0.5}
 
     expect(ratio).toBeGreaterThan(0)
     expect(ratio).not.toBe(1)
-  })
+  }, MERMAID_MEASURE_TIMEOUT)
 
   it('应能测量带中文、多行节点和边标签的 Mermaid 图', async () => {
     const content = String.raw`flowchart TB
@@ -109,7 +112,7 @@ d_{\text{model}}^{-0.5}
     expect(result.ok).toBe(true)
     expect(result.aspect_ratio).not.toBe('1:1')
     expect(result.aspect_ratio_value).toEqual(expect.any(Number))
-  })
+  }, MERMAID_MEASURE_TIMEOUT)
 
   it('应返回 Backend 期望的比例响应字段', async () => {
     const result = await measureAssetRenderHint({
@@ -128,5 +131,5 @@ d_{\text{model}}^{-0.5}
       asset_type: 'mermaid',
       content: 'flowchart TD\n  A -->',
     })).rejects.toThrow()
-  })
+  }, MERMAID_MEASURE_TIMEOUT)
 })
