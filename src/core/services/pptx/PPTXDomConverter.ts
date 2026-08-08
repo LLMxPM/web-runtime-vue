@@ -20,6 +20,7 @@ import { PPTXDomConverterTable } from '@/core/services/pptx/PPTXDomConverterTabl
 import type { PptxDomTableExportHost } from '@/core/services/pptx/PPTXDomConverterTable'
 import { PPTXDomConverterText } from '@/core/services/pptx/PPTXDomConverterText'
 import type { PptxDomTextExportHost } from '@/core/services/pptx/PPTXDomConverterText'
+import { PPTXDomConverterTransform } from '@/core/services/pptx/PPTXDomConverterTransform'
 import type { PptxPageConvertOptions, VisitContext } from '@/core/services/pptx/PPTXDomConverter.types'
 
 export type {
@@ -34,6 +35,7 @@ export type { PptxPageConvertOptions } from '@/core/services/pptx/PPTXDomConvert
 export class PPTXDomConverter {
   private readonly cssParser = new PPTXCssParser()
   private readonly layout = new PPTXDomConverterLayout(this.cssParser)
+  private readonly transform = new PPTXDomConverterTransform(this.layout)
   private readonly svgSerializer = new PPTXSvgSerializer(this.cssParser, element => this.layout.measureElementPixels(element))
   private readonly media = new PPTXDomConverterMedia(this.layout, this.svgSerializer)
   private readonly raster = new PPTXDomConverterRaster(this.layout)
@@ -92,7 +94,37 @@ export class PPTXDomConverter {
       return
     }
 
+    if (element instanceof HTMLElement) {
+      const preparedTransform = this.transform.prepare(element, context)
+      try {
+        if (preparedTransform.kind === 'unsupported') {
+          await this.addScreenshotBlock(element, 'complex-css', '不支持的 CSS 2D transform 降级为局部截图', context)
+          return
+        }
+        await this.visitPreparedElement(element, preparedTransform.context)
+      }
+      finally {
+        preparedTransform.restore()
+      }
+      return
+    }
+
+    await this.visitPreparedElement(element, context)
+  }
+
+  /**
+   * 转换已冻结动画并移除可映射旋转的元素。
+   * @param element 当前元素
+   * @param context 当前组合及旋转上下文
+   */
+  private async visitPreparedElement(element: Element, context: VisitContext): Promise<void> {
+
     if (this.table.isTableElement(element)) {
+      const unsupportedReason = this.table.resolveUnsupportedReason(element)
+      if (unsupportedReason) {
+        await this.addScreenshotBlock(element, 'table', unsupportedReason, context)
+        return
+      }
       this.table.addTableElement(this.createTableExportHost(), element as HTMLElement, context)
       return
     }

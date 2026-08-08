@@ -18,6 +18,7 @@ import { appConfig as runtimeAppConfig, appPageConfig } from '@/core/utils/confi
 import { findRuntimePageSource } from '@/core/utils/export-dom'
 import { collectAllExportPages } from '@/core/utils/export-pages'
 import { generateFilename } from '@/core/utils/file'
+import { waitForFiniteDocumentAnimations } from '@/core/utils/visual-assets'
 import { PPTXDomConverter, type PptxGradientFillInstruction } from '@/core/services/pptx/PPTXDomConverter'
 
 const PPTX_LAYOUT_NAME = 'RUNTIME_PPTX_LAYOUT'
@@ -253,8 +254,8 @@ export class PPTXExportService {
     pptx.subject = 'Runtime editable PPTX export'
     pptx.title = this.pickTitle(runtimeAppConfig.value.app.title) ?? 'Runtime 导出'
     pptx.theme = {
-      headFontFace: 'Arial',
-      bodyFontFace: 'Arial',
+      headFontFace: 'Microsoft YaHei',
+      bodyFontFace: 'Microsoft YaHei',
     }
 
     return pptx
@@ -681,7 +682,9 @@ export class PPTXExportService {
       }
     }
 
-    await new Promise(resolve => window.setTimeout(resolve, 100))
+    await waitForFiniteDocumentAnimations(DEFAULT_CAPTURE_TIMEOUT)
+    await this.waitForAnimationFrame()
+    await this.waitForAnimationFrame()
   }
 
   /**

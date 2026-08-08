@@ -121,6 +121,8 @@ const brandFont = useAssetFontFamily('BrandSerif', 'sans-serif')
 
 Backend 会扫描静态字体资源名并在预览/构建 artifact 中下发对应字体。不要在页面 CSS 中直接手写 `@font-face` 或硬编码字体文件 URL。
 
+导出可编辑 PPTX 时不会嵌入 Runtime 字体文件。为避免目标电脑缺少平台内部字体别名，导出器会把 `Web Presentation Sans` 映射为 `Microsoft YaHei`，把 `Web Presentation Mono` 映射为 `Consolas`；工作空间字体和页面明确指定的其它字体族名保持不变。截图降级内容已经栅格化，不受该映射影响。
+
 ## 主题 Logo
 
 ```vue

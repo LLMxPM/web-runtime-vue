@@ -4,7 +4,7 @@
  * 文件用途：验证可编辑 PPTX 导出服务对演讲者备注等 slide 级信息的写入逻辑。
  */
 
-import { describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { PageInfo } from '@/core/types/pdf-export'
 import type { PptxExportReportPage } from '@/core/types/pptx-export'
 import { PPTXExportService } from './PPTXExportService'
@@ -21,7 +21,19 @@ interface PptxExportServicePrivate {
     pageIndex: number,
     gradientFills: PptxGradientFillInstruction[],
   ) => Promise<PptxExportReportPage>
+  createPresentation: () => {
+    theme: {
+      headFontFace?: string
+      bodyFontFace?: string
+    }
+  }
+  waitForPageReady: (expectedRoutePath?: string) => Promise<void>
 }
+
+afterEach(() => {
+  Reflect.deleteProperty(document, 'getAnimations')
+  document.body.innerHTML = ''
+})
 
 interface PptxMock {
   addSlide: Mock
@@ -34,6 +46,15 @@ interface PptxMock {
 }
 
 describe('PPTXExportService', () => {
+  it('创建 PPTX 时应使用目标电脑常见的中文主题字体', () => {
+    const service = new PPTXExportService() as unknown as PptxExportServicePrivate
+
+    expect(service.createPresentation().theme).toEqual(expect.objectContaining({
+      headFontFace: 'Microsoft YaHei',
+      bodyFontFace: 'Microsoft YaHei',
+    }))
+  })
+
   it('添加页面时应将演讲者备注写入 PPTX slide', async () => {
     const service = createServiceWithConverter()
     const slide = createSlideMock()
@@ -73,6 +94,29 @@ describe('PPTXExportService', () => {
     }, 1, [])
 
     expect(slide.addNotes).not.toHaveBeenCalled()
+  })
+
+  it('页面就绪检查应等待有限次入场动画结束', async () => {
+    const service = new PPTXExportService() as unknown as PptxExportServicePrivate
+    let animationFinished = false
+    const animation = {
+      playState: 'running',
+      effect: {
+        getTiming: () => ({ iterations: 1 }),
+      },
+      finished: new Promise<void>(resolve => window.setTimeout(() => {
+        animationFinished = true
+        resolve()
+      }, 20)),
+    } as unknown as Animation
+    Object.defineProperty(document, 'getAnimations', {
+      value: () => [animation],
+      configurable: true,
+    })
+
+    await service.waitForPageReady()
+
+    expect(animationFinished).toBe(true)
   })
 })
 

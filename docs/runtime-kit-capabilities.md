@@ -94,7 +94,9 @@
 
 普通页面或工作空间组件需要展示项目主题 Logo 时，优先使用 `ThemeLogo`。`ThemeLogo` 只通过 `size` 控制高度，数字刻度跟随页面基础字号，宽度自动等比计算，不提供拉伸、裁剪或兜底图片。只有需要自行组合 URL、样式变量或复杂 DOM 结构时，才直接使用 `useTheme` 读取 `themeLogo`、`themeInvertLogo` 或 `themeStyles`。没有配置主题 Logo 时，`ThemeLogo` 会直接空渲染。
 
-需要导出为 PPT 原生表格时，使用 `DataTable`。它不使用 HTML table，而是通过 CSS Grid 渲染固定宽高的二维表格；`headerRows` 和 `headerColumns` 只声明语义，不自动套样式。整表、行、列和单元格样式分别通过 `styles.table`、`styles.rows`、`styles.columns` 和 `styles.cells` 控制；边框支持统一线条、无边框、外框、内部横竖线和单独四边，并会在 PPTX 导出时映射为 PowerPoint table cell border。
+规则二维数据需要导出为 PPT 原生表格时，可以使用 `DataTable`。它不使用 HTML table，而是通过 CSS Grid 渲染固定宽高的二维表格；`headerRows` 和 `headerColumns` 只声明语义，不自动套样式。整表、行、列和单元格样式分别通过 `styles.table`、`styles.rows`、`styles.columns` 和 `styles.cells` 控制；边框支持统一线条、无边框、外框、内部横竖线和单独四边，并会在 PPTX 导出时映射为 PowerPoint table cell border。
+
+页面已经使用语义化 `table/thead/tbody/tfoot/tr/th/td`，或需要 `rowspan`、`colspan` 时，不必改写为 `DataTable`。PPTX 导出器会直接生成 PowerPoint 原生可编辑表格，并读取浏览器计算后的尺寸和基础单元格样式。包含图片、SVG、嵌套表格、列表、表单控件等复杂单元格内容时会整表截图降级；详细约束参见页面添加指南的“表格”章节。
 
 `Connector` 依赖元素挂载、尺寸、滚动和定位上下文，因此只能在页面预览或项目预览中验证，不单独创建组件预览 artifact。
 

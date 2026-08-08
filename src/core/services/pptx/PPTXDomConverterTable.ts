@@ -1,5 +1,5 @@
 /**
- * 文件用途：封装 Runtime Kit DataTable 到 PPTX 原生表格的导出逻辑。
+ * 文件用途：封装 Runtime Kit DataTable 与原生 HTML table 到 PPTX 原生表格的导出逻辑。
  */
 
 import type {
@@ -10,13 +10,20 @@ import type {
 import type { ParsedColor } from '@/core/services/pptx/PPTXCssParser'
 import type {
   BorderInfo,
-  ElementBox,
   PptxPageConvertOptions,
   PptxTableCellLike,
   PptxTableRowLike,
   VisitContext,
 } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
+import { PPTXDomHtmlTableParser } from '@/core/services/pptx/PPTXDomHtmlTableParser'
+import { PPTXDomTableBorders } from '@/core/services/pptx/PPTXDomTableBorders'
+import { PPTXDomTableGeometry } from '@/core/services/pptx/PPTXDomTableGeometry'
+import type {
+  PptxDomTableCellEntry,
+  PptxDomTableModel,
+  PptxDomTableRowEntry,
+} from '@/core/services/pptx/PPTXDomTable.types'
 
 export interface PptxDomTableExportHost {
   options: PptxPageConvertOptions
@@ -37,30 +44,41 @@ export interface PptxDomTableExportHost {
   addSkippedItem: (sourceType: PptxReportSourceType, label: string, reason: string, context?: VisitContext) => void
 }
 
-interface RuntimeTableCellEntry {
-  element: HTMLElement
-  rowIndex: number
-  columnIndex: number
-}
-
 /**
- * Runtime Kit 表格导出 helper。
+ * Runtime Kit 与原生 HTML 表格导出 helper。
  */
 export class PPTXDomConverterTable {
-  constructor(private readonly layout: PPTXDomConverterLayout) {}
+  private readonly htmlParser: PPTXDomHtmlTableParser
+  private readonly geometry: PPTXDomTableGeometry
+  private readonly borders = new PPTXDomTableBorders()
 
-  /**
-   * 判断元素是否为 Runtime Kit DataTable 根节点。
-   * @param element 候选元素
-   */
-  isTableElement(element: Element): boolean {
-    return element instanceof HTMLElement && element.getAttribute('data-runtime-kit-table') === 'v1'
+  constructor(private readonly layout: PPTXDomConverterLayout) {
+    this.htmlParser = new PPTXDomHtmlTableParser(layout)
+    this.geometry = new PPTXDomTableGeometry(layout)
   }
 
   /**
-   * 将 DataTable 导出为 PPT 原生表格。
+   * 判断元素是否为可导出的 Runtime Kit DataTable 或原生 HTML table 根节点。
+   * @param element 候选元素
+   */
+  isTableElement(element: Element): boolean {
+    return this.isRuntimeKitTable(element) || this.htmlParser.isHtmlTable(element)
+  }
+
+  /**
+   * 返回表格需要截图降级的原因；空值表示可以转换为 PPT 原生表格。
+   * @param element 候选表格
+   */
+  resolveUnsupportedReason(element: Element): string | null {
+    return this.htmlParser.isHtmlTable(element)
+      ? this.htmlParser.resolveUnsupportedReason(element)
+      : null
+  }
+
+  /**
+   * 将 Runtime Kit 或原生 HTML 表格导出为 PPT 原生表格。
    * @param host 导出宿主能力
-   * @param element DataTable 根节点
+   * @param element 表格根节点
    * @param context 当前组合上下文
    */
   addTableElement(host: PptxDomTableExportHost, element: HTMLElement, context: VisitContext): boolean {
@@ -71,39 +89,78 @@ export class PPTXDomConverterTable {
       return true
     }
 
-    const entries = this.collectCellEntries(element)
-    const rowCount = this.resolveRowCount(element, entries)
-    const columnCount = this.resolveColumnCount(element, entries)
-    if (rowCount <= 0 || columnCount <= 0) {
+    const model = this.buildTableModel(element)
+    if (model.rowCount <= 0 || model.columnCount <= 0 || model.cells.length <= 0) {
       host.addSkippedItem('table', label, '表格没有有效单元格，已跳过', context)
       return true
     }
 
-    const tableRows = this.buildTableRows(entries, rowCount, columnCount, context)
+    const tableRows = this.buildTableRows(model, context)
+    if (model.borderCollapse) {
+      this.borders.reconcile(tableRows, model)
+    }
     host.options.slide.addTable(tableRows, {
       ...box,
-      rowH: this.resolveRowHeights(entries, box, rowCount),
-      colW: this.resolveColumnWidths(entries, box, columnCount),
+      rowH: this.geometry.resolveRowHeights(model, box),
+      colW: this.geometry.resolveColumnWidths(model, box),
       autoPage: false,
       fit: 'shrink',
       margin: 0,
       ...host.buildPptObjectMeta(context, 'table', label),
     })
-    host.addReportItem('table', 'editable-table', true, label, 'Runtime Kit 表格导出为 PPT 原生表格', context)
+    const sourceLabel = model.source === 'html' ? 'HTML' : 'Runtime Kit'
+    host.addReportItem('table', 'editable-table', true, label, `${sourceLabel} 表格导出为 PPT 原生表格`, context)
     return true
   }
 
   /**
-   * 收集带行列索引的单元格节点。
+   * 构造统一表格中间模型。
+   * @param tableElement 表格根节点
+   */
+  private buildTableModel(tableElement: HTMLElement): PptxDomTableModel {
+    if (this.htmlParser.isHtmlTable(tableElement)) {
+      return this.htmlParser.parse(tableElement)
+    }
+
+    const cells = this.collectRuntimeKitCells(tableElement)
+    const rowCount = this.resolveRuntimeKitRowCount(tableElement, cells)
+    const columnCount = this.resolveRuntimeKitColumnCount(tableElement, cells)
+    const rows: PptxDomTableRowEntry[] = Array.from({ length: rowCount }, (_, rowIndex) => ({
+      element: null,
+      rowIndex,
+      cells: cells.filter(cell => cell.rowIndex === rowIndex),
+    }))
+    return {
+      source: 'runtime-kit',
+      element: tableElement,
+      rows,
+      cells,
+      rowCount,
+      columnCount,
+      borderCollapse: false,
+    }
+  }
+
+  /**
+   * 判断元素是否为 Runtime Kit DataTable 根节点。
+   */
+  private isRuntimeKitTable(element: Element): boolean {
+    return element instanceof HTMLElement && element.getAttribute('data-runtime-kit-table') === 'v1'
+  }
+
+  /**
+   * 收集 Runtime Kit 表格中带行列索引的单元格节点。
    * @param tableElement DataTable 根节点
    */
-  private collectCellEntries(tableElement: HTMLElement): RuntimeTableCellEntry[] {
+  private collectRuntimeKitCells(tableElement: HTMLElement): PptxDomTableCellEntry[] {
     return Array.from(tableElement.querySelectorAll('[data-runtime-kit-table-cell="v1"]'))
       .filter((cell): cell is HTMLElement => cell instanceof HTMLElement)
       .map(cell => ({
         element: cell,
         rowIndex: Number(cell.dataset.rowIndex),
         columnIndex: Number(cell.dataset.columnIndex),
+        rowspan: 1,
+        colspan: 1,
       }))
       .filter(entry => Number.isInteger(entry.rowIndex) && entry.rowIndex >= 0 && Number.isInteger(entry.columnIndex) && entry.columnIndex >= 0)
       .sort((left, right) => {
@@ -120,21 +177,18 @@ export class PPTXDomConverterTable {
    * @param columnCount 列数
    * @param context 当前文本继承上下文
    */
-  private buildTableRows(
-    entries: RuntimeTableCellEntry[],
-    rowCount: number,
-    columnCount: number,
-    context: VisitContext,
-  ): PptxTableRowLike[] {
-    const cellsByKey = new Map(entries.map(entry => [`${entry.rowIndex},${entry.columnIndex}`, entry]))
+  private buildTableRows(model: PptxDomTableModel, context: VisitContext): PptxTableRowLike[] {
+    return model.rows.map(row => {
+      if (model.source === 'html') {
+        return row.cells.map(entry => this.buildTableCell(entry, context))
+      }
 
-    return Array.from({ length: rowCount }, (_, rowIndex) => {
-      return Array.from({ length: columnCount }, (_, columnIndex) => {
-        const entry = cellsByKey.get(`${rowIndex},${columnIndex}`)
-        if (!entry) {
-          return { text: '', options: { fit: 'shrink' } }
-        }
-        return this.buildTableCell(entry.element, context)
+      const cellsByColumn = new Map(row.cells.map(entry => [entry.columnIndex, entry]))
+      return Array.from({ length: model.columnCount }, (_, columnIndex) => {
+        const entry = cellsByColumn.get(columnIndex)
+        return entry
+          ? this.buildTableCell(entry, context)
+          : { text: '', options: { fit: 'shrink' } }
       })
     })
   }
@@ -144,7 +198,8 @@ export class PPTXDomConverterTable {
    * @param element 单元格 DOM
    * @param context 当前文本继承上下文
    */
-  private buildTableCell(element: HTMLElement, context: VisitContext): PptxTableCellLike {
+  private buildTableCell(entry: PptxDomTableCellEntry, context: VisitContext): PptxTableCellLike {
+    const { element } = entry
     const text = this.layout.normalizeText(element.textContent || '')
     const style = window.getComputedStyle(element)
     return {
@@ -154,6 +209,8 @@ export class PPTXDomConverterTable {
         ...this.buildCellVisualOptions(element, style),
         margin: this.buildCellMargin(element, style),
         fit: 'shrink',
+        ...(entry.rowspan > 1 ? { rowspan: entry.rowspan } : {}),
+        ...(entry.colspan > 1 ? { colspan: entry.colspan } : {}),
       },
     }
   }
@@ -192,10 +249,7 @@ export class PPTXDomConverterTable {
    */
   private buildCellVisualOptions(element: HTMLElement, style: CSSStyleDeclaration): Record<string, unknown> {
     const elementOpacity = this.layout.parseOpacity(style.opacity)
-    const fillColor = this.applyOpacity(
-      this.layout.parseCssColor(this.layout.resolveBackgroundColorValue(element, style), element),
-      elementOpacity,
-    )
+    const fillColor = this.resolveCellBackgroundColor(element, elementOpacity)
     const borders = this.layout.getBorderInfos(element, style).map(border => ({
       ...border,
       color: this.applyOpacity(border.color, elementOpacity) || border.color,
@@ -210,6 +264,30 @@ export class PPTXDomConverterTable {
       } : {}),
       border: this.buildTableBorderOptions(borders),
     }
+  }
+
+  /**
+   * 按 td/th、tr、行组、table 顺序解析可见背景色，模拟 HTML 表格背景向单元格透出的效果。
+   * @param element 单元格 DOM
+   * @param cellOpacity 单元格透明度
+   */
+  private resolveCellBackgroundColor(element: HTMLElement, cellOpacity: number): ParsedColor | null {
+    let current: HTMLElement | null = element
+    while (current) {
+      const style = window.getComputedStyle(current)
+      const color = this.layout.parseCssColor(this.layout.resolveBackgroundColorValue(current, style), current)
+      if (color && color.alpha > 0) {
+        const effectiveOpacity = current === element
+          ? cellOpacity
+          : cellOpacity * this.layout.parseOpacity(style.opacity)
+        return this.applyOpacity(color, effectiveOpacity)
+      }
+      if (current.tagName.toLowerCase() === 'table' || current.getAttribute('data-runtime-kit-table') === 'v1') {
+        break
+      }
+      current = current.parentElement
+    }
+    return null
   }
 
   /**
@@ -252,47 +330,11 @@ export class PPTXDomConverterTable {
   }
 
   /**
-   * 根据单元格测量结果解析每行高度。
-   * @param entries 单元格条目
-   * @param box 表格 PPT 盒模型
-   * @param rowCount 行数
-   */
-  private resolveRowHeights(entries: RuntimeTableCellEntry[], box: ElementBox, rowCount: number): number[] {
-    const fallbackHeight = this.layout.roundInch(box.h / rowCount)
-    return Array.from({ length: rowCount }, (_, rowIndex) => {
-      const measuredHeight = entries
-        .filter(entry => entry.rowIndex === rowIndex)
-        .reduce((maxHeight, entry) => Math.max(maxHeight, this.layout.measureElementPixels(entry.element).height), 0)
-      return measuredHeight > 0
-        ? this.layout.roundInch(measuredHeight * this.layout.inchPerPxY())
-        : fallbackHeight
-    })
-  }
-
-  /**
-   * 根据单元格测量结果解析每列宽度。
-   * @param entries 单元格条目
-   * @param box 表格 PPT 盒模型
-   * @param columnCount 列数
-   */
-  private resolveColumnWidths(entries: RuntimeTableCellEntry[], box: ElementBox, columnCount: number): number[] {
-    const fallbackWidth = this.layout.roundInch(box.w / columnCount)
-    return Array.from({ length: columnCount }, (_, columnIndex) => {
-      const measuredWidth = entries
-        .filter(entry => entry.columnIndex === columnIndex)
-        .reduce((maxWidth, entry) => Math.max(maxWidth, this.layout.measureElementPixels(entry.element).width), 0)
-      return measuredWidth > 0
-        ? this.layout.roundInch(measuredWidth * this.layout.inchPerPxX())
-        : fallbackWidth
-    })
-  }
-
-  /**
-   * 解析表格行数。
+   * 解析 Runtime Kit 表格行数。
    * @param tableElement 表格根节点
-   * @param entries 单元格条目
+   * @param entries Runtime Kit 单元格条目
    */
-  private resolveRowCount(tableElement: HTMLElement, entries: RuntimeTableCellEntry[]): number {
+  private resolveRuntimeKitRowCount(tableElement: HTMLElement, entries: PptxDomTableCellEntry[]): number {
     const declaredRowCount = Number(tableElement.getAttribute('aria-rowcount'))
     if (Number.isInteger(declaredRowCount) && declaredRowCount > 0) {
       return declaredRowCount
@@ -301,11 +343,11 @@ export class PPTXDomConverterTable {
   }
 
   /**
-   * 解析表格列数。
+   * 解析 Runtime Kit 表格列数。
    * @param tableElement 表格根节点
    * @param entries 单元格条目
    */
-  private resolveColumnCount(tableElement: HTMLElement, entries: RuntimeTableCellEntry[]): number {
+  private resolveRuntimeKitColumnCount(tableElement: HTMLElement, entries: PptxDomTableCellEntry[]): number {
     const declaredColumnCount = Number(tableElement.getAttribute('aria-colcount'))
     if (Number.isInteger(declaredColumnCount) && declaredColumnCount > 0) {
       return declaredColumnCount

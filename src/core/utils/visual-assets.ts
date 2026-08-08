@@ -88,6 +88,15 @@ export function registerEditorVisualAssetProbe(): void {
 }
 
 /**
+ * 等待文档内有限次动画自然结束；无限循环动画不会阻塞调用方。
+ * @param timeoutMs 动画等待上限，默认 5 秒
+ */
+export async function waitForFiniteDocumentAnimations(timeoutMs = ANIMATION_SETTLE_TIMEOUT_MS): Promise<void> {
+  const normalizedTimeout = Math.max(0, Math.round(Number(timeoutMs) || 0))
+  await waitForFiniteAnimationsSettled(Date.now() + normalizedTimeout, normalizedTimeout)
+}
+
+/**
  * 等待当前文档中的关键视觉资源加载完成。
  * @param options 等待配置
  * @returns 结构化等待结果，调用方据此决定是否允许截图
@@ -518,13 +527,16 @@ async function waitForFontsReady(deadlineAt: number): Promise<{
  * 无限循环动画直接跳过；超时不计入失败，由截图侧 animations="disabled" 兜底快进。
  * @param deadlineAt 整体截止时间戳
  */
-async function waitForFiniteAnimationsSettled(deadlineAt: number): Promise<void> {
+async function waitForFiniteAnimationsSettled(
+  deadlineAt: number,
+  settleTimeoutMs = ANIMATION_SETTLE_TIMEOUT_MS,
+): Promise<void> {
   if (typeof document.getAnimations !== 'function') {
     return
   }
 
   // 动画等待单独设较短上限，避免超长动画拖慢截图队列吞吐。
-  const settleDeadlineAt = Math.min(deadlineAt, Date.now() + ANIMATION_SETTLE_TIMEOUT_MS)
+  const settleDeadlineAt = Math.min(deadlineAt, Date.now() + settleTimeoutMs)
   const awaited = new WeakSet<Animation>()
 
   while (Date.now() <= settleDeadlineAt) {

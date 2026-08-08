@@ -573,6 +573,69 @@ describe('PPTXDomConverter', () => {
     ]))
   })
 
+  it('纯 2D 旋转胶囊应保持原始盒模型并同步旋转背景、SVG 和文字', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="position: relative; width: 1920px; height: 1080px;">
+        <div
+          id="tilted-badge"
+          class="rounded-full"
+          style="position: absolute; left: -150px; top: 110px; display: flex; align-items: center; gap: 12px; width: 320px; height: 64px; padding: 12px 24px; box-sizing: border-box; border: 3px solid #2563eb; border-radius: 9999px; background: #f59e0b; transform: matrix(0.990268, -0.139173, 0.139173, 0.990268, 0, 0); transform-origin: 50% 50%;"
+        >
+          <span style="display: inline-flex; width: 28px; height: 28px; color: #ffffff;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="28" height="28" style="width: 28px; height: 28px;">
+              <path d="M8 10 L28 10 L38 24 L28 38 L8 38 Z" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
+          </span>
+          <span style="display: inline-block; width: 150px; height: 28px; color: #ffffff; font-size: 20px; white-space: nowrap;">不到 1 元！</span>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    const badgeShape = slide.addShape.mock.calls.find(([shapeName]) => shapeName === 'roundRect')?.[1] as Record<string, number>
+    const iconImage = slide.addImage.mock.calls[0]?.[0] as Record<string, number>
+    const badgeText = slide.addText.mock.calls.find(([text]) => text === '不到 1 元！')?.[1] as Record<string, number>
+
+    expect(captureElementAsPng).not.toHaveBeenCalled()
+    expect(badgeShape).toEqual(expect.objectContaining({ rotate: -8 }))
+    expect(badgeShape.x).toBeLessThan(0)
+    expect(badgeShape.w).toBeGreaterThan(badgeShape.h)
+    expect(iconImage).toEqual(expect.objectContaining({ rotate: -8 }))
+    expect(badgeText).toEqual(expect.objectContaining({ rotate: -8 }))
+    expect((document.getElementById('tilted-badge') as HTMLElement).style.transform).toContain('matrix(')
+    expect(report.items).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ result: 'screenshot' }),
+    ]))
+  })
+
+  it('含文字的 skew 变换应整岛截图避免拆分后丢失视觉效果', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="skew-card" style="width: 320px; height: 120px; background: #2563eb; transform: skewX(12deg);">
+          <span style="color: #ffffff; font-size: 24px;">倾斜文字</span>
+        </div>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(captureElementAsPng).toHaveBeenCalledTimes(1)
+    expect(captureElementAsPng).toHaveBeenCalledWith(document.getElementById('skew-card'))
+    expect(slide.addText).not.toHaveBeenCalledWith('倾斜文字', expect.any(Object))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'complex-css',
+        result: 'screenshot',
+        reason: '不支持的 CSS 2D transform 降级为局部截图',
+      }),
+    ]))
+  })
+
   it('应将同一容器下多个 3D 子分支整体截图', async () => {
     const slide = createSlideMock()
     const captureElementAsPng = createCaptureElementAsPngMock()

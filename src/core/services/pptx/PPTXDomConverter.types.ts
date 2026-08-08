@@ -2,8 +2,15 @@
  * 文件用途：收敛 PPTX DOM 转换器在多个 helper 间共享的类型与常量定义。
  */
 
+export interface PptxTextRunLike {
+  text: string
+  options?: Record<string, unknown>
+}
+
+export type PptxTextContentLike = string | PptxTextRunLike[]
+
 export type PptxSlideLike = {
-  addText: (text: string, options?: Record<string, unknown>) => unknown
+  addText: (text: PptxTextContentLike, options?: Record<string, unknown>) => unknown
   addShape: (shapeType: string, options?: Record<string, unknown>) => unknown
   addImage: (options: Record<string, unknown>) => unknown
   addTable: (rows: PptxTableRowLike[], options?: Record<string, unknown>) => unknown
@@ -113,6 +120,19 @@ export interface VisitContext {
   groupLabel?: string
   inheritedTextAlign?: string
   inheritedVerticalAlign?: string
+  /** 从外到内排列的纯 2D 旋转步骤，导出对象时按相反顺序应用。 */
+  rotationSteps?: PptxRotationStep[]
+}
+
+/**
+ * 描述一个可映射到 PPT 原生 rotate 的 CSS 2D 刚性变换。
+ */
+export interface PptxRotationStep {
+  angle: number
+  originX: number
+  originY: number
+  translateX: number
+  translateY: number
 }
 
 export const MEDIA_SELECTORS = [

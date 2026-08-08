@@ -14,6 +14,11 @@ import type {
 } from '@/core/services/pptx/PPTXDomConverter.types'
 import { INLINE_TEXT_TAGS } from '@/core/services/pptx/PPTXDomConverter.types'
 
+const PPTX_PLATFORM_FONT_FACE_MAP: Record<string, string> = {
+  'web presentation sans': 'Microsoft YaHei',
+  'web presentation mono': 'Consolas',
+}
+
 /**
  * PPTX DOM 转换布局 helper。
  */
@@ -179,7 +184,7 @@ export class PPTXDomConverterLayout {
    * 计算元素在 slide 中的位置。
    * @param element 源元素
    */
-  getPptxBox(element: Element): ElementBox | null {
+  getPptxBox(element: Element, allowOverflow = false): ElementBox | null {
     const rect = this.measureElementPixels(element)
     if (rect.width <= 0 || rect.height <= 0) {
       return null
@@ -188,8 +193,8 @@ export class PPTXDomConverterLayout {
     const x = (rect.left - this.rootBox.left) * this.inchPerPxX()
     const y = (rect.top - this.rootBox.top) * this.inchPerPxY()
     return {
-      x: this.roundInch(Math.max(0, x)),
-      y: this.roundInch(Math.max(0, y)),
+      x: this.roundInch(allowOverflow ? x : Math.max(0, x)),
+      y: this.roundInch(allowOverflow ? y : Math.max(0, y)),
       w: this.roundInch(Math.max(0.01, Math.min(rect.width, this.rootBox.width) * this.inchPerPxX())),
       h: this.roundInch(Math.max(0.01, Math.min(rect.height, this.rootBox.height) * this.inchPerPxY())),
     }
@@ -199,7 +204,7 @@ export class PPTXDomConverterLayout {
    * 计算直属文本节点在 slide 中的位置。
    * @param textNode 源文本节点
    */
-  getPptxTextNodeBox(textNode: Text): ElementBox | null {
+  getPptxTextNodeBox(textNode: Text, allowOverflow = false): ElementBox | null {
     const rect = this.measureTextNodePixels(textNode)
     if (!rect || rect.width <= 0 || rect.height <= 0) {
       return null
@@ -208,8 +213,8 @@ export class PPTXDomConverterLayout {
     const x = (rect.left - this.rootBox.left) * this.inchPerPxX()
     const y = (rect.top - this.rootBox.top) * this.inchPerPxY()
     return {
-      x: this.roundInch(Math.max(0, x)),
-      y: this.roundInch(Math.max(0, y)),
+      x: this.roundInch(allowOverflow ? x : Math.max(0, x)),
+      y: this.roundInch(allowOverflow ? y : Math.max(0, y)),
       w: this.roundInch(Math.max(0.01, Math.min(rect.width, this.rootBox.width) * this.inchPerPxX())),
       h: this.roundInch(Math.max(0.01, Math.min(rect.height, this.rootBox.height) * this.inchPerPxY())),
     }
@@ -689,6 +694,16 @@ export class PPTXDomConverterLayout {
     return this.options.slideHeightIn / this.rootBox.height
   }
 
+  /** 返回页面根节点在视口测量坐标中的 left。 */
+  rootLeft(): number {
+    return this.rootBox.left
+  }
+
+  /** 返回页面根节点在视口测量坐标中的 top。 */
+  rootTop(): number {
+    return this.rootBox.top
+  }
+
   /**
    * 统一控制 inch 精度，避免 PPTX XML 浮点过长。
    * @param value inch 值
@@ -716,6 +731,12 @@ export class PPTXDomConverterLayout {
       .map(item => item.trim().replace(/^['"]|['"]$/g, ''))
       .filter(Boolean)
     const concreteFont = candidates.find(font => !this.isCssSystemFontAlias(font))
+    const platformFont = concreteFont
+      ? PPTX_PLATFORM_FONT_FACE_MAP[concreteFont.toLowerCase()]
+      : undefined
+    if (platformFont) {
+      return platformFont
+    }
     if (concreteFont && !(this.containsCjkText(text) && this.isLatinSystemUiFont(concreteFont))) {
       return concreteFont
     }

@@ -16,6 +16,27 @@ import type {
 import { INLINE_TEXT_TAGS } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { ParsedColor } from '@/core/services/pptx/PPTXCssParser'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
+import { PPTXDomConverterTransform } from './PPTXDomConverterTransform'
+import { PPTXDomRichTextParser, type PptxDomRichTextResult } from './PPTXDomRichTextParser'
+
+type TextShapeGeometryKind =
+  | 'circle'
+  | 'rounded-square'
+  | 'horizontal-capsule'
+  | 'vertical-capsule'
+  | 'rounded-rect'
+  | 'rect'
+
+interface ResolvedTextShapeGeometry {
+  shape: string
+  options: Record<string, unknown>
+  kind: TextShapeGeometryKind
+}
+
+interface ResolvedTextShapeVisual {
+  options: Record<string, unknown>
+  geometry: ResolvedTextShapeGeometry
+}
 
 export interface PptxDomTextExportHost {
   options: PptxPageConvertOptions
@@ -39,7 +60,13 @@ export interface PptxDomTextExportHost {
  * PPTX 文本与形状导出 helper。
  */
 export class PPTXDomConverterText {
-  constructor(private readonly layout: PPTXDomConverterLayout) {}
+  private readonly richTextParser = new PPTXDomRichTextParser()
+  private readonly richTextCache = new WeakMap<HTMLElement, PptxDomRichTextResult | null>()
+  private readonly transform: PPTXDomConverterTransform
+
+  constructor(private readonly layout: PPTXDomConverterLayout) {
+    this.transform = new PPTXDomConverterTransform(layout)
+  }
 
   /**
    * 判断元素是否应添加为 PPT 形状。
@@ -63,7 +90,7 @@ export class PPTXDomConverterText {
    * @param context 当前组合上下文
    */
   addShapeElement(host: PptxDomTextExportHost, element: HTMLElement, context: VisitContext): void {
-    const box = this.layout.getPptxBox(element)
+    const box = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     if (!box) {
       return
     }
@@ -93,10 +120,7 @@ export class PPTXDomConverterText {
 
       if (fillColor && borders.length === 0) {
         host.options.slide.addShape(host.options.shapeTypes.rect, {
-          x: lineX,
-          y: lineY,
-          w: lineWidth,
-          h: lineHeight,
+          ...this.transform.applyToBox({ x: lineX, y: lineY, w: lineWidth, h: lineHeight }, context),
           fill: this.buildFillOptions(fillColor),
           line: this.buildTransparentLineOptions(),
           ...host.buildPptObjectMeta(context, 'shape', label),
@@ -106,10 +130,7 @@ export class PPTXDomConverterText {
       }
 
       host.options.slide.addShape(host.options.shapeTypes.line, {
-        x: lineX,
-        y: lineY,
-        w: lineWidth,
-        h: lineHeight,
+        ...this.transform.applyToBox({ x: lineX, y: lineY, w: lineWidth, h: lineHeight }, context),
         line: this.buildLineOptions(
           uniformBorder,
           fillColor,
@@ -125,7 +146,7 @@ export class PPTXDomConverterText {
     host.options.slide.addShape(
       shapeGeometry.shape,
       {
-        ...box,
+        ...this.transform.applyToBox(box, context),
         fill: this.buildFillOptions(fillColor),
         line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
         ...shapeGeometry.options,
@@ -156,20 +177,11 @@ export class PPTXDomConverterText {
     if (this.layout.resolveLayoutDisplay(element, style)) {
       return false
     }
-
-    const onlyInlineChildren = Array.from(element.children).every(child => {
-      const tagName = child.tagName.toLowerCase()
-      return INLINE_TEXT_TAGS.has(tagName)
-    })
-    if (!onlyInlineChildren) {
+    if (element.children.length === 1 && !this.hasDirectTextContent(element)) {
       return false
     }
 
-    if (!this.hasDirectTextContent(element) && this.hasStyledInlineTextChildren(element)) {
-      return false
-    }
-
-    return true
+    return Boolean(this.resolveRichText(element))
   }
 
   /**
@@ -179,24 +191,26 @@ export class PPTXDomConverterText {
    * @param context 当前组合上下文
    */
   addTextElement(host: PptxDomTextExportHost, element: HTMLElement, context: VisitContext): void {
-    const text = this.layout.normalizeText(element.textContent || '')
-    const rawBox = this.layout.getPptxBox(element)
+    const richText = this.resolveRichText(element)
+    const text = richText?.text || this.layout.normalizeText(element.textContent || '')
+    const rawBox = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     if (!text || !rawBox) {
       return
     }
 
     const style = window.getComputedStyle(element)
-    const box = this.expandTextBoxToAncestorRemainingWidth(rawBox, element, element, style, text, false)
+    const box = this.expandTextBoxToAncestorRemainingWidth(rawBox, element, element, style, text, false, context)
     const sourceType = this.resolveTextSourceType(element, style, text)
     const shouldPreservePaddedBox = this.layout.shouldPreservePaddedInlineTextBox(element, style)
+    const textMargin = this.resolveTextShapeMargin(element, style)
     const textOptions = this.buildTextRunOptions(element, style, text, context, shouldPreservePaddedBox)
     const guardedBox = shouldPreservePaddedBox
       ? box
       : this.applyTextBoxWidthGuard(host, element, box, style, text, String(textOptions.align || 'left'), false)
 
-    host.options.slide.addText(text, {
-      ...guardedBox,
-      margin: shouldPreservePaddedBox ? this.resolveTextShapeMargin(element, style) : 0,
+    host.options.slide.addText(richText?.runs || text, {
+      ...this.transform.applyToBox(guardedBox, context),
+      margin: textMargin,
       ...textOptions,
       isTextBox: true,
       ...host.buildPptObjectMeta(context, 'text', text),
@@ -211,15 +225,16 @@ export class PPTXDomConverterText {
    * @param context 当前组合上下文
    */
   addTextShapeElement(host: PptxDomTextExportHost, element: HTMLElement, context: VisitContext): boolean {
-    const text = this.layout.normalizeText(element.textContent || '')
-    const box = this.layout.getPptxBox(element)
+    const richText = this.resolveRichText(element)
+    const text = richText?.text || this.layout.normalizeText(element.textContent || '')
+    const box = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     if (!text || !box) {
       return false
     }
 
     const style = window.getComputedStyle(element)
-    const shapeOptions = this.buildTextShapeVisualOptions(host, element, style, box)
-    if (!shapeOptions) {
+    const shapeVisual = this.buildTextShapeVisualOptions(host, element, style, box)
+    if (!shapeVisual) {
       return false
     }
 
@@ -227,16 +242,20 @@ export class PPTXDomConverterText {
     const label = this.layout.buildElementLabel(element)
     const textOptions = this.buildTextRunOptions(element, style, text, context, true)
     const shouldPreservePaddedBox = this.layout.shouldPreservePaddedInlineTextBox(element, style)
-    const shouldApplyCapsuleWidthGuard = shouldPreservePaddedBox && this.shouldApplyPillWidthGuard(element, style, box)
-    const guardedBox = shouldPreservePaddedBox
-      ? (shouldApplyCapsuleWidthGuard
-          ? this.applyTextBoxWidthGuard(host, element, box, style, text, String(textOptions.align || 'left'), true, 'capsule')
-          : box)
-      : this.applyTextBoxWidthGuard(host, element, box, style, text, String(textOptions.align || 'left'), true, 'default')
+    const guardedBox = this.resolveTextShapeExportBox(
+      host,
+      element,
+      box,
+      style,
+      text,
+      String(textOptions.align || 'left'),
+      shapeVisual.geometry.kind,
+      shouldPreservePaddedBox,
+    )
 
-    host.options.slide.addText(text, {
-      ...guardedBox,
-      ...shapeOptions,
+    host.options.slide.addText(richText?.runs || text, {
+      ...this.transform.applyToBox(guardedBox, context),
+      ...shapeVisual.options,
       margin: this.resolveTextShapeMargin(element, style),
       ...textOptions,
       ...host.buildPptObjectMeta(context, 'text-shape', text),
@@ -260,7 +279,7 @@ export class PPTXDomConverterText {
     context: VisitContext,
   ): boolean {
     const text = this.layout.normalizeText(textNode.textContent || '')
-    const box = this.resolveDirectTextNodeBox(parentElement, textNode)
+    const box = this.resolveDirectTextNodeBox(parentElement, textNode, context)
     if (!text || !box) {
       return false
     }
@@ -284,7 +303,7 @@ export class PPTXDomConverterText {
     )
 
     host.options.slide.addText(text, {
-      ...guardedBox,
+      ...this.transform.applyToBox(guardedBox, context),
       margin: 0,
       ...textOptions,
       isTextBox: true,
@@ -300,15 +319,15 @@ export class PPTXDomConverterText {
    * @param parentElement 文本节点父元素
    * @param textNode 文本节点
    */
-  private resolveDirectTextNodeBox(parentElement: HTMLElement, textNode: Text): ElementBox | null {
-    const textBox = this.layout.getPptxTextNodeBox(textNode)
+  private resolveDirectTextNodeBox(parentElement: HTMLElement, textNode: Text, context: VisitContext): ElementBox | null {
+    const textBox = this.layout.getPptxTextNodeBox(textNode, Boolean(context.rotationSteps?.length))
     if (!textBox) {
       return null
     }
 
     const style = window.getComputedStyle(parentElement)
     const text = this.layout.normalizeText(textNode.textContent || '')
-    return this.expandTextBoxToAncestorRemainingWidth(textBox, textNode, parentElement, style, text, true)
+      return this.expandTextBoxToAncestorRemainingWidth(textBox, textNode, parentElement, style, text, true, context)
   }
 
   /**
@@ -328,6 +347,7 @@ export class PPTXDomConverterText {
     style: CSSStyleDeclaration,
     text: string,
     isFragment: boolean,
+    context: VisitContext,
   ): ElementBox {
     if (!this.shouldExpandToAncestorRemainingWidth(box, styleSource, style, text, isFragment)) {
       return box
@@ -351,7 +371,7 @@ export class PPTXDomConverterText {
         continue
       }
 
-      const parentBox = this.layout.getPptxBox(parent)
+      const parentBox = this.layout.getPptxBox(parent, Boolean(context.rotationSteps?.length))
       if (!parentBox) {
         break
       }
@@ -458,35 +478,30 @@ export class PPTXDomConverterText {
   }
 
   /**
-   * 判断元素是否有直属文本，避免容器文本和子元素文本重复。
-   * @param element 候选元素
+   * 解析并缓存安全 inline 子树的 rich text runs，避免判定与导出阶段重复遍历 DOM。
    */
-  private hasDirectTextContent(element: HTMLElement): boolean {
-    return Array.from(element.childNodes).some(node => {
-      return node.nodeType === Node.TEXT_NODE && this.layout.normalizeText(node.textContent || '')
-    })
+  private resolveRichText(element: HTMLElement): PptxDomRichTextResult | null {
+    if (element.children.length === 0) {
+      return null
+    }
+    if (this.richTextCache.has(element)) {
+      return this.richTextCache.get(element) || null
+    }
+
+    const result = this.richTextParser.parse(
+      element,
+      (owner, style, text) => this.buildTextCharacterOptions(owner, style, text),
+    )
+    this.richTextCache.set(element, result)
+    return result
   }
 
   /**
-   * 判断 inline 子元素是否带有独立视觉/文字样式，应单独导出。
-   * @param element 父元素
+   * 判断元素是否包含可见直属文本；单一子元素场景继续沿用既有独立盒模型导出路径。
    */
-  private hasStyledInlineTextChildren(element: HTMLElement): boolean {
-    const parentStyle = window.getComputedStyle(element)
-    return Array.from(element.children).some(child => {
-      if (!(child instanceof HTMLElement) || !this.layout.normalizeText(child.textContent || '')) {
-        return false
-      }
-      if (this.shouldAddShape(child)) {
-        return true
-      }
-
-      const childStyle = window.getComputedStyle(child)
-      return childStyle.fontSize !== parentStyle.fontSize ||
-        childStyle.fontWeight !== parentStyle.fontWeight ||
-        childStyle.fontStyle !== parentStyle.fontStyle ||
-        childStyle.color !== parentStyle.color ||
-        childStyle.textDecorationLine !== parentStyle.textDecorationLine
+  private hasDirectTextContent(element: HTMLElement): boolean {
+    return Array.from(element.childNodes).some(node => {
+      return node instanceof Text && Boolean(this.layout.normalizeText(node.textContent || ''))
     })
   }
 
@@ -558,10 +573,7 @@ export class PPTXDomConverterText {
     const line = this.buildLineOptions(border)
     if (border.side === 'top') {
       host.options.slide.addShape(host.options.shapeTypes.line, {
-        x: box.x,
-        y: box.y,
-        w: box.w,
-        h: 0,
+        ...this.transform.applyToBox({ x: box.x, y: box.y, w: box.w, h: 0 }, context),
         line,
         ...host.buildPptObjectMeta(context, 'border-top', label),
       })
@@ -570,10 +582,7 @@ export class PPTXDomConverterText {
 
     if (border.side === 'bottom') {
       host.options.slide.addShape(host.options.shapeTypes.line, {
-        x: box.x,
-        y: box.y + box.h,
-        w: box.w,
-        h: 0,
+        ...this.transform.applyToBox({ x: box.x, y: box.y + box.h, w: box.w, h: 0 }, context),
         line,
         ...host.buildPptObjectMeta(context, 'border-bottom', label),
       })
@@ -582,10 +591,7 @@ export class PPTXDomConverterText {
 
     if (border.side === 'left') {
       host.options.slide.addShape(host.options.shapeTypes.line, {
-        x: box.x,
-        y: box.y,
-        w: 0,
-        h: box.h,
+        ...this.transform.applyToBox({ x: box.x, y: box.y, w: 0, h: box.h }, context),
         line,
         ...host.buildPptObjectMeta(context, 'border-left', label),
       })
@@ -593,10 +599,7 @@ export class PPTXDomConverterText {
     }
 
     host.options.slide.addShape(host.options.shapeTypes.line, {
-      x: box.x + box.w,
-      y: box.y,
-      w: 0,
-      h: box.h,
+      ...this.transform.applyToBox({ x: box.x + box.w, y: box.y, w: 0, h: box.h }, context),
       line,
       ...host.buildPptObjectMeta(context, 'border-right', label),
     })
@@ -654,23 +657,62 @@ export class PPTXDomConverterText {
     context: VisitContext,
     isTextShape = false,
   ): Record<string, unknown> {
-    const fontSize = Math.max(1, this.layout.cssPxToPt(this.layout.parseCssPixel(style.fontSize) || 16))
-    const color = this.applyOpacity(this.layout.parseCssColor(style.color, element), this.layout.parseOpacity(style.opacity))
     return {
+      ...this.buildTextCharacterOptions(element, style, text),
       fit: 'none',
-      fontFace: this.layout.normalizeFontFace(style.fontFamily, text),
-      fontSize,
-      color: color?.hex || '000000',
-      transparency: this.layout.alphaToTransparency(color?.alpha ?? 1),
-      bold: this.layout.isBoldFont(style.fontWeight),
-      italic: style.fontStyle === 'italic',
-      underline: style.textDecorationLine.includes('underline'),
       breakLine: false,
       align: isTextShape
         ? this.layout.resolveTextShapeHorizontalAlign(element, style, context)
         : this.layout.resolveTextHorizontalAlign(element, style, context),
       valign: this.layout.resolveTextVerticalAlign(element, style, text, context),
     }
+  }
+
+  /**
+   * 构造单个富文本 run 可表达的字符级样式，不混入段落和文本框属性。
+   */
+  private buildTextCharacterOptions(
+    element: HTMLElement,
+    style: CSSStyleDeclaration,
+    text: string,
+  ): Record<string, unknown> {
+    const fontSize = Math.max(1, this.layout.cssPxToPt(this.layout.parseCssPixel(style.fontSize) || 16))
+    const color = this.applyOpacity(this.layout.parseCssColor(style.color, element), this.layout.parseOpacity(style.opacity))
+    const letterSpacing = this.layout.parseCssPixel(style.letterSpacing)
+    const hyperlink = this.resolveTextHyperlink(element)
+    const isSubscript = Boolean(element.closest('sub'))
+    const isSuperscript = !isSubscript && Boolean(element.closest('sup'))
+    const hasUnderline = style.textDecorationLine.includes('underline') || Boolean(element.closest('u'))
+    const hasStrike = style.textDecorationLine.includes('line-through') || Boolean(element.closest('s, del'))
+    return {
+      fontFace: this.layout.normalizeFontFace(style.fontFamily, text),
+      fontSize,
+      color: color?.hex || '000000',
+      transparency: this.layout.alphaToTransparency(color?.alpha ?? 1),
+      bold: this.layout.isBoldFont(style.fontWeight),
+      italic: style.fontStyle === 'italic',
+      underline: hasUnderline,
+      strike: hasStrike,
+      subscript: isSubscript,
+      superscript: isSuperscript,
+      ...(letterSpacing !== 0 ? { charSpacing: this.layout.cssPxToPt(letterSpacing) } : {}),
+      ...(hyperlink ? { hyperlink } : {}),
+    }
+  }
+
+  /**
+   * 将安全的外部链接映射为 PPT run hyperlink，其它协议保持普通文本。
+   */
+  private resolveTextHyperlink(element: HTMLElement): { url: string } | null {
+    const anchor = element.closest('a')
+    if (!(anchor instanceof HTMLAnchorElement)) {
+      return null
+    }
+    const rawHref = anchor.getAttribute('href')?.trim() || ''
+    if (!/^(https?:|mailto:|tel:)/i.test(rawHref)) {
+      return null
+    }
+    return { url: rawHref }
   }
 
   /**
@@ -685,7 +727,7 @@ export class PPTXDomConverterText {
     element: HTMLElement,
     style: CSSStyleDeclaration,
     box: ElementBox,
-  ): Record<string, unknown> | null {
+  ): ResolvedTextShapeVisual | null {
     const isHorizontalLine = box.h <= 0.04 && box.w > box.h
     const isVerticalLine = box.w <= 0.04 && box.h > box.w
     if (isHorizontalLine || isVerticalLine) {
@@ -708,10 +750,13 @@ export class PPTXDomConverterText {
 
     const shapeGeometry = this.resolveShapeGeometry(host, element, style, box)
     return {
-      shape: shapeGeometry.shape,
-      fill: this.buildFillOptions(fillColor),
-      line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
-      ...shapeGeometry.options,
+      options: {
+        shape: shapeGeometry.shape,
+        fill: this.buildFillOptions(fillColor),
+        line: uniformBorder ? this.buildLineOptions(uniformBorder) : this.buildTransparentLineOptions(),
+        ...shapeGeometry.options,
+      },
+      geometry: shapeGeometry,
     }
   }
 
@@ -727,19 +772,35 @@ export class PPTXDomConverterText {
     element: HTMLElement,
     style: CSSStyleDeclaration,
     box: ElementBox,
-  ): { shape: string; options: Record<string, unknown> } {
+  ): ResolvedTextShapeGeometry {
     if (this.shouldUseEllipseShape(element, style, box)) {
       return {
         shape: host.options.shapeTypes.ellipse,
         options: {},
+        kind: 'circle',
       }
     }
 
     const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
+    const isFullRadius = radiusIn > 0 && this.isFullRadiusShape(element, radiusIn, box)
+    const kind: TextShapeGeometryKind = radiusIn <= 0
+      ? 'rect'
+      : (this.isExplicitFixedSquareShape(element, box)
+          ? 'rounded-square'
+          : isFullRadius
+          ? (box.w > box.h ? 'horizontal-capsule' : 'vertical-capsule')
+          : 'rounded-rect')
     return {
       shape: radiusIn > 0 ? host.options.shapeTypes.roundRect : host.options.shapeTypes.rect,
       options: radiusIn > 0 ? { rectRadius: radiusIn } : {},
+      kind,
     }
+  }
+
+  /** 判断圆角是否表达了 full-radius 形状。 */
+  private isFullRadiusShape(element: HTMLElement, radiusIn: number, box: ElementBox): boolean {
+    return element.classList.contains('rounded-full') ||
+      radiusIn >= (Math.min(box.w, box.h) / 2) - 0.0001
   }
 
   /**
@@ -749,18 +810,85 @@ export class PPTXDomConverterText {
    * @param box PPT 坐标盒
    */
   private shouldUseEllipseShape(element: HTMLElement, style: CSSStyleDeclaration, box: ElementBox): boolean {
-    const minSide = Math.min(box.w, box.h)
-    const maxSide = Math.max(box.w, box.h)
-    if (minSide <= 0 || Math.abs(maxSide - minSide) > Math.max(0.01, minSide * 0.04)) {
+    if (!this.isNearSquareBox(box)) {
       return false
     }
 
+    const minSide = Math.min(box.w, box.h)
     const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
     if (radiusIn <= 0) {
       return false
     }
 
     return element.classList.contains('rounded-full') || radiusIn >= (minSide / 2) - 0.0001
+  }
+
+  /** 判断 PPT 外接框是否可视为近似正方形。 */
+  private isNearSquareBox(box: ElementBox): boolean {
+    const minSide = Math.min(box.w, box.h)
+    const maxSide = Math.max(box.w, box.h)
+    return minSide > 0 && Math.abs(maxSide - minSide) <= Math.max(0.01, minSide * 0.04)
+  }
+
+  /**
+   * 判断作者是否通过 width/height、尺寸类或 aspect-square 明确声明了固定正方形。
+   * 内容自然撑开的近方形不会锁定，避免误伤普通文本标签。
+   */
+  private isExplicitFixedSquareShape(element: HTMLElement, box: ElementBox): boolean {
+    if (!this.isNearSquareBox(box)) {
+      return false
+    }
+
+    const utilities = Array.from(element.classList).map(className => className.split(':').pop() || className)
+    const hasSizeUtility = utilities.some(className => /^size-/.test(className))
+    const hasWidthUtility = utilities.some(className => /^w-/.test(className))
+    const hasHeightUtility = utilities.some(className => /^h-/.test(className))
+    const hasAspectSquare = utilities.includes('aspect-square')
+    const hasInlineWidth = Boolean(element.style.getPropertyValue('width'))
+    const hasInlineHeight = Boolean(element.style.getPropertyValue('height'))
+    const hasExplicitWidth = hasInlineWidth || hasWidthUtility
+    const hasExplicitHeight = hasInlineHeight || hasHeightUtility
+    return hasSizeUtility ||
+      (hasExplicitWidth && hasExplicitHeight) ||
+      (hasAspectSquare && (hasExplicitWidth || hasExplicitHeight))
+  }
+
+  /**
+   * 按几何语义选择文本宽度保护：圆和纵向胶囊锁定外形，横向胶囊只允许横向扩宽。
+   */
+  private resolveTextShapeExportBox(
+    host: PptxDomTextExportHost,
+    element: HTMLElement,
+    box: ElementBox,
+    style: CSSStyleDeclaration,
+    text: string,
+    align: string,
+    geometryKind: TextShapeGeometryKind,
+    shouldPreservePaddedBox: boolean,
+  ): ElementBox {
+    if (geometryKind === 'circle' || geometryKind === 'rounded-square') {
+      return this.normalizeCircleBox(box)
+    }
+    if (geometryKind === 'vertical-capsule') {
+      return box
+    }
+    if (shouldPreservePaddedBox) {
+      return geometryKind === 'horizontal-capsule'
+        ? this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'capsule')
+        : box
+    }
+    return this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'default')
+  }
+
+  /** 将近似正圆的 PPT 外接框收敛为保持中心不变的正方形。 */
+  private normalizeCircleBox(box: ElementBox): ElementBox {
+    const side = Math.min(box.w, box.h)
+    return {
+      x: this.layout.roundInch(box.x + (box.w - side) / 2),
+      y: this.layout.roundInch(box.y + (box.h - side) / 2),
+      w: this.layout.roundInch(side),
+      h: this.layout.roundInch(side),
+    }
   }
 
   /**
@@ -877,6 +1005,8 @@ export class PPTXDomConverterText {
 
   /**
    * 将 HTML padding 映射为 PPT 文本形状内边距。
+   * PptxGenJS 4.0.1 的文本框 margin 数组实际按 left、right、bottom、top 消费，
+   * 与表格单元格和类型注释的顺序不同，因此这里以最终 OOXML inset 字段为准。
    * @param element 源元素
    * @param style 计算样式
    */
@@ -912,25 +1042,6 @@ export class PPTXDomConverterText {
       horizontal: 1,
       vertical: 1,
     }
-  }
-
-  /**
-   * 判断胶囊圆角文本形状是否应额外扩宽，以降低 PPT 中末字换行或裁切风险。
-   * @param element 源元素
-   * @param style 计算样式
-   * @param box PPT 坐标盒
-   */
-  private shouldApplyPillWidthGuard(
-    element: HTMLElement,
-    style: CSSStyleDeclaration,
-    box: ElementBox,
-  ): boolean {
-    if (element.classList.contains('rounded-full')) {
-      return true
-    }
-
-    const radiusIn = this.resolveShapeCornerRadiusIn(element, style, box)
-    return radiusIn > 0 && radiusIn >= (box.h / 2) - 0.0001
   }
 
   /**

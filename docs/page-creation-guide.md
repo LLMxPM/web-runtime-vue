@@ -141,9 +141,60 @@ import AssetChart from '@runtime-kit/public/components/assets/AssetChart.v1.vue'
 
 不要使用 `AssetRenderer`，也不要引用 `@runtime-kit/internal/renderers/*`。
 
-## 6. 表格
+## 6. 文本与代码块
 
-需要在 PPTX 导出中保留 PowerPoint 原生可编辑表格时，使用 `DataTable`。普通卡片、指标块、复杂交互表格仍由页面源码自行实现。
+普通文本块在导出 PPTX 时会保持为单个 PowerPoint 文本框。文本节点与安全的行内标签会转换为同一文本框中的多个可编辑 rich text run，可分别保留颜色、字体、字号、粗体、斜体、下划线、删除线、上下标、字符间距和安全外部链接；`br` 会保留为文本框内换行。`padding` 继续映射为文本框内边距，因此代码块可以使用 `pl-*` 表达逐级缩进。
+
+```html
+<div class="pl-6 font-code text-base text-primary">
+  <span class="text-accent5-600">"model"</span>:
+  <span class="text-accent3-600">"xxx"</span>,
+</div>
+```
+
+富文本合并只适用于字符级行内样式。带背景、边框、padding、margin、显式盒模型、`inline-flex`、`inline-grid`、定位或 transform 的行内元素会继续作为独立对象导出，避免 badge、图标和布局元素被错误压进文本 run。普通 `white-space` 会跨节点折叠可折叠空白并保留 `&nbsp;`；`pre`、`pre-wrap` 和 `pre-line` 按各自规则处理空格与换行。
+
+`rounded-full` 会按最终宽高区分正圆和胶囊：宽高近似相等时导出为保持正方形外接框的 PowerPoint ellipse，宽大于高时导出为满圆角 roundRect。圆形不会为了补偿 PowerPoint 字宽而单独横向扩宽，避免含数字或短标签的圆形徽章变成椭圆；横向胶囊仍会保留有限的宽度冗余以降低末字换行风险。对于非 `rounded-full` 的普通圆角形状，如果通过 `size-*`、同时声明 `w-*` / `h-*`、内联 width/height，或 `aspect-square` 配合单边尺寸明确给出近似正方形，也会锁定宽高比例并保留原始圆角，不会被文本宽度保护拉成长方形。
+
+纯 2D `rotate()` / `rotateZ()` 会优先映射为 PowerPoint 原生旋转：导出前会先等待有限次入场动画自然结束，保留 `animation-fill-mode: forwards` 的最终状态；无限循环动画不会阻塞导出，测量时会回到稳定的静态样式。随后按旋转前盒模型测量背景、文本与 SVG，围绕 `transform-origin` 统一换算位置并写入 `rotate`。旋转装饰元素允许保留负坐标，由幻灯片边界自然裁切。包含缩放、倾斜、3D 或表格等无法稳定原生映射的 transform 子树会整体降级为局部截图，避免拆分后丢失视觉关系。
+
+## 7. 表格
+
+需要在 PPTX 导出中保留 PowerPoint 原生可编辑表格时，可以使用语义化 HTML `table` 或 Runtime Kit `DataTable`：
+
+- 已有 `thead`、`tbody`、`tfoot`、`th`、`td` 结构，或需要 `rowspan`、`colspan` 时，优先使用原生 HTML `table`。
+- 数据是规则二维数组、无需合并单元格，并希望通过分层配置统一控制样式时，可以使用 `DataTable`。
+- 普通卡片、指标块、排序分页表格和其它复杂交互内容仍由页面源码自行实现，不应伪装成导出表格。
+
+原生 HTML 表格示例：
+
+```vue
+<template>
+  <table class="w-full h-72 table-fixed border-collapse text-sm">
+    <thead>
+      <tr class="h-12 bg-slate-100 text-primary">
+        <th rowspan="2" class="w-40 border border-slate-300 px-3 text-left">指标</th>
+        <th colspan="2" class="border border-slate-300 px-3 text-center">季度收入</th>
+      </tr>
+      <tr class="h-12 bg-slate-100 text-primary">
+        <th class="border border-slate-300 px-3 text-right">Q1</th>
+        <th class="border border-slate-300 px-3 text-right">Q2</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="h-16">
+        <td class="border border-slate-300 px-3">收入</td>
+        <td class="border border-slate-300 px-3 text-right">96 万</td>
+        <td class="border border-slate-300 px-3 text-right">128 万</td>
+      </tr>
+    </tbody>
+  </table>
+</template>
+```
+
+PPTX 导出会读取浏览器计算后的行高、列宽、字体、颜色、背景、padding、对齐和四边边框，并把 `rowspan`、`colspan` 映射为 PowerPoint 合并单元格。表格应具有明确宽高；单元格内容应以纯文本和简单行内标签为主。包含图片、SVG、画布、视频、嵌套表格、列表或表单控件时，整表会降级为局部截图，避免内容丢失。
+
+`DataTable` 示例：
 
 ```vue
 <script setup lang="ts">
@@ -203,11 +254,11 @@ const tableStyles = {
 </template>
 ```
 
-`DataTable` 不使用 HTML table；固定宽高后内部不滚动，未指定的行列自动均分剩余空间。`headerRows` 和 `headerColumns` 只声明表头语义，不自动套视觉样式；首行、首列或单元格视觉应通过 `styles.rows`、`styles.columns`、`styles.cells` 显式设置。
+`DataTable` 自身不使用 HTML table；固定宽高后内部不滚动，未指定的行列自动均分剩余空间。`headerRows` 和 `headerColumns` 只声明表头语义，不自动套视觉样式；首行、首列或单元格视觉应通过 `styles.rows`、`styles.columns`、`styles.cells` 显式设置。
 
 边框接近 PPT 表格模型：`border` 和 `styles.table.border` 控制整表区域；`styles.rows[index].border` 控制某行区域；`styles.columns[index].border` 控制某列区域；单元格对象和 `styles.cells["行,列"].border` 控制单格。边框可写统一线条、`'none'` / `{ style: 'none' }`，也可写 `{ all, outer, inner, innerHorizontal, innerVertical, top, right, bottom, left }`。例如整表无边框使用 `border="none"` 或 `:border="{ style: 'none' }"`；只画外框使用 `:border="{ outer: { color: '#111827', width: 2, style: 'solid' } }"`。
 
-## 7. 图标和颜色
+## 8. 图标和颜色
 
 图标依赖 Runtime 图标配置、资源解析和 SVG inline 能力，因此保留为 Runtime Kit 能力。
 
@@ -231,7 +282,7 @@ const color = resolveColor('accent1-300')
 
 `resolveColor` 只负责颜色表达式解析，不代表 Runtime Kit 提供通用样式系统。
 
-## 8. 高级 DOM 能力
+## 9. 高级 DOM 能力
 
 `Connector` 用于在真实 DOM 元素之间绘制连线，适合流程图、架构图和关系图。
 
@@ -251,7 +302,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vu
 
 该能力依赖元素挂载、尺寸和定位上下文，不进入 Agent 默认推荐流，应在页面预览或项目预览中验证。
 
-## 9. 禁止事项
+## 10. 禁止事项
 
 - 不要使用旧路径 `@runtime-kit/components/...`。
 - 不要引用 `@runtime-kit/internal/...`。
@@ -261,7 +312,7 @@ import Connector from '@runtime-kit/public/components/primitives/Connector.v1.vu
 - 不要使用 `AssetRenderer`。
 - 不要在 CSS 中硬编码资源 `url('/...')`，资源路径必须经过 Runtime 解析。
 
-## 10. 相关文档
+## 11. 相关文档
 
 - [Runtime Kit 能力说明](./runtime-kit-capabilities.md)
 - [资源引用规范](./integration/asset-usage-guide.md)

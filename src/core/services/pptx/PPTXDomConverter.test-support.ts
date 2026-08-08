@@ -4,6 +4,7 @@
 
 import { vi } from 'vitest'
 import { PPTXDomConverter, type PptxGradientFillInstruction } from './PPTXDomConverter'
+import type { PptxTextContentLike } from './PPTXDomConverter.types'
 
 type CaptureElementAsPng = (element: HTMLElement) => Promise<string>
 
@@ -53,7 +54,7 @@ export function createSlideMock() {
   const events: Array<Record<string, unknown>> = []
   return {
     __events: events,
-    addText: vi.fn((text: string, options?: Record<string, unknown>) => {
+    addText: vi.fn((text: PptxTextContentLike, options?: Record<string, unknown>) => {
       events.push({ kind: 'text', text, options })
     }),
     addShape: vi.fn((shapeName: string, options?: Record<string, unknown>) => {

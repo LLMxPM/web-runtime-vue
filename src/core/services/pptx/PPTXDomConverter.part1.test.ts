@@ -84,6 +84,94 @@ describe('PPTXDomConverter', () => {
     })
   })
 
+  it('应将普通块级文本的 Tailwind 左侧 padding 映射为 PPT 文本框左边距', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div style="width: 800px; height: 160px;">
+          <div class="pl-6" style="width: 800px; height: 40px; color: #0f172a; font-size: 16px;">
+            <span style="color: #7c3aed;">"model"</span>: <span style="color: #16a34a;">"xxx"</span>,
+          </div>
+          <div class="pl-12" style="width: 800px; height: 40px; color: #0f172a; font-size: 16px;">
+            { <span style="color: #7c3aed;">"role"</span>: <span style="color: #16a34a;">"system"</span> }
+          </div>
+        </div>
+      </div>
+    `
+
+    await convert(slide)
+    const firstLevelCall = slide.addText.mock.calls.find(([text]) => {
+      return Array.isArray(text) && text.some(run => run.text === '"model"')
+    })
+    const secondLevelCall = slide.addText.mock.calls.find(([text]) => {
+      return Array.isArray(text) && text.some(run => run.text === '"role"')
+    })
+    const firstLevelRuns = firstLevelCall?.[0]
+
+    expect(firstLevelRuns).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '"model"', options: expect.objectContaining({ color: '7C3AED' }) }),
+      expect.objectContaining({ text: '"xxx"', options: expect.objectContaining({ color: '16A34A' }) }),
+    ]))
+    expect(firstLevelCall?.[1]).toEqual(expect.objectContaining({ margin: [12, 0, 0, 0] }))
+    expect(secondLevelCall?.[1]).toEqual(expect.objectContaining({ margin: [24, 0, 0, 0] }))
+  })
+
+  it('应保留富文本的嵌套样式、NBSP 和显式换行', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <p style="width: 800px; height: 80px; color: #334155; font-size: 16px;">
+          前缀 <strong style="font-weight: 700;"><span style="color: #dc2626;">重点</span></strong>&nbsp;尾部<br>
+          <span style="color: #2563eb;">下一行</span>
+        </p>
+      </div>
+    `
+
+    await convert(slide)
+    const richTextCall = slide.addText.mock.calls.find(([text]) => Array.isArray(text))
+    const runs = richTextCall?.[0]
+
+    expect(runs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '重点', options: expect.objectContaining({ color: 'DC2626', bold: true }) }),
+      expect.objectContaining({ text: '下一行', options: expect.objectContaining({ color: '2563EB', softBreakBefore: true }) }),
+    ]))
+    expect(Array.isArray(runs) ? runs.map(run => run.text).join('') : '').toContain('\u00A0尾部')
+  })
+
+  it('带视觉盒的 inline 子元素不应合并进富文本 run', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div style="width: 600px; height: 48px; color: #334155; font-size: 16px;">
+          状态
+          <span style="display: inline-block; width: 80px; height: 28px; padding: 4px 12px; background: #dbeafe; border-radius: 14px; color: #1d4ed8;">运行中</span>
+        </div>
+      </div>
+    `
+
+    await convert(slide)
+
+    expect(slide.addText.mock.calls.some(([text]) => Array.isArray(text))).toBe(false)
+    expect(slide.addText).toHaveBeenCalledWith('运行中', expect.objectContaining({ shape: 'roundRect' }))
+  })
+
+  it('应按 PptxGenJS 文本框实际顺序导出非对称文本 padding', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div
+          style="width: 800px; height: 80px; padding: 8px 12px 16px 20px; font-size: 16px;"
+        >非对称内边距</div>
+      </div>
+    `
+
+    await convert(slide)
+
+    expect(slide.addText).toHaveBeenCalledWith('非对称内边距', expect.objectContaining({
+      margin: [10, 6, 8, 4],
+    }))
+  })
+
   it('应导出页面缩放后测量宽度不足 1px 的背景竖线', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `
@@ -265,6 +353,179 @@ describe('PPTXDomConverter', () => {
       expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
       expect.objectContaining({ type: 'none', color: 'FFFFFF', pt: 0 }),
     ])
+  })
+
+  it('应将原生 HTML 表格导出为 PPT 原生可编辑表格', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px; background: #ffffff;">
+        <table style="width: 400px; height: 160px; border-collapse: collapse; font-size: 16px; font-family: 'Web Presentation Sans', sans-serif;">
+          <thead>
+            <tr style="width: 400px; height: 64px; background: #f1f5f9;">
+              <th style="width: 140px; height: 64px; padding: 8px 12px; color: #0f172a; border: 1px solid #cbd5e1;">指标</th>
+              <th style="width: 260px; height: 64px; padding: 8px 12px; color: #2563eb; background: #dbeafe; border: 1px solid #cbd5e1; text-align: right;">收入</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="width: 400px; height: 96px;">
+              <td style="width: 140px; height: 96px; padding: 8px 12px; border: 1px solid #cbd5e1;">Q2</td>
+              <td style="width: 260px; height: 96px; padding: 8px 12px; border: 1px solid #cbd5e1;">128 万</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `
+
+    const report = await convert(slide)
+    const tableRows = slide.addTable.mock.calls[0]?.[0] as Array<Array<{ text: string, options: Record<string, unknown> }>>
+    const tableOptions = slide.addTable.mock.calls[0]?.[1] as Record<string, unknown>
+
+    expect(slide.addTable).toHaveBeenCalledTimes(1)
+    expect(slide.addText).not.toHaveBeenCalled()
+    expect(tableRows.map(row => row.map(cell => cell.text))).toEqual([
+      ['指标', '收入'],
+      ['Q2', '128 万'],
+    ])
+    expect(tableRows[0][1].options).toEqual(expect.objectContaining({
+      fontFace: 'Microsoft YaHei',
+      color: '2563EB',
+      fill: expect.objectContaining({ color: 'DBEAFE' }),
+      align: 'right',
+      margin: [4, 6, 4, 6],
+    }))
+    expect(tableRows[0][0].options.fill).toEqual(expect.objectContaining({ color: 'F1F5F9' }))
+    expect(tableOptions.rowH as number[]).toHaveLength(2)
+    expect(tableOptions.colW as number[]).toHaveLength(2)
+    expect((tableOptions.rowH as number[]).reduce((sum, value) => sum + value, 0)).toBeCloseTo(160 / 1080 * 7.5, 4)
+    expect((tableOptions.colW as number[]).reduce((sum, value) => sum + value, 0)).toBeCloseTo(400 / 1920 * 13.333, 4)
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'table',
+        result: 'editable-table',
+        reason: 'HTML 表格导出为 PPT 原生表格',
+      }),
+    ]))
+  })
+
+  it('应解析 HTML 表格的 rowspan 和 colspan', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <table style="width: 600px; height: 180px; border-collapse: collapse;">
+          <tbody>
+            <tr style="width: 600px; height: 90px;">
+              <th rowspan="2" style="width: 180px; height: 180px; border: 1px solid #94a3b8;">区域</th>
+              <th colspan="2" style="width: 420px; height: 90px; border: 1px solid #94a3b8;">季度收入</th>
+            </tr>
+            <tr style="width: 600px; height: 90px;">
+              <td style="width: 200px; height: 90px; border: 1px solid #94a3b8;">Q1</td>
+              <td style="width: 220px; height: 90px; border: 1px solid #94a3b8;">Q2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `
+
+    await convert(slide)
+    const tableRows = slide.addTable.mock.calls[0]?.[0] as Array<Array<{ text: string, options: Record<string, unknown> }>>
+    const tableOptions = slide.addTable.mock.calls[0]?.[1] as Record<string, unknown>
+
+    expect(tableRows[0]).toHaveLength(2)
+    expect(tableRows[0][0]).toEqual(expect.objectContaining({
+      text: '区域',
+      options: expect.objectContaining({ rowspan: 2 }),
+    }))
+    expect(tableRows[0][1]).toEqual(expect.objectContaining({
+      text: '季度收入',
+      options: expect.objectContaining({ colspan: 2 }),
+    }))
+    expect(tableRows[1].map(cell => cell.text)).toEqual(['Q1', 'Q2'])
+    expect(tableOptions.colW as number[]).toHaveLength(3)
+  })
+
+  it('应按折叠边框优先级统一 HTML 相邻单元格边界', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <table style="width: 400px; height: 80px; border-collapse: collapse;">
+          <tbody>
+            <tr style="width: 400px; height: 80px;">
+              <td style="width: 200px; height: 80px; border-right: 1px solid #ef4444;">A</td>
+              <td style="width: 200px; height: 80px; border-left: 3px dashed #2563eb;">B</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `
+
+    await convert(slide)
+    const tableRows = slide.addTable.mock.calls[0]?.[0] as Array<Array<{ options: Record<string, unknown> }>>
+    const firstBorders = tableRows[0][0].options.border as Array<Record<string, unknown>>
+    const secondBorders = tableRows[0][1].options.border as Array<Record<string, unknown>>
+
+    expect(firstBorders[1]).toEqual(expect.objectContaining({ type: 'dash', color: '2563EB', pt: 1.5 }))
+    expect(secondBorders[3]).toEqual(firstBorders[1])
+  })
+
+  it('HTML 表格包含复杂单元格内容时应整表截图', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,table')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <table id="complex-table" style="width: 400px; height: 120px;">
+          <tbody>
+            <tr style="width: 400px; height: 120px;">
+              <td style="width: 400px; height: 120px;"><img src="data:image/png;base64,test" alt="图标">图文内容</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(slide.addTable).not.toHaveBeenCalled()
+    expect(slide.addText).not.toHaveBeenCalled()
+    expect(captureElementAsPng).toHaveBeenCalledWith(document.getElementById('complex-table'))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'table',
+        result: 'screenshot',
+        reason: expect.stringContaining('复杂单元格内容'),
+      }),
+    ]))
+  })
+
+  it('HTML 表格存在未覆盖的行列空洞时应整表截图', async () => {
+    const slide = createSlideMock()
+    const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,table')
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <table id="irregular-table" style="width: 400px; height: 160px;">
+          <tbody>
+            <tr style="width: 400px; height: 80px;">
+              <td style="width: 200px; height: 80px;">A</td>
+              <td style="width: 200px; height: 80px;">B</td>
+            </tr>
+            <tr style="width: 400px; height: 80px;">
+              <td style="width: 200px; height: 80px;">C</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `
+
+    const report = await convert(slide, captureElementAsPng)
+
+    expect(slide.addTable).not.toHaveBeenCalled()
+    expect(captureElementAsPng).toHaveBeenCalledWith(document.getElementById('irregular-table'))
+    expect(report.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceType: 'table',
+        result: 'screenshot',
+        reason: 'HTML 表格行列结构不规则，已降级为局部截图',
+      }),
+    ]))
   })
 
   it('应将多级 div/span 展开为按层级排列的多个组合对象', async () => {
@@ -724,6 +985,48 @@ describe('PPTXDomConverter', () => {
     }))
   })
 
+  it('含文本的 rounded-full 正圆不应被宽度保护拉伸为椭圆', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <span
+          class="rounded-full p-2"
+          style="position: absolute; left: 120px; top: 80px; display: inline-block; width: 40px; height: 40px; padding: 8px; background: #2563eb; border-radius: 9999px; color: #ffffff; font-size: 16px;"
+        >1</span>
+      </div>
+    `
+
+    await convert(slide)
+    const circleOptions = slide.addText.mock.calls.find(([text]) => text === '1')?.[1] as Record<string, unknown>
+    const expectedCenterX = ((120 + 20) / 1920) * 13.333
+    const expectedCenterY = ((80 + 20) / 1080) * 7.5
+
+    expect(circleOptions.shape).toBe('ellipse')
+    expect(Number(circleOptions.w)).toBeCloseTo(Number(circleOptions.h), 4)
+    expect(Number(circleOptions.x) + Number(circleOptions.w) / 2).toBeCloseTo(expectedCenterX, 3)
+    expect(Number(circleOptions.y) + Number(circleOptions.h) / 2).toBeCloseTo(expectedCenterY, 3)
+  })
+
+  it('明确固定尺寸的普通圆角正方形不应被宽度保护拉伸', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <span
+          class="w-10 h-10 rounded-lg"
+          style="position: absolute; left: 180px; top: 120px; display: inline-block; width: 40px; height: 40px; background: #f1f5f9; border: 1px solid #94a3b8; border-radius: 8px; color: #0f172a; font-size: 16px;"
+        >A</span>
+      </div>
+    `
+
+    await convert(slide)
+    const squareOptions = slide.addText.mock.calls.find(([text]) => text === 'A')?.[1] as Record<string, unknown>
+    const expectedRadiusIn = 8 * (13.333 / 1920)
+
+    expect(squareOptions.shape).toBe('roundRect')
+    expect(Number(squareOptions.rectRadius)).toBeCloseTo(expectedRadiusIn, 4)
+    expect(Number(squareOptions.w)).toBeCloseTo(Number(squareOptions.h), 4)
+  })
+
   it('应将纯 translate 定位的环形节点保持为可编辑对象', async () => {
     const slide = createSlideMock()
     const captureElementAsPng = vi.fn(async () => 'data:image/png;base64,capture')
@@ -826,6 +1129,8 @@ describe('PPTXDomConverter', () => {
         <p style="width: 360px; height: 32px; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">主题能力</p>
         <p style="width: 360px; height: 32px; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">Runtime badge</p>
         <p style="width: 360px; height: 32px; font-size: 16px; font-family: '思源黑体', -apple-system, sans-serif;">主题字体</p>
+        <p style="width: 360px; height: 32px; font-size: 16px; font-family: 'Web Presentation Sans', sans-serif;">平台默认字体</p>
+        <code style="display: block; width: 360px; height: 32px; font-size: 16px; font-family: 'Web Presentation Mono', monospace;">const runtime = true</code>
       </div>
     `
 
@@ -839,6 +1144,12 @@ describe('PPTXDomConverter', () => {
     }))
     expect(slide.addText).toHaveBeenCalledWith('主题字体', expect.objectContaining({
       fontFace: '思源黑体',
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('平台默认字体', expect.objectContaining({
+      fontFace: 'Microsoft YaHei',
+    }))
+    expect(slide.addText).toHaveBeenCalledWith('const runtime = true', expect.objectContaining({
+      fontFace: 'Consolas',
     }))
   })
 

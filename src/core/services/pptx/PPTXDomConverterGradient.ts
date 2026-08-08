@@ -17,6 +17,7 @@ import type {
   VisitContext,
 } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
+import { PPTXDomConverterTransform } from '@/core/services/pptx/PPTXDomConverterTransform'
 
 export interface PptxDomGradientExportHost {
   options: PptxPageConvertOptions
@@ -47,7 +48,11 @@ export interface PptxDomGradientExportHost {
  * PPTX 渐变导出 helper。
  */
 export class PPTXDomConverterGradient {
-  constructor(private readonly layout: PPTXDomConverterLayout) {}
+  private readonly transform: PPTXDomConverterTransform
+
+  constructor(private readonly layout: PPTXDomConverterLayout) {
+    this.transform = new PPTXDomConverterTransform(layout)
+  }
 
   /**
    * 将可解析的 CSS linear-gradient 导出为单个 PPT 原生渐变形状。
@@ -62,7 +67,7 @@ export class PPTXDomConverterGradient {
       return false
     }
 
-    const box = this.layout.getPptxBox(element)
+    const box = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     const label = this.layout.buildElementLabel(element)
     if (!box) {
       host.addSkippedItem('shape', label, '渐变形状尺寸无效', context)
@@ -71,7 +76,7 @@ export class PPTXDomConverterGradient {
 
     const objectName = host.createGradientObjectName(element)
     host.options.slide.addShape(host.options.shapeTypes.rect, {
-      ...box,
+      ...this.transform.applyToBox(box, context),
       fill: this.buildFillOptions(this.sampleLinearGradientColor(gradient.stops, 0.5)),
       line: this.buildTransparentLineOptions(),
       ...host.buildPptObjectMeta(context, 'gradient', label),

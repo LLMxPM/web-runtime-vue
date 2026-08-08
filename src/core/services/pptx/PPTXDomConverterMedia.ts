@@ -17,6 +17,7 @@ import type {
 import { MEDIA_SELECTORS } from '@/core/services/pptx/PPTXDomConverter.types'
 import type { PPTXDomConverterLayout } from '@/core/services/pptx/PPTXDomConverterLayout'
 import { PPTXImageDataResolver } from '@/core/services/pptx/PPTXImageDataResolver'
+import { PPTXDomConverterTransform } from '@/core/services/pptx/PPTXDomConverterTransform'
 
 const PPT_UNSAFE_SVG_REASON = 'SVG 含 PowerPoint 不兼容的 foreignObject 文本，降级为局部截图'
 const PPT_UNSAFE_SVG_SOURCE_REASON = 'SVG 源文件含 PowerPoint 不兼容的 foreignObject 文本，降级为局部截图'
@@ -67,11 +68,14 @@ interface ResolvedSvgExportPayload {
  */
 export class PPTXDomConverterMedia {
   private readonly imageDataResolver = new PPTXImageDataResolver()
+  private readonly transform: PPTXDomConverterTransform
 
   constructor(
     private readonly layout: PPTXDomConverterLayout,
     private readonly svgSerializer: PPTXSvgSerializer,
-  ) {}
+  ) {
+    this.transform = new PPTXDomConverterTransform(layout)
+  }
 
   /**
    * 判断元素是否属于媒体或复杂渲染组件。
@@ -374,16 +378,16 @@ export class PPTXDomConverterMedia {
       return true
     }
 
-    const box = this.layout.getPptxBox(element)
+    const box = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     if (!box) {
       host.addSkippedItem(sourceType, label, '图片元素尺寸无效', context)
       return true
     }
 
+    const imageSizing = await this.buildImageSizing(element, box, path)
     host.options.slide.addImage({
       path,
-      ...box,
-      ...(await this.buildImageSizing(element, box, path)),
+      ...this.buildTransformedImageOptions(box, imageSizing, context),
       ...host.buildPptObjectMeta(context, 'image', label, true),
     })
     host.addReportItem(sourceType, 'image', false, label, reason, context)
@@ -411,7 +415,7 @@ export class PPTXDomConverterMedia {
     source?: string,
     boxOverride?: ElementBox,
   ): Promise<void> {
-    const box = boxOverride ?? this.layout.getPptxBox(element)
+    const box = boxOverride ?? this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     if (!box) {
       host.addSkippedItem(sourceType, label, '图片块尺寸无效', context)
       return Promise.resolve()
@@ -420,8 +424,7 @@ export class PPTXDomConverterMedia {
     return this.buildImageSizing(element, box, source || data).then(imageSizing => {
       host.options.slide.addImage({
         data,
-        ...box,
-        ...imageSizing,
+        ...this.buildTransformedImageOptions(box, imageSizing, context),
         ...host.buildPptObjectMeta(context, data.startsWith('data:image/svg') ? 'svg' : 'image', label, true),
       })
       host.addReportItem(sourceType, data.startsWith('data:image/svg') ? 'svg' : 'image', false, label, reason, context)
@@ -448,7 +451,7 @@ export class PPTXDomConverterMedia {
       return
     }
 
-    const box = this.layout.getPptxBox(element)
+    const box = this.layout.getPptxBox(element, Boolean(context.rotationSteps?.length))
     const label = this.layout.buildElementLabel(element)
     if (!box) {
       host.addSkippedItem(sourceType, label, '截图元素尺寸无效', context)
@@ -459,7 +462,7 @@ export class PPTXDomConverterMedia {
       const data = await host.options.captureElementAsPng(element)
       host.options.slide.addImage({
         data,
-        ...box,
+        ...this.transform.applyToBox(box, context),
         ...host.buildPptObjectMeta(context, 'screenshot', label, true),
       })
       host.addReportItem(sourceType, 'screenshot', false, label, reason, context)
@@ -470,6 +473,25 @@ export class PPTXDomConverterMedia {
         `局部截图失败：${error instanceof Error ? error.message : '未知错误'}`,
         context,
       )
+    }
+  }
+
+  /**
+   * 先应用 object-fit 尺寸，再把图片盒模型映射到旋转后的中心位置。
+   */
+  private buildTransformedImageOptions(
+    box: ElementBox,
+    sizing: ResolvedImageSizingOptions,
+    context: VisitContext,
+  ): Record<string, unknown> {
+    const sizedBox = {
+      ...box,
+      w: sizing.w ?? box.w,
+      h: sizing.h ?? box.h,
+    }
+    return {
+      ...this.transform.applyToBox(sizedBox, context),
+      ...(sizing.sizing ? { sizing: sizing.sizing } : {}),
     }
   }
 
