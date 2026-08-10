@@ -25,12 +25,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, readonly, ref, shallowRef, type Component } from 'vue'
+import { computed, nextTick, onErrorCaptured, onMounted, onUnmounted, provide, readonly, ref, shallowRef, type Component } from 'vue'
 
 import { COMPONENT_PREVIEW_MOCKS_KEY } from '@/core/composables/useComponentPreviewMock'
 import {
   COMPONENT_PREVIEW_ERROR_EVENT,
   COMPONENT_PREVIEW_READY_EVENT,
+  COMPONENT_PREVIEW_RENDER_SETTLED_EVENT,
   COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT,
   COMPONENT_PREVIEW_UPDATE_STATE_EVENT,
   buildInitialComponentPreviewState,
@@ -39,6 +40,7 @@ import {
   normalizeComponentPreviewState,
   type ComponentPreviewErrorMessage,
   type ComponentPreviewReadyMessage,
+  type ComponentPreviewRenderSettledMessage,
   type ComponentPreviewState,
   type ComponentPreviewUpdatePlacementMessage,
   type ComponentPreviewUpdateStateMessage,
@@ -94,15 +96,29 @@ async function bootstrapComponentPreview(): Promise<void> {
     componentDefinition.value = resolveModuleComponent(importedModule)
     previewSchema.value = normalizeComponentPreviewSchema(previewConfig.schema)
     previewState.value = buildInitialComponentPreviewState(previewSchema.value)
-    await nextTick()
+    loading.value = false
+    await waitForRenderSettled()
+    if (errorMessage.value) {
+      return
+    }
     notifyParentReady()
+    notifyParentRenderSettled()
   } catch (error) {
     const message = resolvePreviewErrorMessage(error)
     errorMessage.value = message
     notifyParentError(message)
-  } finally {
     loading.value = false
   }
+}
+
+/**
+ * 等待 Vue 更新和两帧浏览器绘制，供自动诊断可靠读取最终 DOM。
+ */
+async function waitForRenderSettled(): Promise<void> {
+  await nextTick()
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
 }
 
 /**
@@ -179,6 +195,28 @@ function notifyParentError(message: string): void {
 }
 
 /**
+ * 通知父窗口当前预览状态已经完成 Vue 更新和浏览器绘制。
+ * @param requestId 状态切换请求标识，用于自动诊断匹配响应
+ */
+function notifyParentRenderSettled(requestId?: string): void {
+  const artifactId = previewContext.value?.artifactId
+  if (!artifactId || typeof window === 'undefined' || !window.parent) {
+    return
+  }
+
+  const settledMessage: ComponentPreviewRenderSettledMessage = {
+    type: COMPONENT_PREVIEW_RENDER_SETTLED_EVENT,
+    payload: {
+      version: 1,
+      artifactId,
+      requestId,
+      activePresetKey: previewState.value.activePresetKey,
+    },
+  }
+  window.parent.postMessage(settledMessage, parentOrigin || '*')
+}
+
+/**
  * 归一化动态导入或渲染启动阶段抛出的错误信息。
  * @param error 原始错误
  * @returns 用户可读的错误摘要
@@ -191,7 +229,7 @@ function resolvePreviewErrorMessage(error: unknown): string {
  * 监听父窗口发来的预览状态或占位更新消息。
  * @param event postMessage 事件
  */
-function handleWindowMessage(event: MessageEvent<unknown>): void {
+async function handleWindowMessage(event: MessageEvent<unknown>): Promise<void> {
   const artifactId = previewContext.value?.artifactId
   if (!artifactId || !event.data || typeof event.data !== 'object') {
     return
@@ -207,6 +245,11 @@ function handleWindowMessage(event: MessageEvent<unknown>): void {
     }
 
     previewState.value = normalizeComponentPreviewState(statePayload.payload.state)
+    await waitForRenderSettled()
+    if (errorMessage.value) {
+      return
+    }
+    notifyParentRenderSettled(statePayload.payload.requestId)
     return
   }
 
@@ -220,6 +263,14 @@ function handleWindowMessage(event: MessageEvent<unknown>): void {
 
   placementOptions.value = normalizeComponentPreviewPlacement(placementPayload.payload.placement)
 }
+
+onErrorCaptured((error) => {
+  const message = resolvePreviewErrorMessage(error)
+  errorMessage.value = message
+  loading.value = false
+  notifyParentError(message)
+  return false
+})
 
 /**
  * 解析父窗口来源，用于限制 postMessage 的发送和接收域。

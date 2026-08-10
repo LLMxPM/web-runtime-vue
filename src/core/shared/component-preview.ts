@@ -14,6 +14,7 @@ export const COMPONENT_PREVIEW_READY_EVENT = 'component-preview:ready'
 export const COMPONENT_PREVIEW_ERROR_EVENT = 'component-preview:error'
 export const COMPONENT_PREVIEW_UPDATE_STATE_EVENT = 'component-preview:update-state'
 export const COMPONENT_PREVIEW_UPDATE_PLACEMENT_EVENT = 'component-preview:update-placement'
+export const COMPONENT_PREVIEW_RENDER_SETTLED_EVENT = 'component-preview:render-settled'
 
 export interface ComponentPreviewState {
   props: Record<string, unknown>
@@ -55,6 +56,17 @@ export interface ComponentPreviewUpdateStateMessage {
     version: 1
     artifactId: string
     state: ComponentPreviewState
+    requestId?: string
+  }
+}
+
+export interface ComponentPreviewRenderSettledMessage {
+  type: typeof COMPONENT_PREVIEW_RENDER_SETTLED_EVENT
+  payload: {
+    version: 1
+    artifactId: string
+    requestId?: string
+    activePresetKey: string | null
   }
 }
 

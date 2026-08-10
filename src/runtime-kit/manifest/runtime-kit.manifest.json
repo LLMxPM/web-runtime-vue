@@ -767,7 +767,7 @@
         ],
         "returns": "Vue 组件；渲染固定页面尺寸的内容画布。",
         "return_example": ["<DefaultContainer><div class=\"relative h-full\">页面内容</div></DefaultContainer>"],
-        "constraints": ["仅负责页面真实宽高、定位上下文和裁剪，不负责视觉模板。", "通用内容块、卡片、网格、页头页脚应由 Backend/Agent 在页面源码中生成。", "不处理预览缩放；缩放由 Runtime shell 内部完成。"],
+        "constraints": ["仅负责页面真实宽高、定位上下文和裁剪，不负责视觉模板。", "通用内容块、卡片、网格、页头页脚应由 Backend/Agent 在页面源码中生成。", "不处理预览缩放；缩放由 Runtime shell 内部完成。", "平台不公开带标题区或页面留白的骨架模板组件；页面骨架应沉淀为工作空间页面组件，或在页面源码中基于本容器搭建。"],
         "audiences": ["backend", "agent"],
         "preview_schema": {
           "slots": {
