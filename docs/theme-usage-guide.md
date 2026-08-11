@@ -2,10 +2,14 @@
 
 ## 概述
 
-本项目采用基于 YAML 配置的动态主题系统，通过 Tailwind CSS 扩展实现完全自定义的颜色和字体绑定。系统支持完整的色阶、透明度变化，按tailwindcss的规范使用即可。
-扩展的颜色变量包括：`primary`, `secondary`, `invert`, `background`, `background-invert`,`border`, `border-subtle`, `link`, `link-hover`, `link-visited`,`accent1`, `accent2`, `accent3`, `accent4`, `accent5`, `accent6`
+本项目采用基于 YAML 配置的动态主题系统，通过 Tailwind CSS 扩展实现颜色和字体绑定。页面与工作空间组件使用 Runtime Tailwind 主题类，不使用 Editor 的 `surface`、`text-muted`、`danger`、`success` 等 Token。
+Runtime 主题语义颜色包括：`primary`、`secondary`、`invert`、`background`、`background-subtle`、`background-invert`、`border`、`border-subtle`、`link`、`link-hover`、`link-visited`、`accent1` 至 `accent6`。`background-subtle` 是 Runtime 的语义背景槽位，不是工作空间主题写入 Schema 中的 `palette.background.subtle` 字段。
 扩展的字体包括：`font-body`, `font-heading`, `font-code`
 字体大小包括：`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`, `text-4xl`, `text-5xl`, `text-6xl`, `text-7xl`, `text-8xl`, `text-9xl`
+
+主题类支持 `text-*`、`bg-*`、`border-*`、`from-*`、`via-*`、`to-*` 前缀、`50` 至 `900` 色阶和透明度，例如 `text-accent2-600`、`bg-primary/80`、`from-background-invert/80`。主题类必须以完整静态字符串出现在模板、脚本常量或顶层枚举映射中；不要拼接 `text-${tone}`、`from-${color}` 等类名。arbitrary value 也必须以源码中的静态完整类出现。
+
+Runtime 主题类和 Editor 主题类不是同一套设计 Token。页面源码不要使用 `bg-surface`、`text-muted`、`bg-tertiary` 等 Editor 或未声明的语义类；需要自定义 CSS 时优先使用下方列出的 `--tw-*` 变量。
 
 主题中的 `logo` 与 `invertLogo` 推荐使用相对路径或远程绝对 URL，例如 `img/logo/ppt-e.png` 或 `https://cdn.example.com/logo.png`。页面需要渲染主题 Logo 时优先使用 Runtime Kit 公开的 `ThemeLogo`。
 
@@ -168,7 +172,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
         <button class="bg-secondary text-white px-4 py-2 rounded hover:bg-secondary-600">
           次要按钮
         </button>
-        <button class="border border-tertiary text-invert px-4 py-2 rounded hover:bg-tertiary-50">
+        <button class="border border-border-subtle text-invert px-4 py-2 rounded hover:bg-background-subtle">
           边框按钮
         </button>
       </div>
@@ -190,7 +194,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
     </main>
     
     <!-- 代码示例 -->
-    <footer class="mt-4 p-3 bg-tertiary-50 rounded border border-tertiary-200">
+    <footer class="mt-4 p-3 bg-background-subtle rounded border border-border-subtle">
       <code class="font-code text-sm text-invert-800">
         class="text-primary bg-background"
       </code>
@@ -255,7 +259,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
           <span>整体进度</span>
           <span>68%</span>
         </div>
-        <div class="w-full bg-tertiary-200 rounded-full h-2">
+        <div class="w-full bg-background-subtle rounded-full h-2">
           <div class="bg-primary h-2 rounded-full" style="width: 68%"></div>
         </div>
       </div>
@@ -265,7 +269,7 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
           <span>质量评分</span>
           <span>85%</span>
         </div>
-        <div class="w-full bg-tertiary-200 rounded-full h-2">
+        <div class="w-full bg-background-subtle rounded-full h-2">
           <div class="bg-secondary h-2 rounded-full" style="width: 85%"></div>
         </div>
       </div>
@@ -333,9 +337,9 @@ import ThemeLogo from '@runtime-kit/public/components/primitives/ThemeLogo.v1.vu
 ## 最佳实践
 
 1. **优先使用语义化类名**：`text-primary`、`bg-background` 等
-2. **复杂场景使用变量**：`text-[var(--theme-text-primary)]`
+2. **复杂场景使用 Runtime 变量**：在 CSS 中使用 `var(--tw-color-text-primary)` 等变量
 3. **保持一致性**：在同一组件中使用相同的命名方式
-4. **利用状态色变体**：使用 50-950 的完整色阶
+4. **利用状态色变体**：主题色使用 50-900 色阶，默认 Tailwind 色可使用 Runtime 支持的 950 色阶
 5. **响应式设计**：结合 Tailwind 的响应式前缀使用
 6. **强调色用于数据可视化**：使用 `accent1-accent6` 确保颜色和谐
 7. **避免过度使用强调色**：强调色主要用于图表、标签等需要区分的场景

@@ -41,4 +41,10 @@ describe('runtime tailwind safelist', () => {
       ]),
     )
   })
+
+  it('不应把 Editor 或未声明的语义颜色混入 Runtime safelist', () => {
+    expect(runtimeTailwindSafelist).not.toContain('bg-surface')
+    expect(runtimeTailwindSafelist).not.toContain('text-muted')
+    expect(runtimeTailwindSafelist.some(candidate => String(candidate).includes('tertiary'))).toBe(false)
+  })
 })

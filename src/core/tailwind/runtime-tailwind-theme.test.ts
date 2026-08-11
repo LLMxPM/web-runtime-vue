@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { createDynamicFontSizeScale } from './runtime-tailwind-theme.js'
+import { createDynamicFontSizeScale, runtimeTailwindTheme } from './runtime-tailwind-theme.js'
 
 describe('runtime tailwind theme font size scale', () => {
   it('应按 Tailwind 默认比例生成字号与行高配置', () => {
@@ -26,5 +26,25 @@ describe('runtime tailwind theme font size scale', () => {
       'calc(var(--tw-font-size-base) * 3)',
       { lineHeight: '1' },
     ])
+  })
+
+  it('应保持 Runtime 主题语义颜色、色阶和字体类映射', () => {
+    const colors = runtimeTailwindTheme.extend?.colors as Record<string, unknown>
+    const background = colors.background as Record<string, unknown>
+    const border = colors.border as Record<string, unknown>
+    const fontFamily = runtimeTailwindTheme.extend?.fontFamily as Record<string, unknown>
+
+    expect(colors.primary).toHaveProperty('600')
+    expect(colors.accent1).toHaveProperty('900')
+    expect(background).toHaveProperty('DEFAULT')
+    expect(background).toHaveProperty('subtle')
+    expect(background).toHaveProperty('invert')
+    expect(border).toHaveProperty('DEFAULT')
+    expect(border).toHaveProperty('subtle')
+    expect(fontFamily).toEqual(expect.objectContaining({
+      heading: ['var(--tw-font-heading)', 'sans-serif'],
+      body: ['var(--tw-font-body)', 'sans-serif'],
+      code: ['var(--tw-font-code)', 'monospace'],
+    }))
   })
 })
