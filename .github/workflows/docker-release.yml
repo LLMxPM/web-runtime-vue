@@ -102,12 +102,12 @@ jobs:
           password: ${{ secrets.ACR_PASSWORD }}
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
-      - id: meta
+      # 为两个目标仓库分别生成标签，避免 ACR 推送时携带 Docker Hub 专用元数据。
+      - id: meta-dockerhub
+        name: 生成 Docker Hub 镜像元数据
         uses: docker/metadata-action@v6
         with:
-          images: |
-            docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/web-runtime-vue
-            ${{ vars.ACR_REGISTRY }}/${{ vars.ACR_NAMESPACE }}/web-runtime-vue
+          images: docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/web-runtime-vue
           tags: |
             type=raw,value=${{ needs.release-meta.outputs.release_tag }}
             type=raw,value=sha-${{ steps.revision.outputs.runtime_short_sha }}
@@ -117,16 +117,49 @@ jobs:
             org.opencontainers.image.description=Runtime service for web-presentation preview, diagnostics and build
             org.opencontainers.image.version=${{ needs.release-meta.outputs.release_tag }}
             org.opencontainers.image.revision=${{ steps.revision.outputs.runtime_sha }}
-      - uses: docker/build-push-action@v7
+
+      - id: meta-acr
+        name: 生成 ACR 镜像元数据
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ vars.ACR_REGISTRY }}/${{ vars.ACR_NAMESPACE }}/web-runtime-vue
+          tags: |
+            type=raw,value=${{ needs.release-meta.outputs.release_tag }}
+            type=raw,value=sha-${{ steps.revision.outputs.runtime_short_sha }}
+            type=raw,value=latest,enable=${{ needs.release-meta.outputs.push_latest == 'true' }}
+          labels: |
+            org.opencontainers.image.title=web-runtime-vue
+            org.opencontainers.image.description=Runtime service for web-presentation preview, diagnostics and build
+            org.opencontainers.image.version=${{ needs.release-meta.outputs.release_tag }}
+            org.opencontainers.image.revision=${{ steps.revision.outputs.runtime_sha }}
+
+      - name: 构建并推送 Docker Hub 镜像（含 SBOM 和 provenance）
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          tags: ${{ steps.meta-dockerhub.outputs.tags }}
+          labels: ${{ steps.meta-dockerhub.outputs.labels }}
+          annotations: ${{ steps.meta-dockerhub.outputs.annotations }}
           provenance: true
           sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 个人版/旧版 ACR 不接受 provenance 和 SBOM 生成的 OCI 附件，因此单独推送普通镜像。
+      - name: 构建并推送 ACR 镜像（不含 OCI 附件）
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-acr.outputs.tags }}
+          labels: ${{ steps.meta-acr.outputs.labels }}
+          annotations: ${{ steps.meta-acr.outputs.annotations }}
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
