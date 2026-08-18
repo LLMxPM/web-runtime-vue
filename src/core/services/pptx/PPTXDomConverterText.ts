@@ -27,6 +27,8 @@ type TextShapeGeometryKind =
   | 'rounded-rect'
   | 'rect'
 
+type TextWidthGuardProfile = 'default' | 'capsule' | 'padded-shape' | 'fragment'
+
 interface ResolvedTextShapeGeometry {
   shape: string
   options: Record<string, unknown>
@@ -854,7 +856,7 @@ export class PPTXDomConverterText {
   }
 
   /**
-   * 按几何语义选择文本宽度保护：圆和纵向胶囊锁定外形，横向胶囊只允许横向扩宽。
+   * 按几何和布局语义选择文本宽度保护：圆和纵向胶囊锁定外形，横向胶囊及内容宽度形状允许横向扩宽。
    */
   private resolveTextShapeExportBox(
     host: PptxDomTextExportHost,
@@ -872,12 +874,104 @@ export class PPTXDomConverterText {
     if (geometryKind === 'vertical-capsule') {
       return box
     }
+    if (geometryKind === 'horizontal-capsule') {
+      return this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'capsule')
+    }
+    if (this.shouldApplyContentSizedShapeWidthGuard(element, style, box, text)) {
+      return this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'padded-shape')
+    }
     if (shouldPreservePaddedBox) {
-      return geometryKind === 'horizontal-capsule'
-        ? this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'capsule')
-        : box
+      return box
     }
     return this.applyTextBoxWidthGuard(host, element, box, style, text, align, true, 'default')
+  }
+
+  /**
+   * 判断内容宽度驱动的 flex 行子项是否应使用更强的文本形状宽度保护。
+   * 这类块级 div 在 flex 中通常按内容取宽，但不会被 pill-like 判定识别。
+   * @param element 文本形状元素
+   * @param style 计算样式
+   * @param box PPT 坐标盒
+   * @param text 文本内容
+   */
+  private shouldApplyContentSizedShapeWidthGuard(
+    element: HTMLElement,
+    style: CSSStyleDeclaration,
+    box: ElementBox,
+    text: string,
+  ): boolean {
+    const parent = element.parentElement
+    if (!parent || !this.isLikelySingleLinePaddedShape(element, style, box, text)) {
+      return false
+    }
+
+    const parentStyle = window.getComputedStyle(parent)
+    if (this.layout.resolveLayoutDisplay(parent, parentStyle) !== 'flex' ||
+      this.layout.resolveFlexDirection(parent, parentStyle).startsWith('column')) {
+      return false
+    }
+
+    const padding = this.layout.resolveElementPaddingPixels(element, style)
+    if (padding.left + padding.right <= 0) {
+      return false
+    }
+
+    return !this.hasExplicitTextShapeWidth(element) && !this.hasFlexGrowth(element, style)
+  }
+
+  /**
+   * 判断带 padding 的文本形状是否大概率为单行，测量时扣除上下内边距。
+   * @param element 文本形状元素
+   * @param style 计算样式
+   * @param box PPT 坐标盒
+   * @param text 文本内容
+   */
+  private isLikelySingleLinePaddedShape(
+    element: HTMLElement,
+    style: CSSStyleDeclaration,
+    box: ElementBox,
+    text: string,
+  ): boolean {
+    if (!this.layout.isSingleLineText(text)) {
+      return false
+    }
+    if (['nowrap', 'pre', 'pre-line', 'pre-wrap'].includes(style.whiteSpace)) {
+      return true
+    }
+
+    const fontSizePx = this.layout.parseCssPixel(style.fontSize) || 16
+    const lineHeightPx = this.layout.parseCssPixel(style.lineHeight) || fontSizePx * 1.2
+    const padding = this.layout.resolveElementPaddingPixels(element, style)
+    const boxHeightPx = Math.max(0, box.h / this.layout.inchPerPxY() - padding.top - padding.bottom)
+    return boxHeightPx <= lineHeightPx * 1.9
+  }
+
+  /** 判断文本形状是否声明了显式宽度约束。 */
+  private hasExplicitTextShapeWidth(element: HTMLElement): boolean {
+    if (element.style.getPropertyValue('width')) {
+      return true
+    }
+
+    return Array.from(element.classList)
+      .map(className => className.split(':').pop() || className)
+      .some(className => /^(?:min-|max-)?w-(?!auto$)/.test(className))
+  }
+
+  /** 判断 flex 子项是否通过 grow 或非 auto flex-basis 参与填充布局。 */
+  private hasFlexGrowth(element: HTMLElement, style: CSSStyleDeclaration): boolean {
+    const flexGrow = Number.parseFloat(style.flexGrow)
+    if (Number.isFinite(flexGrow) && flexGrow > 0) {
+      return true
+    }
+
+    const flexBasis = String(style.flexBasis || '').trim()
+    if (flexBasis && flexBasis !== 'auto') {
+      return true
+    }
+
+    return Array.from(element.classList)
+      .map(className => className.split(':').pop() || className)
+      .some(className => ['flex-1', 'flex-auto', 'grow'].includes(className) || /^grow-/.test(className))
   }
 
   /** 将近似正圆的 PPT 外接框收敛为保持中心不变的正方形。 */
@@ -908,7 +1002,7 @@ export class PPTXDomConverterText {
     text: string,
     align: string,
     isTextShape: boolean,
-    guardProfile: 'default' | 'capsule' | 'fragment' = 'default',
+    guardProfile: TextWidthGuardProfile = 'default',
   ): ElementBox {
     const guardWidth = this.calculateTextWidthGuard(element, box, style, text, isTextShape, guardProfile)
     if (guardWidth <= 0) {
@@ -932,7 +1026,7 @@ export class PPTXDomConverterText {
   }
 
   /**
-   * 计算文本宽度冗余，普通文本框比带背景形状更积极。
+   * 按文本形状和布局 profile 计算宽度冗余，降低 PowerPoint 字宽差异导致末字换行的概率。
    * @param box 原始 PPT 坐标盒
    * @param style 计算样式
    * @param text 文本内容
@@ -944,22 +1038,24 @@ export class PPTXDomConverterText {
     style: CSSStyleDeclaration,
     text: string,
     isTextShape: boolean,
-    guardProfile: 'default' | 'capsule' | 'fragment' = 'default',
+    guardProfile: TextWidthGuardProfile = 'default',
   ): number {
     const fontSizePt = Math.max(1, this.layout.cssPxToPt(this.layout.parseCssPixel(style.fontSize) || 16))
     const fontSizeIn = fontSizePt / 72
     const isSingleLine = this.isLikelySingleLineTextBox(box, style, text)
     const isCapsule = guardProfile === 'capsule'
+    const isPaddedShape = guardProfile === 'padded-shape'
     const isFragment = guardProfile === 'fragment'
+    const isStrongShapeGuard = isCapsule || isPaddedShape
     const ratioGuard = box.w * (
       isSingleLine
-        ? (isCapsule ? 0.024 : (isTextShape ? 0.018 : 0.03))
-        : (isCapsule ? 0.012 : (isTextShape ? 0.008 : 0.015))
+        ? (isStrongShapeGuard ? 0.024 : (isTextShape ? 0.018 : 0.03))
+        : (isStrongShapeGuard ? 0.012 : (isTextShape ? 0.008 : 0.015))
     )
     const emGuard = fontSizeIn * (
       isSingleLine
-        ? (this.layout.containsCjkText(text) ? (isCapsule ? 1 : 0.8) : (isCapsule ? 0.6 : 0.45))
-        : (this.layout.containsCjkText(text) ? (isCapsule ? 0.45 : 0.35) : (isCapsule ? 0.28 : 0.2))
+        ? (this.layout.containsCjkText(text) ? (isStrongShapeGuard ? 1 : 0.8) : (isStrongShapeGuard ? 0.6 : 0.45))
+        : (this.layout.containsCjkText(text) ? (isStrongShapeGuard ? 0.45 : 0.35) : (isStrongShapeGuard ? 0.28 : 0.2))
     )
     const contentComplexityGuard = isCapsule
       ? 0
@@ -969,15 +1065,16 @@ export class PPTXDomConverterText {
           text,
           fontSizeIn,
           isFragment,
+          isPaddedShape,
         )
-    const paddingGuard = isCapsule ? this.resolveCapsulePaddingGuardIn(element, style) : 0
-    const minGuard = isCapsule ? 0.03 : (isTextShape ? 0.02 : 0.04)
+    const paddingGuard = isStrongShapeGuard ? this.resolveHorizontalPaddingGuardIn(element, style) : 0
+    const minGuard = isCapsule ? 0.03 : (isPaddedShape ? 0.04 : (isTextShape ? 0.02 : 0.04))
     const contentAwareMaxGuard = contentComplexityGuard > 0
       ? contentComplexityGuard + (isFragment ? 0.03 : 0.02)
       : 0
     const maxGuard = Math.max(
-      isCapsule ? 0.09 : (isTextShape ? 0.04 : 0.08),
-      box.w * (isCapsule ? 0.12 : (isTextShape ? 0.06 : 0.11)),
+      isCapsule ? 0.09 : (isPaddedShape ? 0.12 : (isTextShape ? 0.04 : 0.08)),
+      box.w * (isStrongShapeGuard ? 0.12 : (isTextShape ? 0.06 : 0.11)),
       contentAwareMaxGuard,
     )
     return Math.min(maxGuard, Math.max(minGuard, ratioGuard, emGuard, contentComplexityGuard, paddingGuard))
@@ -1045,11 +1142,11 @@ export class PPTXDomConverterText {
   }
 
   /**
-   * 读取胶囊文本形状的水平 padding 对扩宽的附加需求。
+   * 读取带水平 padding 的文本形状对扩宽的附加需求。
    * @param element 源元素
    * @param style 计算样式
    */
-  private resolveCapsulePaddingGuardIn(element: HTMLElement, style: CSSStyleDeclaration): number {
+  private resolveHorizontalPaddingGuardIn(element: HTMLElement, style: CSSStyleDeclaration): number {
     const padding = this.layout.resolveElementPaddingPixels(element, style)
     const paddingScale = this.resolveTextShapePaddingScale(element, style)
     const horizontalPaddingPx = Math.max(0, (padding.left + padding.right) * paddingScale.horizontal)
@@ -1064,6 +1161,7 @@ export class PPTXDomConverterText {
    * @param text 文本内容
    * @param fontSizeIn 字号对应 inch
    * @param isFragment 是否为直属文本节点这类紧贴内容的片段文本
+   * @param isContentDrivenOverride 是否由内容宽度驱动，可提升复杂文本的保护强度
    */
   private resolveContentComplexityWidthGuardIn(
     element: HTMLElement,
@@ -1071,10 +1169,11 @@ export class PPTXDomConverterText {
     text: string,
     fontSizeIn: number,
     isFragment = false,
+    isContentDrivenOverride = false,
   ): number {
     const normalizedText = this.layout.normalizeText(text)
     const metrics = this.collectTextComplexityMetrics(normalizedText)
-    const isContentDriven = isFragment || this.isContentWidthDrivenInlineText(element, style)
+    const isContentDriven = isContentDrivenOverride || isFragment || this.isContentWidthDrivenInlineText(element, style)
     const baseGuard = fontSizeIn * (
       metrics.hasMixedScripts
         ? (metrics.hasDenseAsciiPhrase

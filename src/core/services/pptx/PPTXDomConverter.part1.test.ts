@@ -941,6 +941,74 @@ describe('PPTXDomConverter', () => {
     expect((badgeCall?.x as number) + (badgeCall?.w as number) / 2).toBeCloseTo(originalX + originalBadgeWidth / 2, 3)
   })
 
+  it('flex 行中的块级 rounded-full 胶囊应使用增强宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div class="flex items-center justify-between" style="display: flex; align-items: center; justify-content: space-between; width: 520px; height: 64px;">
+          <div class="text-xl font-semibold text-secondary" style="font-size: 20px; line-height: 28px;">形式一 · 已知首项与末项</div>
+          <div id="badge" class="rounded-full bg-accent1 px-4 py-2 text-lg text-invert" style="background: #2563eb; border-radius: 9999px; padding: 8px 16px; font-size: 18px; line-height: 28px; color: #ffffff;">首末相加</div>
+        </div>
+      </div>
+    `
+
+    const badge = document.getElementById('badge') as HTMLElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(badge, 'getBoundingClientRect').mockReturnValue(createRect(0, 0, 128, 44))
+
+    await convert(slide)
+
+    const badgeOptions = slide.addText.mock.calls.find(([text]) => text === '首末相加')?.[1] as Record<string, unknown>
+    const originalWidth = (128 / 1920) * 13.333
+
+    expect(badgeOptions).toEqual(expect.objectContaining({ shape: 'roundRect' }))
+    expect(Number(badgeOptions.w)).toBeGreaterThan(originalWidth + 0.09)
+  })
+
+  it('flex 行中的内容宽度 rounded-rect 文本形状应使用增强宽度保护', async () => {
+    const slide = createSlideMock()
+    document.body.innerHTML = `
+      <div id="page" style="width: 1920px; height: 1080px;">
+        <div id="row" class="flex items-center gap-4" style="display: flex; align-items: center; column-gap: 16px; width: 640px; height: 100px;">
+          <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent2 text-2xl font-bold text-invert" style="display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: #16a34a; border-radius: 16px; font-size: 24px; line-height: 32px; font-weight: 700; color: #ffffff;">3</div>
+          <div id="card" class="rounded-2xl border border-border bg-background-subtle px-6 py-5 text-[25px] font-semibold" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 16px; padding: 20px 24px; font-size: 25px; line-height: 30px; font-weight: 600;">对应相加，提炼一般式</div>
+        </div>
+      </div>
+    `
+
+    const card = document.getElementById('card') as HTMLElement
+    const createRect = (left: number, top: number, width: number, height: number) => ({
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(card, 'getBoundingClientRect').mockReturnValue(createRect(72, 10, 300, 80))
+
+    await convert(slide)
+
+    const cardOptions = slide.addText.mock.calls.find(([text]) => text === '对应相加，提炼一般式')?.[1] as Record<string, unknown>
+    const originalWidth = (300 / 1920) * 13.333
+
+    expect(cardOptions).toEqual(expect.objectContaining({ shape: 'roundRect' }))
+    expect(Number(cardOptions.w)).toBeGreaterThan(originalWidth + 0.1)
+  })
+
   it('应按实际圆角半径导出 roundRect，避免普通圆角全部变成 full', async () => {
     const slide = createSlideMock()
     document.body.innerHTML = `
