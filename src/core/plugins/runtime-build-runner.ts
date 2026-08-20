@@ -151,6 +151,7 @@ type RuntimeNodeResponse = Pick<ServerResponse, 'statusCode' | 'setHeader' | 'en
 
 const DEFAULT_BUILD_ENDPOINT = '/__runtime_internal/v1/builds/project'
 const DEFAULT_DIAGNOSTICS_ENDPOINT = '/__runtime_internal/v1/diagnostics/artifact'
+const MODULE_BATCH_SIZE = 128
 const DEFAULT_BUILD_AUDIENCE = 'runtime-build'
 const DEFAULT_DIAGNOSTICS_AUDIENCE = 'runtime-diagnostics'
 const DEFAULT_RUNTIME_SERVICE_TOKEN_HEADER = 'x-runtime-service-token'
@@ -564,7 +565,7 @@ function assertBuildRequestMatchesClaims(
  * @param options 客户端配置
  * @returns 只读构建客户端
  */
-function createBuildBackendClient(options: {
+export function createBuildBackendClient(options: {
   backendApiBaseUrl: string
   serviceToken: string
 }) {
@@ -619,6 +620,45 @@ function createBuildBackendClient(options: {
       } catch (error) {
         throw buildBackendRequestNetworkError(url, error)
       }
+    },
+
+    async fetchModuleSources(
+      artifactId: string,
+      modulePaths: string[],
+      signal?: AbortSignal,
+    ): Promise<Record<string, string>> {
+      const url = `${apiBaseUrl}/internal/runtime/preview-artifacts/${encodeURIComponent(artifactId)}/modules/batch`
+      let response: Response
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            ...defaultHeaders,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ paths: modulePaths }),
+          signal,
+        })
+      } catch (error) {
+        throw buildBackendRequestNetworkError(url, error)
+      }
+      if (response.status === 404 || response.status === 405) {
+        const entries = await Promise.all(modulePaths.map(async modulePath => [
+          modulePath,
+          await this.fetchModuleSource(artifactId, modulePath, signal),
+        ] as const))
+        return Object.fromEntries(entries)
+      }
+      if (!response.ok) {
+        throw await toBuildError(response, 'MODULE_BATCH_FETCH_FAILED')
+      }
+      const payload = await response.json() as { modules?: Record<string, unknown> }
+      const modules = payload.modules || {}
+      if (modulePaths.some(modulePath => typeof modules[modulePath] !== 'string')) {
+        throw new RuntimeBuildError(502, 'MODULE_BATCH_RESPONSE_INVALID', 'Backend 批量模块响应缺少请求的源码。')
+      }
+      return Object.fromEntries(modulePaths.map(modulePath => [modulePath, String(modules[modulePath])]))
     },
 
     async fetchAssetBinary(assetUrl: string, context?: BuildAssetFetchContext, signal?: AbortSignal): Promise<Buffer> {
@@ -1053,8 +1093,14 @@ async function runArtifactDiagnostics(params: {
   try {
     params.deadline.throwIfExpired()
     logRuntimeBuild('diagnostics.workspace.created', diagnosticsContext)
+    const modulesStartedAt = Date.now()
     await injectSnapshotModules(tempRoot, params.artifactId, params.manifest, params.backendClient, params.deadline)
     await injectEntryModuleIfNeeded(tempRoot, params.artifactId, params.manifest, params.backendClient, params.deadline)
+    logRuntimeBuild('diagnostics.modules.ready', {
+      ...diagnosticsContext,
+      durationMs: Date.now() - modulesStartedAt,
+    })
+    const validationStartedAt = Date.now()
     await validateBuildWorkspaceSources(tempRoot)
     params.deadline.throwIfExpired()
     validateConfigAssetReferences(params.manifest, params.configBundle)
@@ -1065,9 +1111,18 @@ async function runArtifactDiagnostics(params: {
         artifact_kind: 'build_release',
       },
     }, { mode: 'diagnostics' })
+    logRuntimeBuild('diagnostics.workspace.validated', {
+      ...diagnosticsContext,
+      durationMs: Date.now() - validationStartedAt,
+    })
     params.deadline.throwIfExpired()
 
+    const viteStartedAt = Date.now()
     await workspaceLease.runViteBuild('./', params.deadline.remainingMs())
+    logRuntimeBuild('diagnostics.vite.finished', {
+      ...diagnosticsContext,
+      durationMs: Date.now() - viteStartedAt,
+    })
     params.deadline.throwIfExpired()
     return {
       success: true,
@@ -1210,23 +1265,33 @@ async function injectSnapshotModules(
   deadline: RuntimeTaskDeadline,
 ): Promise<void> {
   const injectedPaths = new Set<string>()
-  for (const logicalPath of Object.keys(manifest.modules || {})) {
+  const logicalPaths = Object.keys(manifest.modules || {})
+  const fetchStartedAt = Date.now()
+  for (let offset = 0; offset < logicalPaths.length; offset += MODULE_BATCH_SIZE) {
+    const batchPaths = logicalPaths.slice(offset, offset + MODULE_BATCH_SIZE)
     deadline.throwIfExpired()
-    const resolvedModule = resolveWritableRuntimeModulePath(tempRoot, logicalPath)
-    if (injectedPaths.has(resolvedModule.logicalPath)) {
-      throw new RuntimeDiagnosticsWorkspaceError(
-        409,
-        'RUNTIME_DIAGNOSTICS_MODULE_PATH_DUPLICATED',
-        `多个诊断模块映射到同一路径：${resolvedModule.logicalPath}`,
-      )
-    }
-    injectedPaths.add(resolvedModule.logicalPath)
-    const content = await backendClient.fetchModuleSource(artifactId, logicalPath, deadline.signal)
-    const targetPath = resolvedModule.targetPath
-    await mkdir(resolve(targetPath, '..'), { recursive: true })
-    await writeFile(targetPath, content, 'utf-8')
+    const modules = await backendClient.fetchModuleSources(artifactId, batchPaths, deadline.signal)
+    await Promise.all(batchPaths.map(async logicalPath => {
+      const resolvedModule = resolveWritableRuntimeModulePath(tempRoot, logicalPath)
+      if (injectedPaths.has(resolvedModule.logicalPath)) {
+        throw new RuntimeDiagnosticsWorkspaceError(
+          409,
+          'RUNTIME_DIAGNOSTICS_MODULE_PATH_DUPLICATED',
+          `多个诊断模块映射到同一路径：${resolvedModule.logicalPath}`,
+        )
+      }
+      injectedPaths.add(resolvedModule.logicalPath)
+      const targetPath = resolvedModule.targetPath
+      await mkdir(resolve(targetPath, '..'), { recursive: true })
+      await writeFile(targetPath, modules[logicalPath], 'utf-8')
+    }))
     deadline.throwIfExpired()
   }
+  logRuntimeBuild('diagnostics.modules.injected', {
+    artifactId,
+    moduleCount: logicalPaths.length,
+    durationMs: Date.now() - fetchStartedAt,
+  })
 }
 
 /**

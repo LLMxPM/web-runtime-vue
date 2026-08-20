@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import runtimeBuildRunner, {
   RuntimeBuildError,
+  createBuildBackendClient,
   isRuntimeDiagnosticsInfrastructureError,
 } from './runtime-build-runner'
 import {
@@ -83,6 +84,45 @@ describe('runtime diagnostics infrastructure errors', () => {
     } finally {
       httpServer.emit('close')
       warmupSpy.mockRestore()
+    }
+  })
+})
+
+describe('runtime diagnostics module batch client', () => {
+  it('应优先通过批量接口读取模块', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      modules: {
+        'src/views/A.vue': '<template>A</template>',
+        'src/views/B.vue': '<template>B</template>',
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const client = createBuildBackendClient({ backendApiBaseUrl: 'http://backend', serviceToken: 'token' })
+      const modules = await client.fetchModuleSources('artifact-1', ['src/views/A.vue', 'src/views/B.vue'])
+
+      expect(modules['src/views/A.vue']).toContain('A')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0][1]?.method).toBe('POST')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('旧 Backend 不支持批量接口时应回退逐模块读取', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 405 }))
+      .mockResolvedValueOnce(new Response('<template>A</template>', { status: 200 }))
+      .mockResolvedValueOnce(new Response('<template>B</template>', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const client = createBuildBackendClient({ backendApiBaseUrl: 'http://backend', serviceToken: 'token' })
+      const modules = await client.fetchModuleSources('artifact-1', ['src/views/A.vue', 'src/views/B.vue'])
+
+      expect(Object.keys(modules)).toEqual(['src/views/A.vue', 'src/views/B.vue'])
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.unstubAllGlobals()
     }
   })
 })
