@@ -105,7 +105,7 @@ describe('runtime config default routes', () => {
   it('应从 app.page 解析页面字号与默认图标规格', async () => {
     const { resolveAppPageConfig } = await import('./config')
 
-    expect(resolveAppPageConfig(null).baseFontSize).toBe('20px')
+    expect(resolveAppPageConfig(null).baseFontSize).toBe('24px')
     expect(resolveAppPageConfig({
       app: {
         icon: 'slider',

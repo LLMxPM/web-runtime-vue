@@ -95,7 +95,7 @@ function normalizeLogoSize(value: number | string | undefined): string {
  * @returns CSS calc 表达式
  */
 function buildSpacingSize(scale: number): string {
-  return `calc(var(--tw-spacing-unit, calc(var(--tw-font-size-base, 20px) * 0.25)) * ${scale})`
+  return `calc(var(--tw-spacing-unit, calc(var(--tw-font-size-base, 24px) * 0.25)) * ${scale})`
 }
 </script>
 

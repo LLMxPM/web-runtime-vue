@@ -39,7 +39,7 @@ export interface AppConfig {
 export const DEFAULT_PAGE_CONFIG: RuntimePageConfig = {
   width: 1920,
   height: 1080,
-  baseFontSize: '20px',
+  baseFontSize: '24px',
   iconDefaultStrokeWidth: 2,
 }
 

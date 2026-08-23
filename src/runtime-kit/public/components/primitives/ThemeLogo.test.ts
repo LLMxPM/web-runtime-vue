@@ -91,7 +91,7 @@ describe('ThemeLogo', () => {
     expect(img?.getAttribute('alt')).toBe('')
     expect(img?.style.width).toBe('auto')
     expect(img?.getAttribute('style')).toContain(
-      'height: calc(var(--tw-spacing-unit, calc(var(--tw-font-size-base, 20px) * 0.25)) * 12)'
+      'height: calc(var(--tw-spacing-unit, calc(var(--tw-font-size-base, 24px) * 0.25)) * 12)'
     )
     expect(img?.style.objectFit).toBe('contain')
     expect(img?.style.opacity).toBe('0.8')
