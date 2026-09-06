@@ -510,8 +510,7 @@ export class RuntimeDiagnosticsWorker {
       return this.recycling
     }
 
-    let recycling: Promise<void>
-    recycling = waitForChildExitAfterTermination(child)
+    const recycling = waitForChildExitAfterTermination(child)
       .finally(() => {
         if (this.child === child) {
           this.child = null

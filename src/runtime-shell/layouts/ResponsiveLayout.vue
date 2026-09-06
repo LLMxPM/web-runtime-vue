@@ -88,6 +88,17 @@ v-if="shouldShowPdfExportButton" class="nav-button nav-button--export" :class="{
           <Monitor :size="16" />
         </button>
 
+        <!-- 卡片模式按钮 -->
+        <button
+          v-if="shouldShowCardModeButton"
+          class="nav-button nav-button--cards"
+          :class="{ 'nav-button--fullscreen': isFullscreen }"
+          title="卡片模式"
+          @click.stop="openCardMode"
+        >
+          <LayoutGrid :size="16" />
+        </button>
+
         <template v-if="!isBottomPreviewMode">
           <!-- 上一页按钮 -->
           <button
@@ -178,6 +189,14 @@ v-if="isBottomPreviewMode" class="bottom-preview-wrapper" :class="{
     <PDFExportDialog
 v-model:visible="isPDFExportDialogVisible" @export-start="handlePDFExportStart"
       @export-complete="handlePDFExportComplete" @export-error="handlePDFExportError" />
+
+    <CardModePanel
+      v-if="isCardModeVisible"
+      :pages="cardModePages"
+      :current-path="router.currentRoute.value.path"
+      @close="isCardModeVisible = false"
+      @select="selectCardPage"
+    />
   </div>
 </template>
 
@@ -190,6 +209,7 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   FileDown,
+  LayoutGrid,
   Monitor,
   PanelLeft,
   PanelBottom
@@ -197,13 +217,14 @@ import {
 import ResponsiveSidebar from '@/runtime-shell/layouts/ResponsiveSidebar.vue'
 import SidePreviewStrip from '@/runtime-shell/layouts/SidePreviewStrip.vue'
 import BottomPreviewStrip from '@/runtime-shell/layouts/BottomPreviewStrip.vue'
+import CardModePanel from '@/runtime-shell/layouts/CardModePanel.vue'
 import ScaledCanvasViewport from '@runtime-kit/internal/components/viewport/ScaledCanvasViewport.vue'
 import PDFExportDialog from '@/runtime-shell/pdf/PDFExportDialog.vue'
 import ErrorBoundary from '@/runtime-shell/feedback/ErrorBoundary.vue'
 import { useMenu } from '@/core/composables/useMenu'
 import { usePageNavigation } from '@/core/composables/usePageNavigation'
 import { PDFExportService } from '@/core/services/PDFExportService'
-import { appConfig as runtimeAppConfig, appPageConfig, type RuntimeMenuMode } from '@/core/utils/config'
+import { appConfig as runtimeAppConfig, appPageConfig, routeConfigs, type RuntimeMenuMode } from '@/core/utils/config'
 import { buildPageContentScaleStyles } from '@/core/utils/page-scale'
 import { useTheme } from '@runtime-kit/public/composables/theme/useTheme.v1'
 import {
@@ -211,7 +232,7 @@ import {
   normalizePresenterRoutePath,
   PRESENTER_CONSOLE_ROUTE,
 } from '@/runtime-shell/presenter/presenter-url'
-import { writePresenterInitialNavigateMessage } from '@/runtime-shell/presenter/usePresenterController'
+import { buildPresenterPages, writePresenterInitialNavigateMessage } from '@/runtime-shell/presenter/usePresenterController'
 import { openPresenterDisplayWindow } from '@/runtime-shell/presenter/presenter-window'
 
 // 应用配置已迁移到 @/config/app.config.ts
@@ -225,6 +246,7 @@ const isFullscreen = ref(false)
 const isSidebarHovered = ref(false)
 const isFullscreenButtonHovered = ref(false)
 const isPDFExportDialogVisible = ref(false)
+const isCardModeVisible = ref(false)
 const pageBoundaryMessage = ref('')
 let pageBoundaryMessageTimer: number | undefined
 // 正在导出PDF的状态
@@ -406,10 +428,26 @@ const shouldShowPresenterButton = computed(() => {
 })
 
 /**
+ * 是否显示卡片模式入口。
+ * @returns 当前项目是否存在可展示的页面卡片
+ */
+const shouldShowCardModeButton = computed(() => {
+  return buildPresenterPages(routeConfigs.value).length > 0
+})
+
+/**
+ * 卡片模式使用与演讲者模式一致的页面目录，保证两种浏览入口的页面顺序一致。
+ */
+const cardModePages = computed(() => buildPresenterPages(routeConfigs.value))
+
+/**
  * 是否显示右上角的二级操作区。
  */
 const shouldShowTopRightPageControls = computed(() => {
-  return shouldShowPdfExportButton.value || shouldShowPresenterButton.value || !isBottomPreviewMode.value
+  return shouldShowPdfExportButton.value
+    || shouldShowPresenterButton.value
+    || shouldShowCardModeButton.value
+    || !isBottomPreviewMode.value
 })
 
 /**
@@ -659,6 +697,14 @@ const handleKeydown = (event: KeyboardEvent): void => {
     return
   }
 
+  if (isCardModeVisible.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      isCardModeVisible.value = false
+    }
+    return
+  }
+
   if (event.shiftKey && event.key.toLowerCase() === 'p') {
     event.preventDefault()
     openPresenterMode()
@@ -702,6 +748,24 @@ const handleFullscreenChange = (): void => {
  */
 const showPDFExportDialog = (): void => {
   isPDFExportDialogVisible.value = true
+}
+
+/**
+ * 打开卡片模式。
+ */
+const openCardMode = (): void => {
+  if (shouldShowCardModeButton.value) {
+    isCardModeVisible.value = true
+  }
+}
+
+/**
+ * 从卡片模式跳转到指定页面并关闭卡片面板。
+ * @param path 目标页面路径
+ */
+const selectCardPage = async (path: string): Promise<void> => {
+  isCardModeVisible.value = false
+  await router.push(path)
 }
 
 /**

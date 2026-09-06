@@ -112,29 +112,13 @@
         </aside>
       </section>
 
-      <section v-else class="presenter-console__grid" :style="gridStyles">
-        <button
-          v-for="page in pages"
-          :key="page.path"
-          class="presenter-console__tile"
-          :class="{ 'presenter-console__tile--active': page.path === currentPath }"
-          type="button"
-          @click="navigateTo(page.path)"
-        >
-          <div class="presenter-console__tile-preview">
-            <div class="presenter-console__preview-shell">
-              <div class="presenter-console__preview-content" inert aria-hidden="true">
-                <ViewPreview :file-path="page.componentPath" />
-              </div>
-              <div class="presenter-console__preview-shield" aria-hidden="true"></div>
-            </div>
-          </div>
-          <div class="presenter-console__tile-caption">
-            <span>{{ page.pageNumber }}</span>
-            <strong>{{ page.title }}</strong>
-          </div>
-        </button>
-      </section>
+      <PresenterPageGrid
+        v-else
+        :pages="pages"
+        :current-path="currentPath"
+        :tile-size="tileSize"
+        @navigate="navigateTo"
+      />
     </main>
 
     <div v-else class="presenter-console__fallback">
@@ -157,6 +141,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChevronLeft, ChevronRight, LogOut, Monitor } from '@lucide/vue'
 
 import ViewPreview from '@/runtime-shell/preview/ViewPreview.vue'
+import PresenterPageGrid from '@/runtime-shell/presenter/PresenterPageGrid.vue'
 import PresenterTimerPanel from '@/runtime-shell/presenter/PresenterTimerPanel.vue'
 import { usePresenterController } from '@/runtime-shell/presenter/usePresenterController'
 import { openPresenterDisplayWindow } from '@/runtime-shell/presenter/presenter-window'
@@ -191,10 +176,6 @@ const {
   channelId: channelId.value,
   initialPath: initialPath.value,
 })
-
-const gridStyles = computed(() => ({
-  gridTemplateColumns: `repeat(auto-fill, minmax(${tileSize.value}px, 1fr))`,
-}))
 
 const displayStatusLabel = computed(() => {
   switch (displayStatus.value.state) {
@@ -340,25 +321,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.presenter-console__preview-shell,
-.presenter-console__preview-content {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.presenter-console__preview-content {
-  pointer-events: none;
-}
-
-.presenter-console__preview-shield {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: transparent;
-  cursor: inherit;
-}
-
 .presenter-console__side {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -421,56 +383,6 @@ onUnmounted(() => {
   height: 100%;
   color: #64748b;
   font-size: 0.875rem;
-}
-
-.presenter-console__grid {
-  display: grid;
-  gap: 1rem;
-  align-items: start;
-  max-height: 100%;
-  overflow: auto;
-  padding: 0.25rem;
-}
-
-.presenter-console__tile {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  overflow: hidden;
-  border: 2px solid transparent;
-  border-radius: 0.75rem;
-  background: white;
-  text-align: left;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-  cursor: pointer;
-}
-
-.presenter-console__tile--active {
-  border-color: #4f46e5;
-  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.2);
-}
-
-.presenter-console__tile-preview {
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #f8fafc;
-}
-
-.presenter-console__tile-caption {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  padding: 0.625rem 0.75rem;
-  color: #334155;
-  font-size: 0.75rem;
-}
-
-.presenter-console__tile-caption strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .presenter-console__button {

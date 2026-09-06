@@ -193,7 +193,7 @@ function measureSvgElementBox(element: SVGElement): SvgMeasureRect | null {
     return null
   }
 
-  let box: SvgMeasureRect | null = null
+  let box: SvgMeasureRect | null
   if (tagName === 'svg' || tagName === 'g') {
     box = unionMeasureRects(Array.from(element.children).map(child => measureSvgElementBox(child as SVGElement)))
   } else if (tagName === 'rect' || tagName === 'image' || tagName === 'foreignobject') {

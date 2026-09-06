@@ -66,6 +66,7 @@ const { sidebarPropSpy, sidePreviewPropSpy, bottomStripPropSpy, mockMenuMode, mo
 vi.mock('@/core/utils/config', async () => {
   const appConfigRef = {}
   const appPageConfigRef = {}
+  const routeConfigsRef = { value: [] }
 
   Object.defineProperty(appConfigRef, 'value', {
     get() {
@@ -109,6 +110,7 @@ vi.mock('@/core/utils/config', async () => {
     },
     appConfig: appConfigRef,
     appPageConfig: appPageConfigRef,
+    routeConfigs: routeConfigsRef,
     loadIconConfig: vi.fn().mockResolvedValue({ icons: [] }),
   }
 })
@@ -319,6 +321,7 @@ vi.mock('@lucide/vue', async () => {
     Monitor: createIconStub('MonitorStub'),
     PanelLeft: createIconStub('PanelLeftStub'),
     PanelBottom: createIconStub('PanelBottomStub'),
+    LayoutGrid: createIconStub('LayoutGridStub'),
   }
 })
 
